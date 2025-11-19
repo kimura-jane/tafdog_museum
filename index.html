@@ -17,16 +17,21 @@
   {
     "imports": {
       "react": "https://esm.sh/react@18.2.0",
+      "react/jsx-runtime": "https://esm.sh/react@18.2.0/jsx-runtime",
       "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
       "three": "https://esm.sh/three@0.150.1",
       "@react-three/fiber": "https://esm.sh/@react-three/fiber@8.13.0?external=react,react-dom,three",
       "@react-three/drei": "https://esm.sh/@react-three/drei@9.57.0?external=react,react-dom,three,@react-three/fiber",
-      "lucide-react": "https://esm.sh/lucide-react@0.263.1?external=react,react-dom"
+      "lucide-react": "https://esm.sh/lucide-react@0.263.1?external=react,react-dom",
+      "postprocessing": "https://esm.sh/postprocessing@6.30.0",
+      "@react-three/postprocessing": "https://esm.sh/@react-three/postprocessing@2.15.0?external=react,react-dom,three,@react-three/fiber,postprocessing"
     }
   }
   </script>
   <!-- Babel for compiling JSX -->
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <!-- Load Artwork Data -->
+  <script src="date.js"></script>
 </head>
 <body>
   <div id="root"></div>
@@ -37,31 +42,11 @@
     import { createRoot } from "react-dom/client";
     import { Canvas, useFrame, useThree } from "@react-three/fiber";
     import { Text, PerspectiveCamera, Float, OrbitControls } from "@react-three/drei";
+    import { EffectComposer, Bloom, Vignette } from "@react-three/postprocessing";
     import * as THREE from "three";
     import { Dog as LucideDog, User as LucideUser, Move as LucideMove, X as LucideX } from "lucide-react";
 
-    // --- DATA ---
-    const WORKS = [
-      { id: 1,  title: 'TAF DOG #01', image: 'taf_dog_01.png' },
-      { id: 2,  title: 'TAF DOG #02', image: 'taf_dog_02.png' },
-      { id: 3,  title: 'TAF DOG #03', image: 'taf_dog_03.png' },
-      { id: 4,  title: 'TAF DOG #04', image: 'taf_dog_04.png' },
-      { id: 5,  title: 'TAF DOG #05', image: 'taf_dog_05.png' },
-      { id: 6,  title: 'TAF DOG #06', image: 'taf_dog_06.png' },
-      { id: 7,  title: 'TAF DOG #07', image: 'taf_dog_07.png' },
-      { id: 8,  title: 'TAF DOG #08', image: 'taf_dog_08.png' },
-      { id: 9,  title: 'TAF DOG #09', image: 'taf_dog_09.png' },
-      { id: 10, title: 'TAF DOG #10', image: 'taf_dog_10.png' },
-      { id: 11, title: 'TAF DOG #11', image: 'taf_dog_11.png' },
-      { id: 12, title: 'TAF DOG #12', image: 'taf_dog_12.png' },
-      { id: 13, title: 'TAF DOG #13', image: 'taf_dog_13.png' },
-      { id: 14, title: 'TAF DOG #14', image: 'taf_dog_14.png' },
-      { id: 15, title: 'TAF DOG #15', image: 'taf_dog_15.png' },
-      { id: 16, title: 'TAF DOG #16', image: 'taf_dog_16.png' },
-      { id: 17, title: 'TAF DOG #17', image: 'taf_dog_17.png' },
-      { id: 18, title: 'TAF DOG #18', image: 'taf_dog_18.png' }
-    ];
-
+    // --- COLOR VARIANTS ---
     const HUMAN_VARIANTS = Array.from({ length: 20 }, (_, i) => ({
       shirt: `hsl(${(i * 137) % 360}, 60%, ${30 + (i % 3) * 10}%)`,
       skin: `hsl(${20 + (i % 5) * 5}, ${60 - (i % 3) * 10}%, ${80 - (i % 5) * 10}%)`,
@@ -77,29 +62,39 @@
     DOG_VARIANTS[3] = { body: "#78716c", ear: "#57534e" }; 
     DOG_VARIANTS[5] = { body: "#7f1d1d", ear: "#450a0a" }; 
 
+    // --- CONSTANTS ---
     const ROOM_SIZE = 20;
     const WALL_HEIGHT = 8;
     const ART_Y_POS = 2.5;
     const ART_SCALE = 2.5;
     const MOVEMENT_SPEED = 0.08; 
-    const TURN_SPEED = 0.05;
+    const LERP_FACTOR = 0.15; // How quickly the character turns
+
+    // --- COMPONENTS ---
 
     const Artwork = ({ data, position, rotation, onClick }) => {
       const [texture, setTexture] = useState(null);
+      const imageUrl = `images/${data.image}`; 
+
       useEffect(() => {
         const loader = new THREE.TextureLoader();
-        loader.load(data.image, (loadedTexture) => {
-          loadedTexture.encoding = THREE.sRGBEncoding;
-          setTexture(loadedTexture);
-        });
-      }, [data.image]);
+        loader.load(
+          imageUrl,
+          (loadedTexture) => {
+            loadedTexture.encoding = THREE.sRGBEncoding; 
+            setTexture(loadedTexture);
+          }
+        );
+      }, [imageUrl]);
+
       const materialProps = texture ? { map: texture } : { color: "#333333" };
+
       return (
         <group position={position} rotation={rotation}>
           <Float speed={2} rotationIntensity={0.05} floatIntensity={0.2}>
             <mesh 
               position={[0, 0, 0.3]} 
-              onClick={(e) => { e.stopPropagation(); onClick(data); }}
+              onClick={(e) => { e.stopPropagation(); onClick({ ...data, image: imageUrl }); }}
               onPointerOver={() => (document.body.style.cursor = "pointer")}
               onPointerOut={() => (document.body.style.cursor = "auto")}
             >
@@ -111,14 +106,29 @@
               <meshBasicMaterial color="black" opacity={0.6} transparent />
             </mesh>
           </Float>
-          <spotLight position={[0, 5, 5]} target-position={[0, 0, 0]} angle={0.4} penumbra={0.4} intensity={2} distance={12} />
-          <Text position={[0, -ART_SCALE / 2 - 0.4, 0.2]} fontSize={0.12} color="white" anchorX="center" anchorY="top" font="https://fonts.gstatic.com/s/inter/v12/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuLyfAZ9hjp-Ek-_EeA.woff">
+          <spotLight
+            color="#FFFAF0"
+            position={[0, 5, 5]}
+            target-position={[0, 0, 0]}
+            angle={0.4}
+            penumbra={0.4}
+            intensity={3} 
+            distance={12}
+          />
+          <Text
+            position={[0, -ART_SCALE / 2 - 0.4, 0.2]}
+            fontSize={0.12}
+            color="white"
+            anchorX="center"
+            anchorY="top"
+            font="https://fonts.gstatic.com/s/inter/v12/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuLyfAZ9hjp-Ek-_EeA.woff"
+          >
             {data.title.toUpperCase()}
           </Text>
         </group>
       );
     };
-
+    
     const HumanAvatar = ({ variantIndex }) => {
       const colors = HUMAN_VARIANTS[variantIndex % HUMAN_VARIANTS.length];
       return (
@@ -151,33 +161,58 @@
       const { camera } = useThree();
       const playerRef = useRef(null);
       const position = useRef(new THREE.Vector3(0, 0, 5));
-      const rotation = useRef(0);
-      useFrame((state, delta) => {
+      const velocity = useRef(new THREE.Vector3());
+      
+      const cameraForward = useMemo(() => new THREE.Vector3(), []);
+      const cameraRight = useMemo(() => new THREE.Vector3(), []);
+      const moveDirection = useMemo(() => new THREE.Vector3(), []);
+      
+      useFrame(() => {
         if (!playerRef.current) return;
         const { forward, right } = joystickState.current;
-        if (Math.abs(right) > 0.1) { rotation.current -= right * TURN_SPEED; }
-        let dx = 0, dz = 0;
-        if (Math.abs(forward) > 0.1) {
-          dx = Math.sin(rotation.current) * forward * MOVEMENT_SPEED;
-          dz = Math.cos(rotation.current) * forward * MOVEMENT_SPEED;
-          const nextX = position.current.x - dx;
-          const nextZ = position.current.z - dz;
-          const limit = ROOM_SIZE / 2 - 1.5;
-          if (Math.abs(nextX) < limit && Math.abs(nextZ) < limit) {
-            position.current.x = nextX;
-            position.current.z = nextZ;
-          }
+
+        // Get camera direction
+        camera.getWorldDirection(cameraForward);
+        cameraForward.y = 0;
+        cameraForward.normalize();
+        
+        // ** FIX: Calculate correct RIGHT vector **
+        cameraRight.crossVectors(camera.up, cameraForward);
+
+        // Calculate move direction
+        moveDirection.set(0, 0, 0);
+        moveDirection.add(cameraForward.multiplyScalar(forward));
+        moveDirection.add(cameraRight.multiplyScalar(right)); 
+        moveDirection.normalize();
+
+        // Apply velocity
+        velocity.current.lerp(moveDirection.multiplyScalar(MOVEMENT_SPEED), LERP_FACTOR);
+
+        // Update position and check boundaries
+        const nextPos = position.current.clone().add(velocity.current);
+        const limit = ROOM_SIZE / 2 - 1.0;
+        if (Math.abs(nextPos.x) < limit && Math.abs(nextPos.z) < limit) {
+            position.current.copy(nextPos);
         }
+
         playerRef.current.position.copy(position.current);
-        playerRef.current.rotation.y = rotation.current + Math.PI;
+
+        // Rotate player to face movement direction
+        if (moveDirection.length() > 0.01) {
+          const targetAngle = Math.atan2(moveDirection.x, moveDirection.z);
+          const targetQuaternion = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), targetAngle);
+          playerRef.current.quaternion.slerp(targetQuaternion, LERP_FACTOR);
+        }
+
+        // Update camera target
         if (controlsRef.current) {
-          camera.position.x -= dx;
-          camera.position.z -= dz;
           const targetY = isDogMode ? 0.5 : 1.2;
-          controlsRef.current.target.lerp(new THREE.Vector3(position.current.x, position.current.y + targetY, position.current.z), 0.1);
+          const targetPosition = new THREE.Vector3(position.current.x, targetY, position.current.z);
+          controlsRef.current.target.lerp(targetPosition, LERP_FACTOR);
           controlsRef.current.update();
         }
       });
+
       return (
         <group ref={playerRef}>
           {isDogMode ? <DogAvatar variantIndex={dogVariant} /> : <HumanAvatar variantIndex={humanVariant} />}
@@ -188,28 +223,30 @@
 
     const GalleryRoom = ({ onSelectArt }) => {
       const artworks = useMemo(() => {
+        const worksData = window.WORKS || []; 
         const items = [];
         const spacing = ROOM_SIZE / 6; 
-        WORKS.forEach((work, index) => {
+        worksData.forEach((work, index) => {
           let pos = [0, ART_Y_POS, 0], rot = [0, 0, 0];
           if (index < 5) { pos = [(index - 2) * spacing, ART_Y_POS, -ROOM_SIZE / 2]; rot = [0, 0, 0]; } 
           else if (index < 10) { pos = [ROOM_SIZE / 2, ART_Y_POS, (index - 7) * spacing]; rot = [0, -Math.PI / 2, 0]; } 
           else if (index < 15) { pos = [(12 - index) * spacing, ART_Y_POS, ROOM_SIZE / 2]; rot = [0, Math.PI, 0]; } 
-          else { pos = [-ROOM_SIZE / 2, ART_Y_POS, (16 - index) * spacing]; rot = [0, Math.PI / 2, 0]; }
+          else if (worksData.length > 15) { pos = [-ROOM_SIZE / 2, ART_Y_POS, (16 - index) * spacing]; rot = [0, Math.PI / 2, 0]; }
           items.push(<Artwork key={work.id} data={work} position={pos} rotation={rot} onClick={onSelectArt} />);
         });
         return items;
       }, [onSelectArt]);
+
       return (
         <group>
-          <directionalLight position={[10, 20, 5]} intensity={1.2} castShadow shadow-mapSize-width={2048} shadow-mapSize-height={2048} />
-          <hemisphereLight intensity={0.8} groundColor="#000000" />
-          <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]} receiveShadow><planeGeometry args={[ROOM_SIZE, ROOM_SIZE]} /><meshStandardMaterial color="#1a1a1a" roughness={0.1} metalness={0.4} /></mesh>
+          <directionalLight position={[10, 20, 5]} intensity={0.5} castShadow shadow-mapSize-width={2048} shadow-mapSize-height={2048} />
+          <hemisphereLight intensity={0.4} groundColor="#000000" />
+          <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]} receiveShadow><planeGeometry args={[ROOM_SIZE, ROOM_SIZE]} /><meshStandardMaterial color="#0a0a0a" roughness={0.1} metalness={0.6} /></mesh>
           <gridHelper args={[ROOM_SIZE, 10, 0x444444, 0x222222]} position={[0, 0.01, 0]} />
-          <mesh position={[0, WALL_HEIGHT / 2, -ROOM_SIZE / 2]} receiveShadow><boxGeometry args={[ROOM_SIZE, WALL_HEIGHT, 1]} /><meshStandardMaterial color="#888888" roughness={0.9} /></mesh>
-          <mesh position={[0, WALL_HEIGHT / 2, ROOM_SIZE / 2]} receiveShadow><boxGeometry args={[ROOM_SIZE, WALL_HEIGHT, 1]} /><meshStandardMaterial color="#888888" roughness={0.9} /></mesh>
-          <mesh position={[-ROOM_SIZE / 2, WALL_HEIGHT / 2, 0]} rotation={[0, Math.PI / 2, 0]} receiveShadow><boxGeometry args={[ROOM_SIZE, WALL_HEIGHT, 1]} /><meshStandardMaterial color="#888888" roughness={0.9} /></mesh>
-          <mesh position={[ROOM_SIZE / 2, WALL_HEIGHT / 2, 0]} rotation={[0, Math.PI / 2, 0]} receiveShadow><boxGeometry args={[ROOM_SIZE, WALL_HEIGHT, 1]} /><meshStandardMaterial color="#888888" roughness={0.9} /></mesh>
+          <mesh position={[0, WALL_HEIGHT / 2, -ROOM_SIZE / 2]} receiveShadow><boxGeometry args={[ROOM_SIZE, WALL_HEIGHT, 1]} /><meshStandardMaterial color="#666666" roughness={0.9} /></mesh>
+          <mesh position={[0, WALL_HEIGHT / 2, ROOM_SIZE / 2]} receiveShadow><boxGeometry args={[ROOM_SIZE, WALL_HEIGHT, 1]} /><meshStandardMaterial color="#666666" roughness={0.9} /></mesh>
+          <mesh position={[-ROOM_SIZE / 2, WALL_HEIGHT / 2, 0]} rotation={[0, Math.PI / 2, 0]} receiveShadow><boxGeometry args={[ROOM_SIZE, WALL_HEIGHT, 1]} /><meshStandardMaterial color="#666666" roughness={0.9} /></mesh>
+          <mesh position={[ROOM_SIZE / 2, WALL_HEIGHT / 2, 0]} rotation={[0, Math.PI / 2, 0]} receiveShadow><boxGeometry args={[ROOM_SIZE, WALL_HEIGHT, 1]} /><meshStandardMaterial color="#666666" roughness={0.9} /></mesh>
           <mesh position={[0, WALL_HEIGHT, 0]} rotation={[Math.PI / 2, 0, 0]}><planeGeometry args={[ROOM_SIZE, ROOM_SIZE]} /><meshBasicMaterial color="#050505" /></mesh>
           <mesh position={[0, 0.5, 0]} castShadow receiveShadow><boxGeometry args={[5, 0.6, 1.5]} /><meshStandardMaterial color="#111" roughness={0.2} /></mesh>
           {artworks}
@@ -254,14 +291,19 @@
       return (
         <div className="absolute bottom-12 left-1/2 -translate-x-1/2 z-20 touch-none select-none">
           <div ref={baseRef} className="w-32 h-32 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 flex items-center justify-center cursor-pointer shadow-2xl" onMouseDown={(e) => { setActive(true); handleMove(e.clientX, e.clientY); }} onTouchStart={(e) => { setActive(true); handleMove(e.touches[0].clientX, e.touches[0].clientY); }}>
-            <div className="w-12 h-12 rounded-full bg-white shadow-[0_0_15px_rgba(255,255,255,0.5)] flex items-center justify-center text-black/50" style={{ transform: `translate(${pos.x}px, ${pos.y}px)` }}>
-               <LucideMove size={20} />
-            </div>
+            <div className="w-12 h-12 rounded-full bg-white shadow-[0_0_15px_rgba(255,255,255,0.5)] flex items-center justify-center text-black/50" style={{ transform: `translate(${pos.x}px, ${pos.y}px)` }}><LucideMove size={20} /></div>
           </div>
           <div className="text-white/30 text-[10px] text-center mt-4 tracking-[0.2em] pointer-events-none">DRAG TO WALK</div>
         </div>
       );
     };
+    
+    const Effects = () => (
+      <EffectComposer>
+        <Bloom luminanceThreshold={0.6} luminanceSmoothing={0.9} height={300} intensity={0.7} />
+        <Vignette eskil={false} offset={0.1} darkness={1.1} />
+      </EffectComposer>
+    );
 
     const App = () => {
       const [isDogMode, setIsDogMode] = useState(false);
@@ -270,17 +312,15 @@
       const [selectedArt, setSelectedArt] = useState(null);
       const joystickState = useRef({ forward: 0, right: 0 });
       const controlsRef = useRef(null);
-
       const handleHumanClick = () => { if (!isDogMode) { setHumanVariant(v => (v + 1) % 20); } else { setIsDogMode(false); } };
       const handleDogClick = () => { if (isDogMode) { setDogVariant(v => (v + 1) % 20); } else { setIsDogMode(true); } };
-
       useEffect(() => {
         const handleKeyDown = (e) => {
           switch(e.key) {
             case "ArrowUp": case "w": joystickState.current.forward = 1; break;
             case "ArrowDown": case "s": joystickState.current.forward = -1; break;
-            case "ArrowLeft": case "a": joystickState.current.right = 1; break;
-            case "ArrowRight": case "d": joystickState.current.right = -1; break;
+            case "ArrowLeft": case "a": joystickState.current.right = -1; break;
+            case "ArrowRight": case "d": joystickState.current.right = 1; break;
           }
         };
         const handleKeyUp = (e) => {
@@ -302,19 +342,23 @@
               <OrbitControls ref={controlsRef} enablePan={false} enableZoom={true} minDistance={2} maxDistance={10} maxPolarAngle={Math.PI / 2 - 0.1} />
               <GalleryRoom onSelectArt={setSelectedArt} />
               <Player isDogMode={isDogMode} humanVariant={humanVariant} dogVariant={dogVariant} joystickState={joystickState} controlsRef={controlsRef} />
+              <Effects />
             </Suspense>
           </Canvas>
-          <div className="absolute top-6 left-6 z-10 pointer-events-none"><h1 className="text-white text-2xl font-bold tracking-widest opacity-90 drop-shadow-lg">TAF DOG MUSEUM</h1></div>
-          <div className="absolute top-6 right-6 z-10 flex gap-3">
-            <button onClick={handleHumanClick} className={`flex items-center gap-2 px-4 py-2 rounded-full transition-all backdrop-blur-md border active:scale-95 ${!isDogMode ? 'bg-white text-black border-white' : 'bg-black/40 text-white/70 border-white/20 hover:bg-white/10'}`}><LucideUser size={18} /><span className="text-xs font-bold tracking-wider">HUMAN</span></button>
-            <button onClick={handleDogClick} className={`flex items-center gap-2 px-4 py-2 rounded-full transition-all backdrop-blur-md border active:scale-95 ${isDogMode ? 'bg-white text-black border-white' : 'bg-black/40 text-white/70 border-white/20 hover:bg-white/10'}`}><LucideDog size={18} /><span className="text-xs font-bold tracking-wider">DOG</span></button>
+          {/* ** FIX: Header layout ** */}
+          <div className="absolute top-0 left-0 right-0 z-10 p-4 flex justify-between items-center w-full pointer-events-none">
+            <h1 className="text-white text-2xl font-bold tracking-widest opacity-90 drop-shadow-lg min-w-0 truncate">TAF DOG MUSEUM</h1>
+            <div className="flex gap-3 pointer-events-auto flex-shrink-0">
+              <button onClick={handleHumanClick} className={`flex items-center gap-2 px-4 py-2 rounded-full transition-all backdrop-blur-md border active:scale-95 ${!isDogMode ? 'bg-white text-black border-white' : 'bg-black/40 text-white/70 border-white/20 hover:bg-white/10'}`}><LucideUser size={18} /><span className="text-xs font-bold tracking-wider">HUMAN</span></button>
+              <button onClick={handleDogClick} className={`flex items-center gap-2 px-4 py-2 rounded-full transition-all backdrop-blur-md border active:scale-95 ${isDogMode ? 'bg-white text-black border-white' : 'bg-black/40 text-white/70 border-white/20 hover:bg-white/10'}`}><LucideDog size={18} /><span className="text-xs font-bold tracking-wider">DOG</span></button>
+            </div>
           </div>
-          <JoystickControl onChange={(data) => { joystickState.current.forward = data.y; joystickState.current.right = -data.x; }} />
+          <JoystickControl onChange={(data) => { joystickState.current.forward = data.y; joystickState.current.right = data.x; }} />
           {selectedArt && (
-            <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-6" onClick={() => setSelectedArt(null)}>
+            <div className={`absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-6 transition-opacity duration-300 ${selectedArt ? 'opacity-100' : 'opacity-0 pointer-events-none'}`} onClick={() => setSelectedArt(null)}>
               <div className="bg-[#1a1a1a] border border-gray-800 max-w-4xl w-full max-h-[90vh] overflow-y-auto flex flex-col md:flex-row rounded-sm shadow-2xl" onClick={(e) => e.stopPropagation()}>
                 <div className="w-full md:w-1/2 bg-black flex items-center justify-center p-4 md:p-12 relative min-h-[300px]">
-                  <img src={selectedArt.image} alt={selectedArt.title} className="max-w-full max-h-[60vh] shadow-[0_0_30px_rgba(0,0,0,0.5)] relative z-10" />
+                  <img src={selectedArt.image} alt={selectedArt.title} className="max-w-full max-h-[60vh] shadow-[0_0_30px_rgba(0,0,0,0.5)] relative z-10" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
                   <div className="absolute inset-0 flex items-center justify-center text-gray-700 z-0">NO IMAGE PREVIEW</div>
                 </div>
                 <div className="w-full md:w-1/2 p-8 md:p-12 flex flex-col justify-between">

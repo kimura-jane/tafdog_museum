@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>TAF DOG MUSEUM</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>window.process = { env: { NODE_ENV: 'production' } };</script>
+  <style>
+    body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background-color: #000; touch-action: none; }
+    #root { width: 100%; height: 100%; }
+    ::-webkit-scrollbar { display: none; }
+  </style>
+  
+  <!-- Import Map: FINAL STABLE VERSION -->
+  <script type="importmap">
+  {
+    "imports": {
+      "react": "https://esm.sh/react@18.2.0",
+      "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
+      "three": "https://esm.sh/three@0.150.1",
+      "@react-three/fiber": "https://esm.sh/@react-three/fiber@8.13.0?external=react,react-dom,three",
+      "@react-three/drei": "https://esm.sh/@react-three/drei@9.57.0?external=react,react-dom,three,@react-three/fiber",
+      "lucide-react": "https://esm.sh/lucide-react@0.263.1?external=react,react-dom"
+    }
+  }
+  </script>
+  <!-- Babel for compiling JSX -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body>
+  <div id="root"></div>
+
+  <!-- Main Application Logic -->
+  <script type="text/babel" data-type="module">
+    import React, { useState, useRef, useEffect, useMemo, Suspense } from "react";
+    import { createRoot } from "react-dom/client";
+    import { Canvas, useFrame, useThree } from "@react-three/fiber";
+    import { Text, PerspectiveCamera, Float, OrbitControls } from "@react-three/drei";
+    import * as THREE from "three";
+    import { Dog as LucideDog, User as LucideUser, Move as LucideMove, X as LucideX } from "lucide-react";
+
+    // --- DATA ---
+    const WORKS = [
+      { id: 1,  title: 'TAF DOG #01', image: 'taf_dog_01.png' },
+      { id: 2,  title: 'TAF DOG #02', image: 'taf_dog_02.png' },
+      { id: 3,  title: 'TAF DOG #03', image: 'taf_dog_03.png' },
+      { id: 4,  title: 'TAF DOG #04', image: 'taf_dog_04.png' },
+      { id: 5,  title: 'TAF DOG #05', image: 'taf_dog_05.png' },
+      { id: 6,  title: 'TAF DOG #06', image: 'taf_dog_06.png' },
+      { id: 7,  title: 'TAF DOG #07', image: 'taf_dog_07.png' },
+      { id: 8,  title: 'TAF DOG #08', image: 'taf_dog_08.png' },
+      { id: 9,  title: 'TAF DOG #09', image: 'taf_dog_09.png' },
+      { id: 10, title: 'TAF DOG #10', image: 'taf_dog_10.png' },
+      { id: 11, title: 'TAF DOG #11', image: 'taf_dog_11.png' },
+      { id: 12, title: 'TAF DOG #12', image: 'taf_dog_12.png' },
+      { id: 13, title: 'TAF DOG #13', image: 'taf_dog_13.png' },
+      { id: 14, title: 'TAF DOG #14', image: 'taf_dog_14.png' },
+      { id: 15, title: 'TAF DOG #15', image: 'taf_dog_15.png' },
+      { id: 16, title: 'TAF DOG #16', image: 'taf_dog_16.png' },
+      { id: 17, title: 'TAF DOG #17', image: 'taf_dog_17.png' },
+      { id: 18, title: 'TAF DOG #18', image: 'taf_dog_18.png' }
+    ];
+
+    const HUMAN_VARIANTS = Array.from({ length: 20 }, (_, i) => ({
+      shirt: `hsl(${(i * 137) % 360}, 60%, ${30 + (i % 3) * 10}%)`,
+      skin: `hsl(${20 + (i % 5) * 5}, ${60 - (i % 3) * 10}%, ${80 - (i % 5) * 10}%)`,
+      pants: `hsl(${(i * 50 + 180) % 360}, 20%, 20%)`
+    }));
+
+    const DOG_VARIANTS = Array.from({ length: 20 }, (_, i) => ({
+      body: `hsl(${(30 + i * 15) % 60}, ${70 + (i % 4) * 10}%, ${40 + (i % 5) * 10}%)`,
+      ear: `hsl(${(30 + i * 15) % 60}, ${80}%, ${30}%)`
+    }));
+    DOG_VARIANTS[1] = { body: "#111111", ear: "#222222" }; 
+    DOG_VARIANTS[2] = { body: "#eeeeee", ear: "#dddddd" }; 
+    DOG_VARIANTS[3] = { body: "#78716c", ear: "#57534e" }; 
+    DOG_VARIANTS[5] = { body: "#7f1d1d", ear: "#450a0a" }; 
+
+    const ROOM_SIZE = 20;
+    const WALL_HEIGHT = 8;
+    const ART_Y_POS = 2.5;
+    const ART_SCALE = 2.5;
+    const MOVEMENT_SPEED = 0.08; 
+    const TURN_SPEED = 0.05;
+
+    const Artwork = ({ data, position, rotation, onClick }) => {
+      const [texture, setTexture] = useState(null);
+      useEffect(() => {
+        const loader = new THREE.TextureLoader();
+        loader.load(data.image, (loadedTexture) => {
+          loadedTexture.encoding = THREE.sRGBEncoding;
+          setTexture(loadedTexture);
+        });
+      }, [data.image]);
+      const materialProps = texture ? { map: texture } : { color: "#333333" };
+      return (
+        <group position={position} rotation={rotation}>
+          <Float speed={2} rotationIntensity={0.05} floatIntensity={0.2}>
+            <mesh 
+              position={[0, 0, 0.3]} 
+              onClick={(e) => { e.stopPropagation(); onClick(data); }}
+              onPointerOver={() => (document.body.style.cursor = "pointer")}
+              onPointerOut={() => (document.body.style.cursor = "auto")}
+            >
+              <boxGeometry args={[ART_SCALE, ART_SCALE, 0.1]} />
+              <meshStandardMaterial {...materialProps} roughness={0.2} metalness={0.1} />
+            </mesh>
+            <mesh position={[0, -0.1, 0.05]}>
+              <planeGeometry args={[ART_SCALE * 0.9, ART_SCALE * 0.9]} />
+              <meshBasicMaterial color="black" opacity={0.6} transparent />
+            </mesh>
+          </Float>
+          <spotLight position={[0, 5, 5]} target-position={[0, 0, 0]} angle={0.4} penumbra={0.4} intensity={2} distance={12} />
+          <Text position={[0, -ART_SCALE / 2 - 0.4, 0.2]} fontSize={0.12} color="white" anchorX="center" anchorY="top" font="https://fonts.gstatic.com/s/inter/v12/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuLyfAZ9hjp-Ek-_EeA.woff">
+            {data.title.toUpperCase()}
+          </Text>
+        </group>
+      );
+    };
+
+    const HumanAvatar = ({ variantIndex }) => {
+      const colors = HUMAN_VARIANTS[variantIndex % HUMAN_VARIANTS.length];
+      return (
+        <group position={[0, 0.85, 0]}>
+          <mesh position={[0, 0, 0]} castShadow><capsuleGeometry args={[0.3, 1.2, 4, 8]} /><meshStandardMaterial color={colors.shirt} roughness={0.3} /></mesh>
+          <mesh position={[0, 0.75, 0]}><sphereGeometry args={[0.25, 16, 16]} /><meshStandardMaterial color="#111" roughness={0.2} /></mesh>
+          <mesh position={[0, 0.55, 0]}><cylinderGeometry args={[0.1, 0.15, 0.2]} /><meshStandardMaterial color={colors.skin} /></mesh>
+        </group>
+      );
+    };
+
+    const DogAvatar = ({ variantIndex }) => {
+      const colors = DOG_VARIANTS[variantIndex % DOG_VARIANTS.length];
+      return (
+        <group position={[0, 0.3, 0]}>
+          <mesh position={[0, 0, -0.1]} castShadow rotation={[0.1, 0, 0]}><boxGeometry args={[0.3, 0.4, 0.7]} /><meshStandardMaterial color={colors.body} roughness={0.8} /></mesh>
+          <mesh position={[0, 0.35, 0.35]}><boxGeometry args={[0.35, 0.35, 0.3]} /><meshStandardMaterial color={colors.ear} roughness={0.8} /></mesh>
+          <mesh position={[0.12, 0.55, 0.3]}><coneGeometry args={[0.08, 0.2, 4]} /><meshStandardMaterial color={colors.ear} roughness={0.8} /></mesh>
+          <mesh position={[-0.12, 0.55, 0.3]}><coneGeometry args={[0.08, 0.2, 4]} /><meshStandardMaterial color={colors.ear} roughness={0.8} /></mesh>
+          <mesh position={[0, 0.2, -0.5]} rotation={[-0.5, 0, 0]}><cylinderGeometry args={[0.04, 0.02, 0.4]} /><meshStandardMaterial color={colors.body} /></mesh>
+          <mesh position={[-0.1, -0.2, 0.15]}> <boxGeometry args={[0.08, 0.4, 0.08]} /> <meshStandardMaterial color={colors.ear} /> </mesh>
+          <mesh position={[0.1, -0.2, 0.15]}> <boxGeometry args={[0.08, 0.4, 0.08]} /> <meshStandardMaterial color={colors.ear} /> </mesh>
+          <mesh position={[-0.1, -0.2, -0.35]}> <boxGeometry args={[0.08, 0.4, 0.08]} /> <meshStandardMaterial color={colors.ear} /> </mesh>
+          <mesh position={[0.1, -0.2, -0.35]}> <boxGeometry args={[0.08, 0.4, 0.08]} /> <meshStandardMaterial color={colors.ear} /> </mesh>
+        </group>
+      );
+    };
+
+    const Player = ({ isDogMode, joystickState, controlsRef, humanVariant, dogVariant }) => {
+      const { camera } = useThree();
+      const playerRef = useRef(null);
+      const position = useRef(new THREE.Vector3(0, 0, 5));
+      const rotation = useRef(0);
+      useFrame((state, delta) => {
+        if (!playerRef.current) return;
+        const { forward, right } = joystickState.current;
+        if (Math.abs(right) > 0.1) { rotation.current -= right * TURN_SPEED; }
+        let dx = 0, dz = 0;
+        if (Math.abs(forward) > 0.1) {
+          dx = Math.sin(rotation.current) * forward * MOVEMENT_SPEED;
+          dz = Math.cos(rotation.current) * forward * MOVEMENT_SPEED;
+          const nextX = position.current.x - dx;
+          const nextZ = position.current.z - dz;
+          const limit = ROOM_SIZE / 2 - 1.5;
+          if (Math.abs(nextX) < limit && Math.abs(nextZ) < limit) {
+            position.current.x = nextX;
+            position.current.z = nextZ;
+          }
+        }
+        playerRef.current.position.copy(position.current);
+        playerRef.current.rotation.y = rotation.current + Math.PI;
+        if (controlsRef.current) {
+          camera.position.x -= dx;
+          camera.position.z -= dz;
+          const targetY = isDogMode ? 0.5 : 1.2;
+          controlsRef.current.target.lerp(new THREE.Vector3(position.current.x, position.current.y + targetY, position.current.z), 0.1);
+          controlsRef.current.update();
+        }
+      });
+      return (
+        <group ref={playerRef}>
+          {isDogMode ? <DogAvatar variantIndex={dogVariant} /> : <HumanAvatar variantIndex={humanVariant} />}
+          <mesh rotation={[-Math.PI/2, 0, 0]} position={[0, 0.02, 0]}><circleGeometry args={[0.4, 32]} /><meshBasicMaterial color="black" opacity={0.3} transparent /></mesh>
+        </group>
+      );
+    };
+
+    const GalleryRoom = ({ onSelectArt }) => {
+      const artworks = useMemo(() => {
+        const items = [];
+        const spacing = ROOM_SIZE / 6; 
+        WORKS.forEach((work, index) => {
+          let pos = [0, ART_Y_POS, 0], rot = [0, 0, 0];
+          if (index < 5) { pos = [(index - 2) * spacing, ART_Y_POS, -ROOM_SIZE / 2]; rot = [0, 0, 0]; } 
+          else if (index < 10) { pos = [ROOM_SIZE / 2, ART_Y_POS, (index - 7) * spacing]; rot = [0, -Math.PI / 2, 0]; } 
+          else if (index < 15) { pos = [(12 - index) * spacing, ART_Y_POS, ROOM_SIZE / 2]; rot = [0, Math.PI, 0]; } 
+          else { pos = [-ROOM_SIZE / 2, ART_Y_POS, (16 - index) * spacing]; rot = [0, Math.PI / 2, 0]; }
+          items.push(<Artwork key={work.id} data={work} position={pos} rotation={rot} onClick={onSelectArt} />);
+        });
+        return items;
+      }, [onSelectArt]);
+      return (
+        <group>
+          <directionalLight position={[10, 20, 5]} intensity={1.2} castShadow shadow-mapSize-width={2048} shadow-mapSize-height={2048} />
+          <hemisphereLight intensity={0.8} groundColor="#000000" />
+          <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]} receiveShadow><planeGeometry args={[ROOM_SIZE, ROOM_SIZE]} /><meshStandardMaterial color="#1a1a1a" roughness={0.1} metalness={0.4} /></mesh>
+          <gridHelper args={[ROOM_SIZE, 10, 0x444444, 0x222222]} position={[0, 0.01, 0]} />
+          <mesh position={[0, WALL_HEIGHT / 2, -ROOM_SIZE / 2]} receiveShadow><boxGeometry args={[ROOM_SIZE, WALL_HEIGHT, 1]} /><meshStandardMaterial color="#888888" roughness={0.9} /></mesh>
+          <mesh position={[0, WALL_HEIGHT / 2, ROOM_SIZE / 2]} receiveShadow><boxGeometry args={[ROOM_SIZE, WALL_HEIGHT, 1]} /><meshStandardMaterial color="#888888" roughness={0.9} /></mesh>
+          <mesh position={[-ROOM_SIZE / 2, WALL_HEIGHT / 2, 0]} rotation={[0, Math.PI / 2, 0]} receiveShadow><boxGeometry args={[ROOM_SIZE, WALL_HEIGHT, 1]} /><meshStandardMaterial color="#888888" roughness={0.9} /></mesh>
+          <mesh position={[ROOM_SIZE / 2, WALL_HEIGHT / 2, 0]} rotation={[0, Math.PI / 2, 0]} receiveShadow><boxGeometry args={[ROOM_SIZE, WALL_HEIGHT, 1]} /><meshStandardMaterial color="#888888" roughness={0.9} /></mesh>
+          <mesh position={[0, WALL_HEIGHT, 0]} rotation={[Math.PI / 2, 0, 0]}><planeGeometry args={[ROOM_SIZE, ROOM_SIZE]} /><meshBasicMaterial color="#050505" /></mesh>
+          <mesh position={[0, 0.5, 0]} castShadow receiveShadow><boxGeometry args={[5, 0.6, 1.5]} /><meshStandardMaterial color="#111" roughness={0.2} /></mesh>
+          {artworks}
+        </group>
+      );
+    };
+
+    const JoystickControl = ({ onChange }) => {
+      const [active, setActive] = useState(false);
+      const baseRef = useRef(null);
+      const [pos, setPos] = useState({ x: 0, y: 0 });
+      const handleEnd = () => { setActive(false); setPos({ x: 0, y: 0 }); onChange({ x: 0, y: 0 }); };
+      const handleMove = (clientX, clientY) => {
+        if (!baseRef.current) return;
+        const base = baseRef.current.getBoundingClientRect();
+        const centerX = base.left + base.width / 2;
+        const centerY = base.top + base.height / 2;
+        let dx = clientX - centerX, dy = centerY - clientY; 
+        const distance = Math.sqrt(dx*dx + dy*dy);
+        const maxDist = 40; 
+        if (distance > maxDist) { const ratio = maxDist / distance; dx *= ratio; dy *= ratio; }
+        setPos({ x: dx, y: -dy }); 
+        onChange({ x: dx / maxDist, y: dy / maxDist });
+      };
+      useEffect(() => {
+        const onTouchMove = (e) => { if(active) { e.preventDefault(); handleMove(e.touches[0].clientX, e.touches[0].clientY);} };
+        const onMouseMove = (e) => { if(active) handleMove(e.clientX, e.clientY); };
+        const onEnd = () => handleEnd();
+        if (active) {
+          window.addEventListener('touchmove', onTouchMove, { passive: false });
+          window.addEventListener('touchend', onEnd);
+          window.addEventListener('mousemove', onMouseMove);
+          window.addEventListener('mouseup', onEnd);
+        }
+        return () => {
+          window.removeEventListener('touchmove', onTouchMove);
+          window.removeEventListener('touchend', onEnd);
+          window.removeEventListener('mousemove', onMouseMove);
+          window.removeEventListener('mouseup', onEnd);
+        };
+      }, [active]);
+      return (
+        <div className="absolute bottom-12 left-1/2 -translate-x-1/2 z-20 touch-none select-none">
+          <div ref={baseRef} className="w-32 h-32 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 flex items-center justify-center cursor-pointer shadow-2xl" onMouseDown={(e) => { setActive(true); handleMove(e.clientX, e.clientY); }} onTouchStart={(e) => { setActive(true); handleMove(e.touches[0].clientX, e.touches[0].clientY); }}>
+            <div className="w-12 h-12 rounded-full bg-white shadow-[0_0_15px_rgba(255,255,255,0.5)] flex items-center justify-center text-black/50" style={{ transform: `translate(${pos.x}px, ${pos.y}px)` }}>
+               <LucideMove size={20} />
+            </div>
+          </div>
+          <div className="text-white/30 text-[10px] text-center mt-4 tracking-[0.2em] pointer-events-none">DRAG TO WALK</div>
+        </div>
+      );
+    };
+
+    const App = () => {
+      const [isDogMode, setIsDogMode] = useState(false);
+      const [humanVariant, setHumanVariant] = useState(0);
+      const [dogVariant, setDogVariant] = useState(0);
+      const [selectedArt, setSelectedArt] = useState(null);
+      const joystickState = useRef({ forward: 0, right: 0 });
+      const controlsRef = useRef(null);
+
+      const handleHumanClick = () => { if (!isDogMode) { setHumanVariant(v => (v + 1) % 20); } else { setIsDogMode(false); } };
+      const handleDogClick = () => { if (isDogMode) { setDogVariant(v => (v + 1) % 20); } else { setIsDogMode(true); } };
+
+      useEffect(() => {
+        const handleKeyDown = (e) => {
+          switch(e.key) {
+            case "ArrowUp": case "w": joystickState.current.forward = 1; break;
+            case "ArrowDown": case "s": joystickState.current.forward = -1; break;
+            case "ArrowLeft": case "a": joystickState.current.right = 1; break;
+            case "ArrowRight": case "d": joystickState.current.right = -1; break;
+          }
+        };
+        const handleKeyUp = (e) => {
+          switch(e.key) {
+            case "ArrowUp": case "ArrowDown": case "w": case "s": joystickState.current.forward = 0; break;
+            case "ArrowLeft": case "ArrowRight": case "a": case "d": joystickState.current.right = 0; break;
+          }
+        };
+        window.addEventListener("keydown", handleKeyDown);
+        window.addEventListener("keyup", handleKeyUp);
+        return () => { window.removeEventListener("keydown", handleKeyDown); window.removeEventListener("keyup", handleKeyUp); };
+      }, []);
+
+      return (
+        <div className="relative w-full h-screen bg-black overflow-hidden font-sans select-none">
+          <Canvas shadows dpr={[1, 1.5]}>
+            <Suspense fallback={null}>
+              <PerspectiveCamera makeDefault fov={50} position={[0, 3, 8]} />
+              <OrbitControls ref={controlsRef} enablePan={false} enableZoom={true} minDistance={2} maxDistance={10} maxPolarAngle={Math.PI / 2 - 0.1} />
+              <GalleryRoom onSelectArt={setSelectedArt} />
+              <Player isDogMode={isDogMode} humanVariant={humanVariant} dogVariant={dogVariant} joystickState={joystickState} controlsRef={controlsRef} />
+            </Suspense>
+          </Canvas>
+          <div className="absolute top-6 left-6 z-10 pointer-events-none"><h1 className="text-white text-2xl font-bold tracking-widest opacity-90 drop-shadow-lg">TAF DOG MUSEUM</h1></div>
+          <div className="absolute top-6 right-6 z-10 flex gap-3">
+            <button onClick={handleHumanClick} className={`flex items-center gap-2 px-4 py-2 rounded-full transition-all backdrop-blur-md border active:scale-95 ${!isDogMode ? 'bg-white text-black border-white' : 'bg-black/40 text-white/70 border-white/20 hover:bg-white/10'}`}><LucideUser size={18} /><span className="text-xs font-bold tracking-wider">HUMAN</span></button>
+            <button onClick={handleDogClick} className={`flex items-center gap-2 px-4 py-2 rounded-full transition-all backdrop-blur-md border active:scale-95 ${isDogMode ? 'bg-white text-black border-white' : 'bg-black/40 text-white/70 border-white/20 hover:bg-white/10'}`}><LucideDog size={18} /><span className="text-xs font-bold tracking-wider">DOG</span></button>
+          </div>
+          <JoystickControl onChange={(data) => { joystickState.current.forward = data.y; joystickState.current.right = -data.x; }} />
+          {selectedArt && (
+            <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-6" onClick={() => setSelectedArt(null)}>
+              <div className="bg-[#1a1a1a] border border-gray-800 max-w-4xl w-full max-h-[90vh] overflow-y-auto flex flex-col md:flex-row rounded-sm shadow-2xl" onClick={(e) => e.stopPropagation()}>
+                <div className="w-full md:w-1/2 bg-black flex items-center justify-center p-4 md:p-12 relative min-h-[300px]">
+                  <img src={selectedArt.image} alt={selectedArt.title} className="max-w-full max-h-[60vh] shadow-[0_0_30px_rgba(0,0,0,0.5)] relative z-10" />
+                  <div className="absolute inset-0 flex items-center justify-center text-gray-700 z-0">NO IMAGE PREVIEW</div>
+                </div>
+                <div className="w-full md:w-1/2 p-8 md:p-12 flex flex-col justify-between">
+                  <div>
+                    <h2 className="text-4xl font-light text-white mb-2 tracking-wide">{selectedArt.title}</h2>
+                    <div className="h-1 w-12 bg-white/20 mb-8"></div>
+                    <p className="text-gray-400 leading-relaxed font-light text-sm">TAF DOGコレクションのユニークな作品。ローポリゴンの美学と、どこか哀愁漂う表情が特徴です。</p>
+                  </div>
+                  <div className="mt-12 flex justify-between items-end">
+                    <div><span className="block text-gray-600 text-[10px] uppercase tracking-widest mb-1">Artist</span><span className="text-white text-sm">TAF DOG Project</span></div>
+                    <button className="bg-white text-black px-6 py-3 text-xs font-bold tracking-wider hover:bg-gray-200 transition-colors">OPENSEA</button>
+                  </div>
+                </div>
+                <button className="absolute top-4 right-4 text-white/50 hover:text-white p-2" onClick={() => setSelectedArt(null)}><LucideX size={24} /></button>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    };
+
+    const container = document.getElementById("root");
+    if (container) { createRoot(container).render(<App />); }
+  </script>
+</body>
+</html>

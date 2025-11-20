@@ -43,7 +43,6 @@
     import { Text, PerspectiveCamera, Float, OrbitControls, Center } from "@react-three/drei";
     import * as THREE from "three";
 
-    // --- DATA EMBEDDED (Fallback) ---
     const DEFAULT_WORKS = [
       { id: 1,  title: 'TAF DOG #01', image: 'taf_dog_01.png' },
       { id: 2,  title: 'TAF DOG #02', image: 'taf_dog_02.png' },
@@ -90,8 +89,10 @@
     const ART_SCALE = 2.5;
     const MOVEMENT_SPEED = 0.04; 
     const LERP_FACTOR = 0.15;
-    const WALL_OFFSET = 0.8;
+    // **FIX: 額縁の厚みを考慮して、さらに手前に出す**
+    const WALL_OFFSET = 1.2;
 
+    // --- AVATAR COMPONENTS ---
     const HumanAvatar = ({ variantIndex, isMoving }) => {
       const colors = HUMAN_VARIANTS[variantIndex % HUMAN_VARIANTS.length];
       const leftArm = useRef();
@@ -158,25 +159,42 @@
       );
     };
 
-    // --- DECORATION COMPONENTS ---
-    const Bench = () => {
+    // --- DECORATION COMPONENTS (Jomon & Pillar) ---
+    const JomonPottery = () => {
       return (
-        <group position={[0, 0.3, 0]}>
-          {/* Seat */}
-          <mesh position={[0, 0.3, 0]} castShadow receiveShadow>
-            <boxGeometry args={[3.5, 0.15, 1.2]} />
-            <meshStandardMaterial color="#1a1a1a" roughness={0.2} />
+        <group position={[0, 1, 0]}>
+          {/* 縄文土器っぽい形 */}
+          <mesh position={[0, 0, 0]} castShadow>
+             <cylinderGeometry args={[0.4, 0.2, 1, 16]} />
+             <meshStandardMaterial color="#8b5a2b" roughness={0.9} />
           </mesh>
-          {/* Legs */}
-          <mesh position={[1.4, -0.15, 0]}>
-            <boxGeometry args={[0.2, 0.6, 1.1]} />
-            <meshStandardMaterial color="#333" />
+          <mesh position={[0, 0.6, 0]} castShadow>
+             <cylinderGeometry args={[0.5, 0.4, 0.4, 16]} />
+             <meshStandardMaterial color="#8b5a2b" roughness={0.9} />
           </mesh>
-          <mesh position={[-1.4, -0.15, 0]}>
-            <boxGeometry args={[0.2, 0.6, 1.1]} />
-            <meshStandardMaterial color="#333" />
+           {/* 台座 */}
+          <mesh position={[0, -0.75, 0]}>
+             <boxGeometry args={[1, 0.5, 1]} />
+             <meshStandardMaterial color="#111" roughness={0.5} />
           </mesh>
         </group>
+      );
+    };
+
+    const Pillars = () => {
+      // 4本の柱を配置
+      const positions = [
+        [5, 2.5, 5], [-5, 2.5, 5], [5, 2.5, -5], [-5, 2.5, -5]
+      ];
+      return (
+        <>
+          {positions.map((pos, i) => (
+            <mesh key={i} position={pos} castShadow>
+              <cylinderGeometry args={[0.4, 0.4, 5, 32]} />
+              <meshStandardMaterial color="#333" roughness={0.5} />
+            </mesh>
+          ))}
+        </>
       );
     };
 
@@ -209,8 +227,7 @@
       return (
         <group position={position} rotation={rotation}>
           <Float speed={2} rotationIntensity={0.05} floatIntensity={0.2}>
-            {/* --- 額装 (Frame) --- */}
-            {/* 外枠 (黒) */}
+            {/* 額装 (Frame) */}
             <mesh position={[0, 0, 0.22]}>
                <boxGeometry args={[ART_SCALE + 0.4, ART_SCALE + 0.4, 0.05]} />
                <meshStandardMaterial color="#111" roughness={0.4} />
@@ -265,11 +282,8 @@
         cameraForward.normalize();
         cameraRight.crossVectors(cameraForward, camera.up);
 
-        // forwardは「上に倒すと1(プラス)」
-        // 3D空間では「前」は Zマイナス方向。
-        // つまり forwardがプラスのとき、Zマイナスに進みたい。
         moveDirection.set(0, 0, 0)
-          .add(cameraForward.multiplyScalar(-forward)) // 上入力(プラス) -> Zマイナス
+          .add(cameraForward.multiplyScalar(-forward))
           .add(cameraRight.multiplyScalar(right))
           .normalize();
 
@@ -332,17 +346,16 @@
         <group>
           <directionalLight position={[10, 20, 5]} intensity={2.0} castShadow />
           <hemisphereLight intensity={2.5} groundColor="#222" color="#fff" />
-          {/* 床 */}
           <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow><planeGeometry args={[ROOM_SIZE, ROOM_SIZE]} /><meshStandardMaterial color="#111" roughness={0.2} metalness={0.5} /></mesh>
           <gridHelper args={[ROOM_SIZE, 10, '#444', '#222']} position={[0, 0.01, 0]} />
-          {/* 壁 */}
           <mesh position={[0, WALL_HEIGHT / 2, -ROOM_SIZE / 2]} receiveShadow><boxGeometry args={[ROOM_SIZE, WALL_HEIGHT, 1]} /><meshStandardMaterial color="#444" roughness={0.8} /></mesh>
           <mesh position={[0, WALL_HEIGHT / 2, ROOM_SIZE / 2]} receiveShadow><boxGeometry args={[ROOM_SIZE, WALL_HEIGHT, 1]} /><meshStandardMaterial color="#444" roughness={0.8} /></mesh>
           <mesh position={[-ROOM_SIZE / 2, WALL_HEIGHT / 2, 0]} rotation={[0, Math.PI / 2, 0]} receiveShadow><boxGeometry args={[ROOM_SIZE, WALL_HEIGHT, 1]} /><meshStandardMaterial color="#444" roughness={0.8} /></mesh>
           <mesh position={[ROOM_SIZE / 2, WALL_HEIGHT / 2, 0]} rotation={[0, Math.PI / 2, 0]} receiveShadow><boxGeometry args={[ROOM_SIZE, WALL_HEIGHT, 1]} /><meshStandardMaterial color="#444" roughness={0.8} /></mesh>
           <mesh position={[0, WALL_HEIGHT, 0]} rotation={[Math.PI / 2, 0, 0]}><planeGeometry args={[ROOM_SIZE, ROOM_SIZE]} /><meshBasicMaterial color="#000" /></mesh>
-          {/* 装飾 */}
-          <Bench />
+          {/* 装飾 (土器と柱) */}
+          <JomonPottery />
+          <Pillars />
           <WallSign />
           {items}
         </group>
@@ -359,21 +372,12 @@
         const base = baseRef.current.getBoundingClientRect();
         const centerX = base.left + base.width / 2;
         const centerY = base.top + base.height / 2;
-        
-        // **FIX: 見た目の動きの修正**
-        // 指を上に動かす -> clientYが小さくなる -> dyはマイナスになるべき
         let dx = clientX - centerX;
         let dy = clientY - centerY; 
-
         const distance = Math.sqrt(dx*dx + dy*dy);
         const maxDist = 40; 
         if (distance > maxDist) { const ratio = maxDist / distance; dx *= ratio; dy *= ratio; }
-        
-        setPos({ x: dx, y: dy }); // 見た目の移動
-
-        // **FIX: 論理的な入力値の修正**
-        // 画面上の「上(dyマイナス)」は、ゲーム内の「前進(+1)」にしたい
-        // なので、yには -dy を渡す
+        setPos({ x: dx, y: dy });
         onChange({ x: dx / maxDist, y: -(dy / maxDist) });
       };
 
@@ -462,7 +466,8 @@
                     <p className="text-gray-400 mt-4 leading-relaxed font-light text-sm">TAF DOGコレクションのユニークな作品。ローポリゴンの美学と、どこか哀愁漂う表情が特徴です。</p>
                   </div>
                   <div className="mt-12 flex justify-between items-end">
-                    <div><span className="block text-gray-600 text-[10px] uppercase tracking-widest mb-1">Artist</span><span className="text-white text-sm">TAF DOG Project</span></div>
+                    {/* **FIX: アーティスト名を「草間縄文」に変更** */}
+                    <div><span className="block text-gray-600 text-[10px] uppercase tracking-widest mb-1">Artist</span><span className="text-white text-sm">草間縄文</span></div>
                     <button 
                       className="bg-white text-black px-6 py-3 text-xs font-bold tracking-wider hover:bg-gray-200 transition-colors"
                       onClick={() => window.open('https://opensea.io/ja/collection/taf-dog', '_blank')}

@@ -26,7 +26,6 @@
   }
   </script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-  <!-- 念のため data.js と date.js 両方を読み込む -->
   <script src="data.js" defer></script>
   <script src="date.js" defer></script>
 </head>
@@ -86,14 +85,13 @@
     DOG_VARIANTS[2] = { body: "#eeeeee", ear: "#dddddd" }; 
     DOG_VARIANTS[3] = { body: "#78716c", ear: "#57534e" }; 
 
-    // **FIX: 部屋を広く、絵を大きく**
     const ROOM_SIZE = 32; 
     const WALL_HEIGHT = 10;
     const ART_Y_POS = 3.5;
     const ART_SCALE = 4.0;
     const MOVEMENT_SPEED = 0.04; 
     const LERP_FACTOR = 0.15;
-    const WALL_OFFSET = 1.5; // 壁からの距離
+    const WALL_OFFSET = 1.5; 
 
     const HumanAvatar = ({ variantIndex, isMoving }) => {
       const colors = HUMAN_VARIANTS[variantIndex % HUMAN_VARIANTS.length];
@@ -179,20 +177,26 @@
         const loader = new THREE.TextureLoader();
         loader.setCrossOrigin('anonymous');
         
-        // **FIX: images/ などの予測をやめて、ファイル名を直接読み込む**
-        // スクリーンショットを見る限り、index.htmlと同じ場所に画像があるため
         const filename = data.image;
         loader.load(
           filename, 
           (tex) => { 
             tex.encoding = THREE.sRGBEncoding; 
+            // **FIX: ここが重要！変なサイズの画像でも強制的に表示させる設定**
+            tex.minFilter = THREE.LinearFilter;
+            tex.generateMipmaps = false; 
             setTexture(tex); 
           }, 
           undefined, 
           () => {
-             // 念のため大文字拡張子も試す
              loader.load(filename.replace('.png', '.PNG'), 
-               (tex2) => { tex2.encoding = THREE.sRGBEncoding; setTexture(tex2); },
+               (tex2) => { 
+                 tex2.encoding = THREE.sRGBEncoding; 
+                 // ここも同じ設定
+                 tex2.minFilter = THREE.LinearFilter;
+                 tex2.generateMipmaps = false; 
+                 setTexture(tex2); 
+               },
                undefined,
                () => setError(true)
              )
@@ -205,7 +209,6 @@
       return (
         <group position={position} rotation={rotation}>
           <Float speed={2} rotationIntensity={0.05} floatIntensity={0.2}>
-            {/* 額装 */}
             <mesh position={[0, 0, 0.22]}>
                <boxGeometry args={[ART_SCALE + 0.4, ART_SCALE + 0.4, 0.05]} />
                <meshStandardMaterial color="#111" roughness={0.4} />
@@ -223,7 +226,6 @@
               <boxGeometry args={[ART_SCALE, ART_SCALE, 0.02]} />
               <meshStandardMaterial {...materialProps} roughness={0.2} metalness={0.1} />
             </mesh>
-            {/* エラー表示 */}
             {(!texture || error) && (
                <Text position={[0, 0, 0.4]} fontSize={0.3} color="black" maxWidth={ART_SCALE * 0.8} textAlign="center">
                  {error ? "NO IMAGE" : "LOADING..."}
@@ -257,9 +259,9 @@
         cameraForward.normalize();
         cameraRight.crossVectors(cameraForward, camera.up);
 
-        // 上入力(プラス) = 前進(カメラの向き)
+        // **FIX: 上下逆の修正。今回は単純に符号を反転させる (前回と逆にする)**
         moveDirection.set(0, 0, 0)
-          .add(cameraForward.multiplyScalar(forward)) 
+          .add(cameraForward.multiplyScalar(-forward)) // ここをマイナスに戻すことで「上＝前」にする
           .add(cameraRight.multiplyScalar(right))
           .normalize();
 
@@ -351,7 +353,7 @@
         const maxDist = 40; 
         if (distance > maxDist) { const ratio = maxDist / distance; dx *= ratio; dy *= ratio; }
         setPos({ x: dx, y: dy });
-        onChange({ x: dx / maxDist, y: -(dy / maxDist) });
+        onChange({ x: dx / maxDist, y: dy / maxDist });
       };
 
       const handleEnd = () => { setActive(false); setPos({ x: 0, y: 0 }); onChange({ x: 0, y: 0 }); };

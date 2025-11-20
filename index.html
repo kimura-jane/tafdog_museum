@@ -7,7 +7,7 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script>window.process = { env: { NODE_ENV: 'production' } };</script>
   <style>
-    body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background-color: #000; touch-action: none; }
+    body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background-color: #000; touch-action: none; font-family: sans-serif; }
     #root { width: 100%; height: 100%; }
     ::-webkit-scrollbar { display: none; }
   </style>
@@ -19,11 +19,9 @@
       "react/jsx-runtime": "https://esm.sh/react@18.2.0/jsx-runtime",
       "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
       "three": "https://esm.sh/three@0.150.1",
-      "@react-three/fiber": "https://esm.sh/@react-three/fiber@8.13.0?external=react,react-dom,three",
-      "@react-three/drei": "https://esm.sh/@react-three/drei@9.57.0?external=react,react-dom,three,@react-three/fiber",
-      "lucide-react": "https://esm.sh/lucide-react@0.263.1?external=react,react-dom",
-      "postprocessing": "https://esm.sh/postprocessing@6.30.0",
-      "@react-three/postprocessing": "https://esm.sh/@react-three/postprocessing@2.15.0?external=react,react-dom,three,@react-three/fiber,postprocessing"
+      "@react-three/fiber": "https://esm.sh/all/@react-three/fiber@8.13.0",
+      "@react-three/drei": "https://esm.sh/all/@react-three/drei@9.57.0",
+      "lucide-react": "https://esm.sh/lucide-react@0.263.1"
     }
   }
   </script>
@@ -38,7 +36,6 @@
     import { createRoot } from "react-dom/client";
     import { Canvas, useFrame, useThree } from "@react-three/fiber";
     import { Text, PerspectiveCamera, Float, OrbitControls } from "@react-three/drei";
-    import { EffectComposer, Bloom, Vignette } from "@react-three/postprocessing";
     import * as THREE from "three";
     import { Dog as LucideDog, User as LucideUser, Move as LucideMove, X as LucideX } from "lucide-react";
 
@@ -61,6 +58,22 @@
     const MOVEMENT_SPEED = 0.08; 
     const LERP_FACTOR = 0.15;
 
+    class ErrorBoundary extends React.Component {
+      constructor(props) {
+        super(props);
+        this.state = { hasError: false };
+      }
+      static getDerivedStateFromError(error) {
+        return { hasError: true };
+      }
+      render() {
+        if (this.state.hasError) {
+          return <div style={{ color: 'white', padding: '20px' }}><h1>エラーが発生しました。</h1><p>ページをリロードしてみてください。</p></div>;
+        }
+        return this.props.children; 
+      }
+    }
+
     const Artwork = ({ data, position, rotation, onClick }) => {
       const [texture, setTexture] = useState(null);
       const imageUrl = data.image; 
@@ -73,7 +86,7 @@
         });
       }, [imageUrl]);
       
-      const materialProps = texture ? { map: texture } : { color: "#FFFFFF" }; // Fallback to bright white
+      const materialProps = texture ? { map: texture } : { color: "#FFFFFF" };
 
       return (
         <group position={position} rotation={rotation}>
@@ -190,9 +203,9 @@
 
       return (
         <group>
-          {/* ** FIX: Increased lighting intensity ** */}
           <directionalLight position={[10, 20, 5]} intensity={1.0} castShadow shadow-mapSize-width={1024} shadow-mapSize-height={1024} />
-          <hemisphereLight intensity={1.2} groundColor="#000000" />
+          {/* ** FIX: Increased ambient lighting ** */}
+          <hemisphereLight intensity={1.5} groundColor="#000000" />
           <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow><planeGeometry args={[ROOM_SIZE, ROOM_SIZE]} /><meshStandardMaterial color="#0a0a0a" roughness={0.1} metalness={0.6} /></mesh>
           <gridHelper args={[ROOM_SIZE, 10, '#444444', '#222222']} position={[0, 0.01, 0]} />
           <mesh position={[0, WALL_HEIGHT / 2, -ROOM_SIZE / 2]} receiveShadow><boxGeometry args={[ROOM_SIZE, WALL_HEIGHT, 1]} /><meshStandardMaterial color="#555555" roughness={0.9} /></mesh>
@@ -249,23 +262,34 @@
         </div>
       );
     };
-    
-    const Effects = () => (
-      <EffectComposer>
-        <Bloom luminanceThreshold={0.6} luminanceSmoothing={0.9} height={300} intensity={0.7} />
-        <Vignette eskil={false} offset={0.1} darkness={1.1} />
-      </EffectComposer>
-    );
 
     const App = () => {
+      const [isDataLoaded, setIsDataLoaded] = useState(false);
       const [isDogMode, setIsDogMode] = useState(false);
       const [humanVariant, setHumanVariant] = useState(0);
       const [dogVariant, setDogVariant] = useState(0);
       const [selectedArt, setSelectedArt] = useState(null);
       const joystickState = useRef({ forward: 0, right: 0 });
       const controlsRef = useRef(null);
+      
+      useEffect(() => {
+        // ** FIX: Robust data loading **
+        if (window.WORKS) {
+          setIsDataLoaded(true);
+        } else {
+          const interval = setInterval(() => {
+            if (window.WORKS) {
+              setIsDataLoaded(true);
+              clearInterval(interval);
+            }
+          }, 100);
+          return () => clearInterval(interval);
+        }
+      }, []);
+
       const handleHumanClick = () => { if (!isDogMode) { setHumanVariant(v => (v + 1) % 20); } else { setIsDogMode(false); } };
       const handleDogClick = () => { if (isDogMode) { setDogVariant(v => (v + 1) % 20); } else { setIsDogMode(true); } };
+      
       useEffect(() => {
         const handleKeyDown = (e) => {
           switch(e.key) {
@@ -286,6 +310,10 @@
         return () => { window.removeEventListener("keydown", handleKeyDown); window.removeEventListener("keyup", handleKeyUp); };
       }, []);
 
+      if (!isDataLoaded) {
+        return <div style={{ color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>NOW LOADING...</div>;
+      }
+
       return (
         <div className="relative w-full h-screen bg-black overflow-hidden font-sans select-none">
           <Canvas shadows dpr={[1, 1.5]}>
@@ -294,7 +322,6 @@
               <OrbitControls ref={controlsRef} enablePan={false} enableZoom={true} minDistance={2} maxDistance={10} maxPolarAngle={Math.PI / 2 - 0.1} />
               <GalleryRoom onSelectArt={setSelectedArt} />
               <Player joystickState={joystickState} controlsRef={controlsRef} isDogMode={isDogMode} humanVariant={humanVariant} dogVariant={dogVariant} />
-              <Effects />
             </Suspense>
           </Canvas>
           {/* ** FIX: Header layout for mobile ** */}
@@ -331,14 +358,15 @@
     };
     
     // ** FIX: Wait for DOM and date.js to be ready **
-    window.addEventListener('DOMContentLoaded', () => {
-      // A small delay to ensure date.js has populated window.WORKS
-      setTimeout(() => {
-        const container = document.getElementById("root");
-        if (container) {
-          createRoot(container).render(<App />);
-        }
-      }, 100); 
+    window.addEventListener('load', () => {
+      const container = document.getElementById("root");
+      if (container) {
+        createRoot(container).render(
+          <ErrorBoundary>
+            <App />
+          </ErrorBoundary>
+        );
+      }
     });
   </script>
 </body>

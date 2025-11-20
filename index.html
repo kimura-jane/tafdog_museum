@@ -89,10 +89,11 @@
     const WALL_HEIGHT = 8;
     const ART_Y_POS = 2.5;
     const ART_SCALE = 2.5;
-    const MOVEMENT_SPEED = 0.08; 
+    // **FIX: 速度をさらに遅く**
+    const MOVEMENT_SPEED = 0.04; 
     const LERP_FACTOR = 0.15;
-    // 壁からどれくらい手前に浮かすか
-    const WALL_OFFSET = 0.7;
+    // **FIX: 壁からさらに手前に出して埋まり防止**
+    const WALL_OFFSET = 0.9;
 
     // --- AVATAR COMPONENTS ---
     const HumanAvatar = ({ variantIndex, isMoving }) => {
@@ -171,24 +172,15 @@
       useEffect(() => {
         const loader = new THREE.TextureLoader();
         loader.setCrossOrigin('anonymous');
-
         const path1 = `images/${data.image}`;
         const path2 = data.image;
-
-        loader.load(path1, 
-          (tex) => { tex.encoding = THREE.sRGBEncoding; setTexture(tex); },
-          undefined,
-          () => {
-            loader.load(path2, 
-              (tex2) => { tex2.encoding = THREE.sRGBEncoding; setTexture(tex2); },
-              undefined,
-              () => setError(true)
-            );
-          }
-        );
+        loader.load(path1, (tex) => { tex.encoding = THREE.sRGBEncoding; setTexture(tex); }, undefined, () => {
+            loader.load(path2, (tex2) => { tex2.encoding = THREE.sRGBEncoding; setTexture(tex2); }, undefined, () => setError(true));
+        });
       }, [data.image]);
 
-      const materialProps = (!error && texture) ? { map: texture, color: "white" } : { color: fallbackColor };
+      // **FIX: エラー時は「壁と同じ色」ではなく「白」にして見えるようにする**
+      const materialProps = (!error && texture) ? { map: texture, color: "white" } : { color: "#CCCCCC" };
 
       return (
         <group position={position} rotation={rotation}>
@@ -196,7 +188,7 @@
             {/* 額縁 */}
             <mesh position={[0, 0, 0.25]}>
                <boxGeometry args={[ART_SCALE + 0.1, ART_SCALE + 0.1, 0.05]} />
-               <meshStandardMaterial color="#222" roughness={0.5} />
+               <meshStandardMaterial color="#111" roughness={0.5} />
             </mesh>
             {/* 絵 */}
             <mesh 
@@ -208,10 +200,10 @@
               <boxGeometry args={[ART_SCALE, ART_SCALE, 0.1]} />
               <meshStandardMaterial {...materialProps} roughness={0.2} metalness={0.1} />
             </mesh>
+            {/* ローディング/エラーテキスト */}
             {(!texture || error) && (
-               <Text position={[0, 0, 0.4]} fontSize={0.2} color="white" maxWidth={ART_SCALE * 0.8} textAlign="center">
+               <Text position={[0, 0, 0.4]} fontSize={0.3} color="black" maxWidth={ART_SCALE * 0.8} textAlign="center">
                  {error ? "NO IMAGE" : "LOADING..."}
-                 {"\n"}{data.title}
                </Text>
             )}
           </Float>
@@ -277,7 +269,6 @@
         const spacing = ROOM_SIZE / 6; 
         worksData.forEach((work, index) => {
           let pos = [0, ART_Y_POS, 0], rot = [0, 0, 0];
-          // WALL_OFFSET分だけ壁から手前にずらして配置する
           if (index < 5) { 
              pos = [(index - 2) * spacing, ART_Y_POS, -ROOM_SIZE / 2 + WALL_OFFSET]; 
           } 
@@ -317,6 +308,9 @@
     const JoystickControl = ({ onChange }) => {
       const [active, setActive] = useState(false);
       const baseRef = useRef(null);
+      // **FIX: ジョイスティックの表示用の状態 (pos) を追加**
+      const [pos, setPos] = useState({ x: 0, y: 0 });
+
       const handleMove = (clientX, clientY) => {
         if (!baseRef.current) return;
         const base = baseRef.current.getBoundingClientRect();
@@ -326,9 +320,17 @@
         const distance = Math.sqrt(dx*dx + dy*dy);
         const maxDist = 40; 
         if (distance > maxDist) { const ratio = maxDist / distance; dx *= ratio; dy *= ratio; }
+        // **FIX: UIを動かす**
+        setPos({ x: dx, y: dy });
         onChange({ x: dx / maxDist, y: dy / maxDist });
       };
-      const handleEnd = () => { setActive(false); onChange({ x: 0, y: 0 }); };
+      const handleEnd = () => { 
+        setActive(false); 
+        // **FIX: 離したら真ん中に戻す**
+        setPos({ x: 0, y: 0 });
+        onChange({ x: 0, y: 0 }); 
+      };
+      
       useEffect(() => {
         const onTouchMove = (e) => { if(active) { e.preventDefault(); handleMove(e.touches[0].clientX, e.touches[0].clientY);} };
         const onMouseMove = (e) => { if(active) handleMove(e.clientX, e.clientY); };
@@ -352,7 +354,11 @@
                className="w-32 h-32 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 flex items-center justify-center cursor-pointer shadow-2xl" 
                onMouseDown={(e) => { setActive(true); handleMove(e.clientX, e.clientY); }} 
                onTouchStart={(e) => { setActive(true); handleMove(e.touches[0].clientX, e.touches[0].clientY); }}>
-            <div className="w-12 h-12 rounded-full bg-white shadow-[0_0_15px_rgba(255,255,255,0.5)] flex items-center justify-center text-black/50">●</div>
+            {/* **FIX: posを使って丸を動かす** */}
+            <div className="w-12 h-12 rounded-full bg-white shadow-[0_0_15px_rgba(255,255,255,0.5)] flex items-center justify-center text-black/50"
+                 style={{ transform: `translate(${pos.x}px, ${pos.y}px)` }}>
+                 ●
+            </div>
           </div>
           <div className="text-white/30 text-[10px] text-center mt-4 tracking-[0.2em] pointer-events-none">DRAG TO WALK</div>
         </div>

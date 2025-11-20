@@ -12,7 +12,6 @@
     ::-webkit-scrollbar { display: none; }
   </style>
   
-  <!-- Import Map: FINAL STABLE VERSION -->
   <script type="importmap">
   {
     "imports": {
@@ -28,15 +27,12 @@
     }
   }
   </script>
-  <!-- Babel for compiling JSX -->
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-  <!-- Load Artwork Data -->
-  <script src="date.js"></script>
+  <script src="date.js" defer></script>
 </head>
 <body>
   <div id="root"></div>
 
-  <!-- Main Application Logic -->
   <script type="text/babel" data-type="module">
     import React, { useState, useRef, useEffect, useMemo, Suspense } from "react";
     import { createRoot } from "react-dom/client";
@@ -46,13 +42,10 @@
     import * as THREE from "three";
     import { Dog as LucideDog, User as LucideUser, Move as LucideMove, X as LucideX } from "lucide-react";
 
-    // --- COLOR VARIANTS ---
     const HUMAN_VARIANTS = Array.from({ length: 20 }, (_, i) => ({
       shirt: `hsl(${(i * 137) % 360}, 60%, ${30 + (i % 3) * 10}%)`,
       skin: `hsl(${20 + (i % 5) * 5}, ${60 - (i % 3) * 10}%, ${80 - (i % 5) * 10}%)`,
-      pants: `hsl(${(i * 50 + 180) % 360}, 20%, 20%)`
     }));
-
     const DOG_VARIANTS = Array.from({ length: 20 }, (_, i) => ({
       body: `hsl(${(30 + i * 15) % 60}, ${70 + (i % 4) * 10}%, ${40 + (i % 5) * 10}%)`,
       ear: `hsl(${(30 + i * 15) % 60}, ${80}%, ${30}%)`
@@ -60,39 +53,27 @@
     DOG_VARIANTS[1] = { body: "#111111", ear: "#222222" }; 
     DOG_VARIANTS[2] = { body: "#eeeeee", ear: "#dddddd" }; 
     DOG_VARIANTS[3] = { body: "#78716c", ear: "#57534e" }; 
-    DOG_VARIANTS[5] = { body: "#7f1d1d", ear: "#450a0a" }; 
 
-    // --- CONSTANTS ---
     const ROOM_SIZE = 20;
     const WALL_HEIGHT = 8;
     const ART_Y_POS = 2.5;
     const ART_SCALE = 2.5;
     const MOVEMENT_SPEED = 0.08; 
-    const LERP_FACTOR = 0.15; // How quickly the character turns
-
-    // --- COMPONENTS ---
+    const LERP_FACTOR = 0.15;
 
     const Artwork = ({ data, position, rotation, onClick }) => {
       const [texture, setTexture] = useState(null);
-      // ** FIX: Remove 'images/' prefix to load from root **
       const imageUrl = data.image; 
 
       useEffect(() => {
         const loader = new THREE.TextureLoader();
-        loader.load(
-          imageUrl,
-          (loadedTexture) => {
-            loadedTexture.encoding = THREE.sRGBEncoding; 
-            setTexture(loadedTexture);
-          },
-          undefined, // onProgress callback
-          (err) => {
-            console.error('An error happened loading texture:', imageUrl, err);
-          }
-        );
+        loader.load(imageUrl, (loadedTexture) => {
+          loadedTexture.encoding = THREE.sRGBEncoding; 
+          setTexture(loadedTexture);
+        });
       }, [imageUrl]);
-
-      const materialProps = texture ? { map: texture } : { color: "#333333" };
+      
+      const materialProps = texture ? { map: texture } : { color: "#FFFFFF" }; // Fallback to bright white
 
       return (
         <group position={position} rotation={rotation}>
@@ -111,23 +92,8 @@
               <meshBasicMaterial color="black" opacity={0.6} transparent />
             </mesh>
           </Float>
-          <spotLight
-            color="#FFFAF0"
-            position={[0, 5, 5]}
-            target-position={[0, 0, 0]}
-            angle={0.4}
-            penumbra={0.4}
-            intensity={3} 
-            distance={12}
-          />
-          <Text
-            position={[0, -ART_SCALE / 2 - 0.4, 0.2]}
-            fontSize={0.12}
-            color="white"
-            anchorX="center"
-            anchorY="top"
-            font="https://fonts.gstatic.com/s/inter/v12/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuLyfAZ9hjp-Ek-_EeA.woff"
-          >
+          <spotLight color="#FFFAF0" position={[0, 5, 5]} angle={0.4} penumbra={0.4} intensity={3} distance={12} />
+          <Text position={[0, -ART_SCALE / 2 - 0.4, 0.2]} fontSize={0.12} color="white" anchorX="center" anchorY="top">
             {data.title.toUpperCase()}
           </Text>
         </group>
@@ -162,12 +128,11 @@
       );
     };
 
-    const Player = ({ isDogMode, joystickState, controlsRef, humanVariant, dogVariant }) => {
+    const Player = ({ joystickState, controlsRef, isDogMode, humanVariant, dogVariant }) => {
       const { camera } = useThree();
       const playerRef = useRef(null);
       const position = useRef(new THREE.Vector3(0, 0, 5));
       const velocity = useRef(new THREE.Vector3());
-      
       const cameraForward = useMemo(() => new THREE.Vector3(), []);
       const cameraRight = useMemo(() => new THREE.Vector3(), []);
       const moveDirection = useMemo(() => new THREE.Vector3(), []);
@@ -175,39 +140,25 @@
       useFrame(() => {
         if (!playerRef.current) return;
         const { forward, right } = joystickState.current;
-
         camera.getWorldDirection(cameraForward);
         cameraForward.y = 0;
         cameraForward.normalize();
-        
-        // ** FIX: Corrected cross product order for RIGHT vector **
         cameraRight.crossVectors(cameraForward, camera.up);
-
-        moveDirection.set(0, 0, 0);
-        moveDirection.add(cameraForward.multiplyScalar(forward));
-        moveDirection.add(cameraRight.multiplyScalar(right)); 
-        moveDirection.normalize();
-
+        moveDirection.set(0, 0, 0).add(cameraForward.multiplyScalar(forward)).add(cameraRight.multiplyScalar(right)).normalize();
         velocity.current.lerp(moveDirection.multiplyScalar(MOVEMENT_SPEED), LERP_FACTOR);
-
         const nextPos = position.current.clone().add(velocity.current);
         const limit = ROOM_SIZE / 2 - 1.0;
         if (Math.abs(nextPos.x) < limit && Math.abs(nextPos.z) < limit) {
             position.current.copy(nextPos);
         }
-
         playerRef.current.position.copy(position.current);
-
         if (moveDirection.length() > 0.01) {
           const targetAngle = Math.atan2(moveDirection.x, moveDirection.z);
-          const targetQuaternion = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), targetAngle);
-          playerRef.current.quaternion.slerp(targetQuaternion, LERP_FACTOR);
+          playerRef.current.quaternion.slerp(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), targetAngle), LERP_FACTOR);
         }
-
         if (controlsRef.current) {
           const targetY = isDogMode ? 0.5 : 1.2;
-          const targetPosition = new THREE.Vector3(position.current.x, targetY, position.current.z);
-          controlsRef.current.target.lerp(targetPosition, LERP_FACTOR);
+          controlsRef.current.target.lerp(new THREE.Vector3(position.current.x, targetY, position.current.z), LERP_FACTOR);
           controlsRef.current.update();
         }
       });
@@ -215,7 +166,7 @@
       return (
         <group ref={playerRef}>
           {isDogMode ? <DogAvatar variantIndex={dogVariant} /> : <HumanAvatar variantIndex={humanVariant} />}
-          <mesh rotation={[-Math.PI/2, 0, 0]} position={[0, 0.02, 0]}><circleGeometry args={[0.4, 32]} /><meshBasicMaterial color="black" opacity={0.3} transparent /></mesh>
+          <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]}><circleGeometry args={[0.4, 32]} /><meshBasicMaterial color="black" opacity={0.3} transparent /></mesh>
         </group>
       );
     };
@@ -223,14 +174,15 @@
     const GalleryRoom = ({ onSelectArt }) => {
       const artworks = useMemo(() => {
         const worksData = window.WORKS || []; 
+        if(worksData.length === 0) return null;
         const items = [];
         const spacing = ROOM_SIZE / 6; 
         worksData.forEach((work, index) => {
           let pos = [0, ART_Y_POS, 0], rot = [0, 0, 0];
-          if (index < 5) { pos = [(index - 2) * spacing, ART_Y_POS, -ROOM_SIZE / 2]; rot = [0, 0, 0]; } 
+          if (index < 5) { pos = [(index - 2) * spacing, ART_Y_POS, -ROOM_SIZE / 2]; } 
           else if (index < 10) { pos = [ROOM_SIZE / 2, ART_Y_POS, (index - 7) * spacing]; rot = [0, -Math.PI / 2, 0]; } 
           else if (index < 15) { pos = [(12 - index) * spacing, ART_Y_POS, ROOM_SIZE / 2]; rot = [0, Math.PI, 0]; } 
-          else if (worksData.length > 15) { pos = [-ROOM_SIZE / 2, ART_Y_POS, (16 - index) * spacing]; rot = [0, Math.PI / 2, 0]; }
+          else { pos = [-ROOM_SIZE / 2, ART_Y_POS, (17 - index) * spacing]; rot = [0, Math.PI / 2, 0]; }
           items.push(<Artwork key={work.id} data={work} position={pos} rotation={rot} onClick={onSelectArt} />);
         });
         return items;
@@ -238,14 +190,15 @@
 
       return (
         <group>
-          <directionalLight position={[10, 20, 5]} intensity={0.5} castShadow shadow-mapSize-width={2048} shadow-mapSize-height={2048} />
-          <hemisphereLight intensity={0.4} groundColor="#000000" />
-          <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]} receiveShadow><planeGeometry args={[ROOM_SIZE, ROOM_SIZE]} /><meshStandardMaterial color="#0a0a0a" roughness={0.1} metalness={0.6} /></mesh>
-          <gridHelper args={[ROOM_SIZE, 10, 0x444444, 0x222222]} position={[0, 0.01, 0]} />
-          <mesh position={[0, WALL_HEIGHT / 2, -ROOM_SIZE / 2]} receiveShadow><boxGeometry args={[ROOM_SIZE, WALL_HEIGHT, 1]} /><meshStandardMaterial color="#666666" roughness={0.9} /></mesh>
-          <mesh position={[0, WALL_HEIGHT / 2, ROOM_SIZE / 2]} receiveShadow><boxGeometry args={[ROOM_SIZE, WALL_HEIGHT, 1]} /><meshStandardMaterial color="#666666" roughness={0.9} /></mesh>
-          <mesh position={[-ROOM_SIZE / 2, WALL_HEIGHT / 2, 0]} rotation={[0, Math.PI / 2, 0]} receiveShadow><boxGeometry args={[ROOM_SIZE, WALL_HEIGHT, 1]} /><meshStandardMaterial color="#666666" roughness={0.9} /></mesh>
-          <mesh position={[ROOM_SIZE / 2, WALL_HEIGHT / 2, 0]} rotation={[0, Math.PI / 2, 0]} receiveShadow><boxGeometry args={[ROOM_SIZE, WALL_HEIGHT, 1]} /><meshStandardMaterial color="#666666" roughness={0.9} /></mesh>
+          {/* ** FIX: Increased lighting intensity ** */}
+          <directionalLight position={[10, 20, 5]} intensity={1.0} castShadow shadow-mapSize-width={1024} shadow-mapSize-height={1024} />
+          <hemisphereLight intensity={1.2} groundColor="#000000" />
+          <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow><planeGeometry args={[ROOM_SIZE, ROOM_SIZE]} /><meshStandardMaterial color="#0a0a0a" roughness={0.1} metalness={0.6} /></mesh>
+          <gridHelper args={[ROOM_SIZE, 10, '#444444', '#222222']} position={[0, 0.01, 0]} />
+          <mesh position={[0, WALL_HEIGHT / 2, -ROOM_SIZE / 2]} receiveShadow><boxGeometry args={[ROOM_SIZE, WALL_HEIGHT, 1]} /><meshStandardMaterial color="#555555" roughness={0.9} /></mesh>
+          <mesh position={[0, WALL_HEIGHT / 2, ROOM_SIZE / 2]} receiveShadow><boxGeometry args={[ROOM_SIZE, WALL_HEIGHT, 1]} /><meshStandardMaterial color="#555555" roughness={0.9} /></mesh>
+          <mesh position={[-ROOM_SIZE / 2, WALL_HEIGHT / 2, 0]} rotation={[0, Math.PI / 2, 0]} receiveShadow><boxGeometry args={[ROOM_SIZE, WALL_HEIGHT, 1]} /><meshStandardMaterial color="#555555" roughness={0.9} /></mesh>
+          <mesh position={[ROOM_SIZE / 2, WALL_HEIGHT / 2, 0]} rotation={[0, Math.PI / 2, 0]} receiveShadow><boxGeometry args={[ROOM_SIZE, WALL_HEIGHT, 1]} /><meshStandardMaterial color="#555555" roughness={0.9} /></mesh>
           <mesh position={[0, WALL_HEIGHT, 0]} rotation={[Math.PI / 2, 0, 0]}><planeGeometry args={[ROOM_SIZE, ROOM_SIZE]} /><meshBasicMaterial color="#050505" /></mesh>
           <mesh position={[0, 0.5, 0]} castShadow receiveShadow><boxGeometry args={[5, 0.6, 1.5]} /><meshStandardMaterial color="#111" roughness={0.2} /></mesh>
           {artworks}
@@ -340,31 +293,29 @@
               <PerspectiveCamera makeDefault fov={50} position={[0, 3, 8]} />
               <OrbitControls ref={controlsRef} enablePan={false} enableZoom={true} minDistance={2} maxDistance={10} maxPolarAngle={Math.PI / 2 - 0.1} />
               <GalleryRoom onSelectArt={setSelectedArt} />
-              <Player isDogMode={isDogMode} humanVariant={humanVariant} dogVariant={dogVariant} joystickState={joystickState} controlsRef={controlsRef} />
+              <Player joystickState={joystickState} controlsRef={controlsRef} isDogMode={isDogMode} humanVariant={humanVariant} dogVariant={dogVariant} />
               <Effects />
             </Suspense>
           </Canvas>
           {/* ** FIX: Header layout for mobile ** */}
-          <div className="absolute top-0 left-0 right-0 z-10 p-4 flex justify-between items-center w-full pointer-events-none">
-            <h1 className="text-white text-xl sm:text-2xl font-bold tracking-widest opacity-90 drop-shadow-lg min-w-0 truncate">TAF DOG MUSEUM</h1>
-            <div className="flex gap-3 pointer-events-auto flex-shrink-0">
-              <button onClick={handleHumanClick} className={`flex items-center gap-2 px-4 py-2 rounded-full transition-all backdrop-blur-md border active:scale-95 ${!isDogMode ? 'bg-white text-black border-white' : 'bg-black/40 text-white/70 border-white/20 hover:bg-white/10'}`}><LucideUser size={18} /><span className="text-xs font-bold tracking-wider">HUMAN</span></button>
-              <button onClick={handleDogClick} className={`flex items-center gap-2 px-4 py-2 rounded-full transition-all backdrop-blur-md border active:scale-95 ${isDogMode ? 'bg-white text-black border-white' : 'bg-black/40 text-white/70 border-white/20 hover:bg-white/10'}`}><LucideDog size={18} /><span className="text-xs font-bold tracking-wider">DOG</span></button>
+          <div className="absolute top-0 left-0 right-0 z-10 p-3 flex justify-between items-center w-full pointer-events-none">
+            <h1 className="text-white text-lg sm:text-xl font-bold tracking-wider opacity-90 drop-shadow-lg min-w-0 truncate">TAF DOG MUSEUM</h1>
+            <div className="flex gap-2 pointer-events-auto flex-shrink-0">
+              <button onClick={handleHumanClick} className={`flex items-center gap-2 px-3 py-2 rounded-full transition-all backdrop-blur-md border active:scale-95 ${!isDogMode ? 'bg-white text-black border-white' : 'bg-black/40 text-white/70 border-white/20 hover:bg-white/10'}`}><LucideUser size={16} /><span className="text-xs font-bold tracking-wider">HUMAN</span></button>
+              <button onClick={handleDogClick} className={`flex items-center gap-2 px-3 py-2 rounded-full transition-all backdrop-blur-md border active:scale-95 ${isDogMode ? 'bg-white text-black border-white' : 'bg-black/40 text-white/70 border-white/20 hover:bg-white/10'}`}><LucideDog size={16} /><span className="text-xs font-bold tracking-wider">DOG</span></button>
             </div>
           </div>
           <JoystickControl onChange={(data) => { joystickState.current.forward = data.y; joystickState.current.right = data.x; }} />
           {selectedArt && (
-            <div className={`absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 transition-opacity duration-300 ${selectedArt ? 'opacity-100' : 'opacity-0 pointer-events-none'}`} onClick={() => setSelectedArt(null)}>
+            <div className={`absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 transition-opacity duration-300`} onClick={() => setSelectedArt(null)}>
               <div className="bg-[#1a1a1a] border border-gray-800 max-w-4xl w-full max-h-[90vh] overflow-y-auto flex flex-col md:flex-row rounded-sm shadow-2xl" onClick={(e) => e.stopPropagation()}>
                 <div className="w-full md:w-1/2 bg-black flex items-center justify-center p-4 md:p-12 relative min-h-[300px]">
-                  <img src={selectedArt.image} alt={selectedArt.title} className="max-w-full max-h-[60vh] shadow-[0_0_30px_rgba(0,0,0,0.5)] relative z-10" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
-                  <div className="absolute inset-0 flex items-center justify-center text-gray-700 z-0">NO IMAGE PREVIEW</div>
+                  <img src={selectedArt.image} alt={selectedArt.title} className="max-w-full max-h-[60vh] shadow-[0_0_30px_rgba(0,0,0,0.5)] relative z-10" />
                 </div>
                 <div className="w-full md:w-1/2 p-8 md:p-12 flex flex-col justify-between">
                   <div>
                     <h2 className="text-4xl font-light text-white mb-2 tracking-wide">{selectedArt.title}</h2>
-                    <div className="h-1 w-12 bg-white/20 mb-8"></div>
-                    <p className="text-gray-400 leading-relaxed font-light text-sm">TAF DOGコレクションのユニークな作品。ローポリゴンの美学と、どこか哀愁漂う表情が特徴です。</p>
+                    <p className="text-gray-400 mt-4 leading-relaxed font-light text-sm">TAF DOGコレクションのユニークな作品。ローポリゴンの美学と、どこか哀愁漂う表情が特徴です。</p>
                   </div>
                   <div className="mt-12 flex justify-between items-end">
                     <div><span className="block text-gray-600 text-[10px] uppercase tracking-widest mb-1">Artist</span><span className="text-white text-sm">TAF DOG Project</span></div>
@@ -378,9 +329,17 @@
         </div>
       );
     };
-
-    const container = document.getElementById("root");
-    if (container) { createRoot(container).render(<App />); }
+    
+    // ** FIX: Wait for DOM and date.js to be ready **
+    window.addEventListener('DOMContentLoaded', () => {
+      // A small delay to ensure date.js has populated window.WORKS
+      setTimeout(() => {
+        const container = document.getElementById("root");
+        if (container) {
+          createRoot(container).render(<App />);
+        }
+      }, 100); 
+    });
   </script>
 </body>
 </html>

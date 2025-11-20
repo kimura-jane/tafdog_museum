@@ -41,7 +41,7 @@
     import React, { useState, useRef, useEffect, useMemo, Suspense } from "react";
     import { createRoot } from "react-dom/client";
     import { Canvas, useFrame, useThree } from "@react-three/fiber";
-    import { Text, PerspectiveCamera, Float, OrbitControls } from "@react-three/drei";
+    import { Text, PerspectiveCamera, Float, OrbitControls, useTexture } from "@react-three/drei";
     import * as THREE from "three";
 
     // --- DATA EMBEDDED (Fallback) ---
@@ -93,6 +93,43 @@
     const LERP_FACTOR = 0.15;
     const WALL_OFFSET = 1.5; 
 
+    // --- METAVERSE CHARACTER ---
+    const MetaverseCharacter = ({ position, rotationSpeed }) => {
+      const [texture, setTexture] = useState(null);
+      const groupRef = useRef();
+
+      useEffect(() => {
+        const loader = new THREE.TextureLoader();
+        loader.setCrossOrigin('anonymous');
+        // **FIX: ここでもサイズ問題を回避する設定を入れる**
+        loader.load('IMG_1822.png', (tex) => {
+          tex.encoding = THREE.sRGBEncoding;
+          tex.minFilter = THREE.LinearFilter;
+          tex.generateMipmaps = false;
+          setTexture(tex);
+        });
+      }, []);
+
+      useFrame((state, delta) => {
+        if (groupRef.current) {
+          groupRef.current.rotation.y += delta * rotationSpeed;
+          groupRef.current.position.y = 1.5 + Math.sin(state.clock.elapsedTime * 2) * 0.1;
+        }
+      });
+
+      if (!texture) return null;
+
+      return (
+        <group ref={groupRef} position={position}>
+          <mesh>
+            <planeGeometry args={[2, 4]} />
+            <meshStandardMaterial map={texture} transparent={true} side={THREE.DoubleSide} alphaTest={0.5} />
+          </mesh>
+        </group>
+      );
+    };
+
+    // --- AVATAR COMPONENTS ---
     const HumanAvatar = ({ variantIndex, isMoving }) => {
       const colors = HUMAN_VARIANTS[variantIndex % HUMAN_VARIANTS.length];
       const leftArm = useRef();
@@ -182,19 +219,19 @@
           filename, 
           (tex) => { 
             tex.encoding = THREE.sRGBEncoding; 
-            // **FIX: ここが重要！変なサイズの画像でも強制的に表示させる設定**
+            // **FIX: ミップマップを無効化。これで変則的なサイズの画像も必ず表示される**
             tex.minFilter = THREE.LinearFilter;
-            tex.generateMipmaps = false; 
+            tex.generateMipmaps = false;
             setTexture(tex); 
           }, 
           undefined, 
           () => {
+             // 念のため大文字拡張子も試す
              loader.load(filename.replace('.png', '.PNG'), 
                (tex2) => { 
-                 tex2.encoding = THREE.sRGBEncoding; 
-                 // ここも同じ設定
+                 tex2.encoding = THREE.sRGBEncoding;
                  tex2.minFilter = THREE.LinearFilter;
-                 tex2.generateMipmaps = false; 
+                 tex2.generateMipmaps = false;
                  setTexture(tex2); 
                },
                undefined,
@@ -209,6 +246,7 @@
       return (
         <group position={position} rotation={rotation}>
           <Float speed={2} rotationIntensity={0.05} floatIntensity={0.2}>
+            {/* 額装 */}
             <mesh position={[0, 0, 0.22]}>
                <boxGeometry args={[ART_SCALE + 0.4, ART_SCALE + 0.4, 0.05]} />
                <meshStandardMaterial color="#111" roughness={0.4} />
@@ -226,6 +264,7 @@
               <boxGeometry args={[ART_SCALE, ART_SCALE, 0.02]} />
               <meshStandardMaterial {...materialProps} roughness={0.2} metalness={0.1} />
             </mesh>
+            {/* エラー表示 */}
             {(!texture || error) && (
                <Text position={[0, 0, 0.4]} fontSize={0.3} color="black" maxWidth={ART_SCALE * 0.8} textAlign="center">
                  {error ? "NO IMAGE" : "LOADING..."}
@@ -259,9 +298,9 @@
         cameraForward.normalize();
         cameraRight.crossVectors(cameraForward, camera.up);
 
-        // **FIX: 上下逆の修正。今回は単純に符号を反転させる (前回と逆にする)**
+        // **FIX: ジョイスティックの向きを修正 (上＝前)**
         moveDirection.set(0, 0, 0)
-          .add(cameraForward.multiplyScalar(-forward)) // ここをマイナスに戻すことで「上＝前」にする
+          .add(cameraForward.multiplyScalar(forward)) 
           .add(cameraRight.multiplyScalar(right))
           .normalize();
 
@@ -332,6 +371,13 @@
           <mesh position={[ROOM_SIZE / 2, WALL_HEIGHT / 2, 0]} rotation={[0, Math.PI / 2, 0]} receiveShadow><boxGeometry args={[ROOM_SIZE, WALL_HEIGHT, 1]} /><meshStandardMaterial color="#444" roughness={0.8} /></mesh>
           <mesh position={[0, WALL_HEIGHT, 0]} rotation={[Math.PI / 2, 0, 0]}><planeGeometry args={[ROOM_SIZE, ROOM_SIZE]} /><meshBasicMaterial color="#000" /></mesh>
           <WallSign />
+          
+          {/* --- 四隅に IMG_1822.png のキャラクターを配置 --- */}
+          <MetaverseCharacter position={[14, 0, 14]} rotationSpeed={1} />
+          <MetaverseCharacter position={[-14, 0, 14]} rotationSpeed={-1} />
+          <MetaverseCharacter position={[14, 0, -14]} rotationSpeed={1.5} />
+          <MetaverseCharacter position={[-14, 0, -14]} rotationSpeed={-1.5} />
+
           {items}
         </group>
       );
@@ -353,7 +399,7 @@
         const maxDist = 40; 
         if (distance > maxDist) { const ratio = maxDist / distance; dx *= ratio; dy *= ratio; }
         setPos({ x: dx, y: dy });
-        onChange({ x: dx / maxDist, y: dy / maxDist });
+        onChange({ x: dx / maxDist, y: -(dy / maxDist) });
       };
 
       const handleEnd = () => { setActive(false); setPos({ x: 0, y: 0 }); onChange({ x: 0, y: 0 }); };

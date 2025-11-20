@@ -84,13 +84,14 @@
     DOG_VARIANTS[2] = { body: "#eeeeee", ear: "#dddddd" }; 
     DOG_VARIANTS[3] = { body: "#78716c", ear: "#57534e" }; 
 
-    const ROOM_SIZE = 20;
-    const WALL_HEIGHT = 8;
-    const ART_Y_POS = 2.5;
-    const ART_SCALE = 2.5;
+    // **FIX: 部屋を広くする**
+    const ROOM_SIZE = 32; 
+    const WALL_HEIGHT = 10;
+    const ART_Y_POS = 3.0;
+    const ART_SCALE = 3.5; // 絵も少し大きく
     const MOVEMENT_SPEED = 0.04; 
     const LERP_FACTOR = 0.15;
-    const WALL_OFFSET = 1.3; // 壁からの距離をさらに確保
+    const WALL_OFFSET = 1.5; 
 
     // --- AVATAR COMPONENTS ---
     const HumanAvatar = ({ variantIndex, isMoving }) => {
@@ -162,7 +163,7 @@
     const WallSign = () => {
       return (
         <group position={[0, 6, -ROOM_SIZE/2 + 0.2]}>
-           <Text fontSize={0.5} color="#333" anchorX="center" anchorY="middle" letterSpacing={0.2} font="https://fonts.gstatic.com/s/inter/v12/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuLyfAZ9hjp-Ek-_EeA.woff">
+           <Text fontSize={1.5} color="#333" anchorX="center" anchorY="middle" letterSpacing={0.2} font="https://fonts.gstatic.com/s/inter/v12/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuLyfAZ9hjp-Ek-_EeA.woff">
              TAF DOG EXHIBITION
            </Text>
         </group>
@@ -176,11 +177,34 @@
       useEffect(() => {
         const loader = new THREE.TextureLoader();
         loader.setCrossOrigin('anonymous');
-        const path1 = `images/${data.image}`;
-        const path2 = data.image;
-        loader.load(path1, (tex) => { tex.encoding = THREE.sRGBEncoding; setTexture(tex); }, undefined, () => {
-            loader.load(path2, (tex2) => { tex2.encoding = THREE.sRGBEncoding; setTexture(tex2); }, undefined, () => setError(true));
-        });
+        
+        // **FIX: 大文字小文字の揺らぎに対応するため、複数のパターンを試す**
+        const filename = data.image;
+        const paths = [
+          `images/${filename}`,           // images/taf_dog_02.png
+          filename,                       // taf_dog_02.png
+          `images/${filename.replace('.png', '.PNG')}`, // images/taf_dog_02.PNG
+          `images/${filename.replace('.jpg', '.JPG')}`, // images/taf_dog_02.JPG
+          `images/${filename.replace('.PNG', '.png')}`  // images/taf_dog_02.png (逆)
+        ];
+
+        const tryLoad = (index) => {
+          if (index >= paths.length) {
+            setError(true);
+            return;
+          }
+          loader.load(
+            paths[index], 
+            (tex) => { 
+              tex.encoding = THREE.sRGBEncoding; 
+              setTexture(tex); 
+            }, 
+            undefined, 
+            () => tryLoad(index + 1)
+          );
+        };
+
+        tryLoad(0);
       }, [data.image]);
 
       const materialProps = (!error && texture) ? { map: texture, color: "white" } : { color: "#CCCCCC" };
@@ -188,18 +212,16 @@
       return (
         <group position={position} rotation={rotation}>
           <Float speed={2} rotationIntensity={0.05} floatIntensity={0.2}>
-            {/* 額装 (Frame) */}
+            {/* 額装 */}
             <mesh position={[0, 0, 0.22]}>
                <boxGeometry args={[ART_SCALE + 0.4, ART_SCALE + 0.4, 0.05]} />
                <meshStandardMaterial color="#111" roughness={0.4} />
             </mesh>
-            {/* マット (白) */}
             <mesh position={[0, 0, 0.26]}>
                <boxGeometry args={[ART_SCALE + 0.2, ART_SCALE + 0.2, 0.05]} />
                <meshStandardMaterial color="#eeeeee" roughness={0.9} />
             </mesh>
             
-            {/* 絵本体 */}
             <mesh 
               position={[0, 0, 0.3]} 
               onClick={(e) => { e.stopPropagation(); onClick({ ...data, image: error ? null : (texture ? texture.image.src : null) }); }}
@@ -209,15 +231,15 @@
               <boxGeometry args={[ART_SCALE, ART_SCALE, 0.02]} />
               <meshStandardMaterial {...materialProps} roughness={0.2} metalness={0.1} />
             </mesh>
-            {/* エラー時のテキスト */}
+            {/* エラー表示 */}
             {(!texture || error) && (
                <Text position={[0, 0, 0.4]} fontSize={0.3} color="black" maxWidth={ART_SCALE * 0.8} textAlign="center">
                  {error ? "NO IMAGE" : "LOADING..."}
                </Text>
             )}
           </Float>
-          <spotLight color="#FFFAF0" position={[0, 5, 5]} angle={0.5} penumbra={0.4} intensity={5} distance={15} />
-          <Text position={[0, -ART_SCALE / 2 - 0.6, 0.2]} fontSize={0.15} color="#999" anchorX="center" anchorY="top">{data.title.toUpperCase()}</Text>
+          <spotLight color="#FFFAF0" position={[0, 5, 5]} angle={0.5} penumbra={0.4} intensity={5} distance={20} />
+          <Text position={[0, -ART_SCALE / 2 - 0.6, 0.2]} fontSize={0.2} color="#666" anchorX="center" anchorY="top">{data.title.toUpperCase()}</Text>
         </group>
       );
     };
@@ -243,16 +265,14 @@
         cameraForward.normalize();
         cameraRight.crossVectors(cameraForward, camera.up);
 
-        // **FIX: ジョイスティックの操作方向を修正**
-        // 上入力(プラス) = 前進(カメラの向き)
         moveDirection.set(0, 0, 0)
-          .add(cameraForward.multiplyScalar(forward)) // マイナスをとってプラスに
+          .add(cameraForward.multiplyScalar(forward)) 
           .add(cameraRight.multiplyScalar(right))
           .normalize();
 
         velocity.current.lerp(moveDirection.multiplyScalar(MOVEMENT_SPEED), LERP_FACTOR);
         const nextPos = position.current.clone().add(velocity.current);
-        const limit = ROOM_SIZE / 2 - 1.0;
+        const limit = ROOM_SIZE / 2 - 1.5;
         if (Math.abs(nextPos.x) < limit && Math.abs(nextPos.z) < limit) {
             position.current.copy(nextPos);
         }
@@ -338,7 +358,6 @@
         const maxDist = 40; 
         if (distance > maxDist) { const ratio = maxDist / distance; dx *= ratio; dy *= ratio; }
         setPos({ x: dx, y: dy });
-        // **FIX: 入力方向を正しく渡す（上＝前）**
         onChange({ x: dx / maxDist, y: -(dy / maxDist) });
       };
 

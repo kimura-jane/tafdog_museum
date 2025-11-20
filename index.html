@@ -44,7 +44,6 @@
     import * as THREE from "three";
 
     // --- DATA EMBEDDED (Fallback) ---
-    // 画像が見つかりやすいように 'images/' プレフィックスをつけるのが一般的です
     const DEFAULT_WORKS = [
       { id: 1,  title: 'TAF DOG #01', image: 'taf_dog_01.png' },
       { id: 2,  title: 'TAF DOG #02', image: 'taf_dog_02.png' },
@@ -165,13 +164,16 @@
       const [texture, setTexture] = useState(null);
       const [error, setError] = useState(false);
       
+      // エラー時に表示するカラフルな色
+      const fallbackColor = useMemo(() => `hsl(${(data.id * 60) % 360}, 60%, 50%)`, [data.id]);
+      
       useEffect(() => {
         const loader = new THREE.TextureLoader();
         loader.setCrossOrigin('anonymous');
 
         // 1. まず images/ フォルダの中を探す
         const path1 = `images/${data.image}`;
-        // 2. ダメならルートを探す (または外部URLならそのまま)
+        // 2. ダメならルートを探す
         const path2 = data.image;
 
         loader.load(path1, 
@@ -194,7 +196,8 @@
         );
       }, [data.image]);
 
-      const materialProps = texture ? { map: texture } : { color: "#444" };
+      // 画像があれば画像、なければカラフルな色
+      const materialProps = (!error && texture) ? { map: texture, color: "white" } : { color: fallbackColor };
 
       return (
         <group position={position} rotation={rotation}>

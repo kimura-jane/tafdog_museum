@@ -91,6 +91,8 @@
     const ART_SCALE = 2.5;
     const MOVEMENT_SPEED = 0.08; 
     const LERP_FACTOR = 0.15;
+    // 壁からどれくらい手前に浮かすか
+    const WALL_OFFSET = 0.7;
 
     // --- AVATAR COMPONENTS ---
     const HumanAvatar = ({ variantIndex, isMoving }) => {
@@ -164,44 +166,39 @@
       const [texture, setTexture] = useState(null);
       const [error, setError] = useState(false);
       
-      // エラー時に表示するカラフルな色
       const fallbackColor = useMemo(() => `hsl(${(data.id * 60) % 360}, 60%, 50%)`, [data.id]);
       
       useEffect(() => {
         const loader = new THREE.TextureLoader();
         loader.setCrossOrigin('anonymous');
 
-        // 1. まず images/ フォルダの中を探す
         const path1 = `images/${data.image}`;
-        // 2. ダメならルートを探す
         const path2 = data.image;
 
         loader.load(path1, 
-          (tex) => { 
-            tex.encoding = THREE.sRGBEncoding; 
-            setTexture(tex); 
-          },
+          (tex) => { tex.encoding = THREE.sRGBEncoding; setTexture(tex); },
           undefined,
           () => {
-            // 失敗したら、プレフィックスなしで再トライ
             loader.load(path2, 
-              (tex2) => { 
-                tex2.encoding = THREE.sRGBEncoding; 
-                setTexture(tex2); 
-              },
+              (tex2) => { tex2.encoding = THREE.sRGBEncoding; setTexture(tex2); },
               undefined,
-              () => setError(true) // 完全にダメならエラー状態へ
+              () => setError(true)
             );
           }
         );
       }, [data.image]);
 
-      // 画像があれば画像、なければカラフルな色
       const materialProps = (!error && texture) ? { map: texture, color: "white" } : { color: fallbackColor };
 
       return (
         <group position={position} rotation={rotation}>
           <Float speed={2} rotationIntensity={0.05} floatIntensity={0.2}>
+            {/* 額縁 */}
+            <mesh position={[0, 0, 0.25]}>
+               <boxGeometry args={[ART_SCALE + 0.1, ART_SCALE + 0.1, 0.05]} />
+               <meshStandardMaterial color="#222" roughness={0.5} />
+            </mesh>
+            {/* 絵 */}
             <mesh 
               position={[0, 0, 0.3]} 
               onClick={(e) => { e.stopPropagation(); onClick({ ...data, image: error ? null : (texture ? texture.image.src : null) }); }}
@@ -211,14 +208,12 @@
               <boxGeometry args={[ART_SCALE, ART_SCALE, 0.1]} />
               <meshStandardMaterial {...materialProps} roughness={0.2} metalness={0.1} />
             </mesh>
-            {/* エラー時やロード中にタイトルを表示する */}
             {(!texture || error) && (
                <Text position={[0, 0, 0.4]} fontSize={0.2} color="white" maxWidth={ART_SCALE * 0.8} textAlign="center">
                  {error ? "NO IMAGE" : "LOADING..."}
                  {"\n"}{data.title}
                </Text>
             )}
-            <mesh position={[0, -0.1, 0.05]}><planeGeometry args={[ART_SCALE * 0.9, ART_SCALE * 0.9]} /><meshBasicMaterial color="black" opacity={0.6} transparent /></mesh>
           </Float>
           <spotLight color="#FFFAF0" position={[0, 5, 5]} angle={0.5} penumbra={0.4} intensity={5} distance={15} />
           <Text position={[0, -ART_SCALE / 2 - 0.4, 0.2]} fontSize={0.15} color="white" anchorX="center" anchorY="top">{data.title.toUpperCase()}</Text>
@@ -277,16 +272,27 @@
 
     const GalleryRoom = ({ onSelectArt }) => {
       const items = useMemo(() => {
-        // 優先度: window.WORKS -> DEFAULT_WORKS
         let worksData = window.WORKS && window.WORKS.length > 0 ? window.WORKS : DEFAULT_WORKS;
         const res = [];
         const spacing = ROOM_SIZE / 6; 
         worksData.forEach((work, index) => {
           let pos = [0, ART_Y_POS, 0], rot = [0, 0, 0];
-          if (index < 5) { pos = [(index - 2) * spacing, ART_Y_POS, -ROOM_SIZE / 2]; } 
-          else if (index < 10) { pos = [ROOM_SIZE / 2, ART_Y_POS, (index - 7) * spacing]; rot = [0, -Math.PI / 2, 0]; } 
-          else if (index < 15) { pos = [(12 - index) * spacing, ART_Y_POS, ROOM_SIZE / 2]; rot = [0, Math.PI, 0]; } 
-          else { pos = [-ROOM_SIZE / 2, ART_Y_POS, (17 - index) * spacing]; rot = [0, Math.PI / 2, 0]; }
+          // WALL_OFFSET分だけ壁から手前にずらして配置する
+          if (index < 5) { 
+             pos = [(index - 2) * spacing, ART_Y_POS, -ROOM_SIZE / 2 + WALL_OFFSET]; 
+          } 
+          else if (index < 10) { 
+             pos = [ROOM_SIZE / 2 - WALL_OFFSET, ART_Y_POS, (index - 7) * spacing]; 
+             rot = [0, -Math.PI / 2, 0]; 
+          } 
+          else if (index < 15) { 
+             pos = [(12 - index) * spacing, ART_Y_POS, ROOM_SIZE / 2 - WALL_OFFSET]; 
+             rot = [0, Math.PI, 0]; 
+          } 
+          else { 
+             pos = [-ROOM_SIZE / 2 + WALL_OFFSET, ART_Y_POS, (17 - index) * spacing]; 
+             rot = [0, Math.PI / 2, 0]; 
+          }
           res.push(<Artwork key={work.id} data={work} position={pos} rotation={rot} onClick={onSelectArt} />);
         });
         return res;
@@ -354,7 +360,6 @@
     };
 
     const App = () => {
-      // Force load after a short delay to ensure date.js has a chance, but don't block
       const [isReady, setIsReady] = useState(false);
       const [isDogMode, setIsDogMode] = useState(false);
       const [humanVariant, setHumanVariant] = useState(0);
@@ -364,7 +369,6 @@
       const controlsRef = useRef(null);
       
       useEffect(() => {
-        // 500msだけ待って、データがなくても強制的にスタートさせる（フォールバックデータを使うため）
         const t = setTimeout(() => setIsReady(true), 500);
         return () => clearTimeout(t);
       }, []);

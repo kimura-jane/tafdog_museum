@@ -11,6 +11,8 @@
     #root { width: 100%; height: 100%; }
     ::-webkit-scrollbar { display: none; }
     .loading-screen { color: white; display: flex; align-items: center; justify-content: center; height: 100%; font-size: 1.2rem; letter-spacing: 0.1em; flex-direction: column; gap: 1rem; }
+    /* アクションボタンのアニメーション */
+    .action-btn:active { transform: scale(0.9); }
   </style>
   
   <script type="importmap">
@@ -41,7 +43,7 @@
     import React, { useState, useRef, useEffect, useMemo, Suspense } from "react";
     import { createRoot } from "react-dom/client";
     import { Canvas, useFrame, useThree } from "@react-three/fiber";
-    import { Text, PerspectiveCamera, Float, OrbitControls, useTexture } from "@react-three/drei";
+    import { Text, PerspectiveCamera, Float, OrbitControls, Billboard } from "@react-three/drei";
     import * as THREE from "three";
 
     // --- DATA EMBEDDED (Fallback) ---
@@ -93,15 +95,13 @@
     const LERP_FACTOR = 0.15;
     const WALL_OFFSET = 1.5; 
 
-    // --- METAVERSE CHARACTER ---
+    // --- COMPONENTS ---
     const MetaverseCharacter = ({ position, rotationSpeed }) => {
       const [texture, setTexture] = useState(null);
       const groupRef = useRef();
-
       useEffect(() => {
         const loader = new THREE.TextureLoader();
         loader.setCrossOrigin('anonymous');
-        // **FIX: ここでもサイズ問題を回避する設定を入れる**
         loader.load('IMG_1822.png', (tex) => {
           tex.encoding = THREE.sRGBEncoding;
           tex.minFilter = THREE.LinearFilter;
@@ -109,16 +109,13 @@
           setTexture(tex);
         });
       }, []);
-
       useFrame((state, delta) => {
         if (groupRef.current) {
           groupRef.current.rotation.y += delta * rotationSpeed;
           groupRef.current.position.y = 1.5 + Math.sin(state.clock.elapsedTime * 2) * 0.1;
         }
       });
-
       if (!texture) return null;
-
       return (
         <group ref={groupRef} position={position}>
           <mesh>
@@ -129,8 +126,20 @@
       );
     };
 
-    // --- AVATAR COMPONENTS ---
-    const HumanAvatar = ({ variantIndex, isMoving }) => {
+    const Footprints = ({ footprints }) => {
+      return (
+        <group>
+          {footprints.map((fp) => (
+            <mesh key={fp.id} position={[fp.x, 0.02, fp.z]} rotation={[-Math.PI/2, 0, fp.rotation]}>
+              <circleGeometry args={[0.15, 16]} />
+              <meshBasicMaterial color="black" transparent opacity={fp.opacity} />
+            </mesh>
+          ))}
+        </group>
+      );
+    };
+
+    const HumanAvatar = ({ variantIndex, isMoving, isFlying }) => {
       const colors = HUMAN_VARIANTS[variantIndex % HUMAN_VARIANTS.length];
       const leftArm = useRef();
       const rightArm = useRef();
@@ -139,12 +148,19 @@
 
       useFrame((state) => {
         const t = state.clock.getElapsedTime();
-        const angle = isMoving ? Math.sin(t * 12) * 0.5 : 0;
+        // 飛んでいるときは手足を広げる、歩いているときは振る
+        const angle = isFlying ? 0.5 : (isMoving ? Math.sin(t * 12) * 0.5 : 0);
+        const legAngle = isFlying ? 0.2 : (isMoving ? Math.sin(t * 12) * 0.5 : 0);
+        
         if (leftArm.current && rightArm.current && leftLeg.current && rightLeg.current) {
-          leftArm.current.rotation.x = angle;
-          rightArm.current.rotation.x = -angle;
-          leftLeg.current.rotation.x = -angle;
-          rightLeg.current.rotation.x = angle;
+          leftArm.current.rotation.x = isFlying ? 0 : angle;
+          leftArm.current.rotation.z = isFlying ? 0.5 : 0; // Fly pose
+          
+          rightArm.current.rotation.x = isFlying ? 0 : -angle;
+          rightArm.current.rotation.z = isFlying ? -0.5 : 0; // Fly pose
+
+          leftLeg.current.rotation.x = isFlying ? 0.2 : -legAngle;
+          rightLeg.current.rotation.x = isFlying ? 0.2 : legAngle;
         }
       });
 
@@ -171,27 +187,45 @@
       );
     };
 
-    const DogAvatar = ({ variantIndex, isMoving }) => {
+    const DogAvatar = ({ variantIndex, isMoving, isBarking }) => {
       const colors = DOG_VARIANTS[variantIndex % DOG_VARIANTS.length];
       const group = useRef();
       useFrame((state) => {
-        if (group.current && isMoving) {
-          const t = state.clock.getElapsedTime();
-          group.current.position.y = 0.3 + Math.abs(Math.sin(t * 15)) * 0.05;
-          group.current.rotation.z = Math.sin(t * 15) * 0.05;
+        if (group.current) {
+            const t = state.clock.getElapsedTime();
+            let yOffset = 0.3;
+            let zRot = 0;
+            
+            if (isBarking) {
+                // 吠えるときは跳ねる
+                yOffset = 0.3 + Math.abs(Math.sin(t * 20)) * 0.2;
+            } else if (isMoving) {
+                yOffset = 0.3 + Math.abs(Math.sin(t * 15)) * 0.05;
+                zRot = Math.sin(t * 15) * 0.05;
+            }
+            group.current.position.y = yOffset;
+            group.current.rotation.z = zRot;
         }
       });
       return (
-        <group ref={group} position={[0, 0.3, 0]}>
-          <mesh position={[0, 0, -0.1]} castShadow rotation={[0.1, 0, 0]}><boxGeometry args={[0.3, 0.4, 0.7]} /><meshStandardMaterial color={colors.body} roughness={0.8} /></mesh>
-          <mesh position={[0, 0.35, 0.35]}><boxGeometry args={[0.35, 0.35, 0.3]} /><meshStandardMaterial color={colors.ear} roughness={0.8} /></mesh>
-          <mesh position={[0.12, 0.55, 0.3]}><coneGeometry args={[0.08, 0.2, 4]} /><meshStandardMaterial color={colors.ear} roughness={0.8} /></mesh>
-          <mesh position={[-0.12, 0.55, 0.3]}><coneGeometry args={[0.08, 0.2, 4]} /><meshStandardMaterial color={colors.ear} roughness={0.8} /></mesh>
-          <mesh position={[0, 0.2, -0.5]} rotation={[-0.5, 0, 0]}><cylinderGeometry args={[0.04, 0.02, 0.4]} /><meshStandardMaterial color={colors.body} /></mesh>
-          <mesh position={[-0.1, -0.2, 0.15]}><boxGeometry args={[0.08, 0.4, 0.08]} /><meshStandardMaterial color={colors.ear} /></mesh>
-          <mesh position={[0.1, -0.2, 0.15]}><boxGeometry args={[0.08, 0.4, 0.08]} /><meshStandardMaterial color={colors.ear} /></mesh>
-          <mesh position={[-0.1, -0.2, -0.35]}><boxGeometry args={[0.08, 0.4, 0.08]} /><meshStandardMaterial color={colors.ear} /></mesh>
-          <mesh position={[0.1, -0.2, -0.35]}><boxGeometry args={[0.08, 0.4, 0.08]} /><meshStandardMaterial color={colors.ear} /></mesh>
+        <group>
+            <group ref={group} position={[0, 0.3, 0]}>
+            <mesh position={[0, 0, -0.1]} castShadow rotation={[0.1, 0, 0]}><boxGeometry args={[0.3, 0.4, 0.7]} /><meshStandardMaterial color={colors.body} roughness={0.8} /></mesh>
+            <mesh position={[0, 0.35, 0.35]}><boxGeometry args={[0.35, 0.35, 0.3]} /><meshStandardMaterial color={colors.ear} roughness={0.8} /></mesh>
+            <mesh position={[0.12, 0.55, 0.3]}><coneGeometry args={[0.08, 0.2, 4]} /><meshStandardMaterial color={colors.ear} roughness={0.8} /></mesh>
+            <mesh position={[-0.12, 0.55, 0.3]}><coneGeometry args={[0.08, 0.2, 4]} /><meshStandardMaterial color={colors.ear} roughness={0.8} /></mesh>
+            <mesh position={[0, 0.2, -0.5]} rotation={[-0.5, 0, 0]}><cylinderGeometry args={[0.04, 0.02, 0.4]} /><meshStandardMaterial color={colors.body} /></mesh>
+            <mesh position={[-0.1, -0.2, 0.15]}><boxGeometry args={[0.08, 0.4, 0.08]} /><meshStandardMaterial color={colors.ear} /></mesh>
+            <mesh position={[0.1, -0.2, 0.15]}><boxGeometry args={[0.08, 0.4, 0.08]} /><meshStandardMaterial color={colors.ear} /></mesh>
+            <mesh position={[-0.1, -0.2, -0.35]}><boxGeometry args={[0.08, 0.4, 0.08]} /><meshStandardMaterial color={colors.ear} /></mesh>
+            <mesh position={[0.1, -0.2, -0.35]}><boxGeometry args={[0.08, 0.4, 0.08]} /><meshStandardMaterial color={colors.ear} /></mesh>
+            </group>
+            {/* 吠える吹き出し */}
+            {isBarking && (
+                <Billboard position={[0, 1.5, 0]}>
+                    <Text fontSize={0.5} color="white" outlineWidth={0.05} outlineColor="black">WAN!</Text>
+                </Billboard>
+            )}
         </group>
       );
     };
@@ -213,48 +247,25 @@
       useEffect(() => {
         const loader = new THREE.TextureLoader();
         loader.setCrossOrigin('anonymous');
-        
         const filename = data.image;
-        loader.load(
-          filename, 
-          (tex) => { 
-            tex.encoding = THREE.sRGBEncoding; 
-            // **FIX: ミップマップを無効化。これで変則的なサイズの画像も必ず表示される**
-            tex.minFilter = THREE.LinearFilter;
-            tex.generateMipmaps = false;
-            setTexture(tex); 
-          }, 
+        loader.load(filename, 
+          (tex) => { tex.encoding = THREE.sRGBEncoding; tex.minFilter = THREE.LinearFilter; tex.generateMipmaps = false; setTexture(tex); }, 
           undefined, 
           () => {
-             // 念のため大文字拡張子も試す
              loader.load(filename.replace('.png', '.PNG'), 
-               (tex2) => { 
-                 tex2.encoding = THREE.sRGBEncoding;
-                 tex2.minFilter = THREE.LinearFilter;
-                 tex2.generateMipmaps = false;
-                 setTexture(tex2); 
-               },
+               (tex2) => { tex2.encoding = THREE.sRGBEncoding; tex2.minFilter = THREE.LinearFilter; tex2.generateMipmaps = false; setTexture(tex2); },
                undefined,
                () => setError(true)
              )
           }
         );
       }, [data.image]);
-
       const materialProps = (!error && texture) ? { map: texture, color: "white" } : { color: "#CCCCCC" };
-
       return (
         <group position={position} rotation={rotation}>
           <Float speed={2} rotationIntensity={0.05} floatIntensity={0.2}>
-            {/* 額装 */}
-            <mesh position={[0, 0, 0.22]}>
-               <boxGeometry args={[ART_SCALE + 0.4, ART_SCALE + 0.4, 0.05]} />
-               <meshStandardMaterial color="#111" roughness={0.4} />
-            </mesh>
-            <mesh position={[0, 0, 0.26]}>
-               <boxGeometry args={[ART_SCALE + 0.2, ART_SCALE + 0.2, 0.05]} />
-               <meshStandardMaterial color="#eeeeee" roughness={0.9} />
-            </mesh>
+            <mesh position={[0, 0, 0.22]}><boxGeometry args={[ART_SCALE + 0.4, ART_SCALE + 0.4, 0.05]} /><meshStandardMaterial color="#111" roughness={0.4} /></mesh>
+            <mesh position={[0, 0, 0.26]}><boxGeometry args={[ART_SCALE + 0.2, ART_SCALE + 0.2, 0.05]} /><meshStandardMaterial color="#eeeeee" roughness={0.9} /></mesh>
             <mesh 
               position={[0, 0, 0.3]} 
               onClick={(e) => { e.stopPropagation(); onClick({ ...data, image: error ? null : (texture ? texture.image.src : null) }); }}
@@ -264,7 +275,6 @@
               <boxGeometry args={[ART_SCALE, ART_SCALE, 0.02]} />
               <meshStandardMaterial {...materialProps} roughness={0.2} metalness={0.1} />
             </mesh>
-            {/* エラー表示 */}
             {(!texture || error) && (
                <Text position={[0, 0, 0.4]} fontSize={0.3} color="black" maxWidth={ART_SCALE * 0.8} textAlign="center">
                  {error ? "NO IMAGE" : "LOADING..."}
@@ -277,7 +287,7 @@
       );
     };
 
-    const Player = ({ joystickState, controlsRef, isDogMode, humanVariant, dogVariant }) => {
+    const Player = ({ joystickState, controlsRef, isDogMode, humanVariant, dogVariant, isFlying, isBarking, setFootprints }) => {
       const { camera } = useThree();
       const playerRef = useRef(null);
       const position = useRef(new THREE.Vector3(0, 0, 5));
@@ -286,8 +296,10 @@
       const cameraRight = useMemo(() => new THREE.Vector3(), []);
       const moveDirection = useMemo(() => new THREE.Vector3(), []);
       const [isMoving, setIsMoving] = useState(false);
+      // 足跡用タイマー
+      const lastFootprintTime = useRef(0);
       
-      useFrame(() => {
+      useFrame((state) => {
         if (!playerRef.current) return;
         const { forward, right } = joystickState.current;
         const moving = Math.abs(forward) > 0.01 || Math.abs(right) > 0.01;
@@ -298,7 +310,6 @@
         cameraForward.normalize();
         cameraRight.crossVectors(cameraForward, camera.up);
 
-        // **FIX: ジョイスティックの向きを修正 (上＝前)**
         moveDirection.set(0, 0, 0)
           .add(cameraForward.multiplyScalar(forward)) 
           .add(cameraRight.multiplyScalar(right))
@@ -310,13 +321,37 @@
         if (Math.abs(nextPos.x) < limit && Math.abs(nextPos.z) < limit) {
             position.current.copy(nextPos);
         }
+        
+        // --- FLY MODE LOGIC ---
+        if (isFlying) {
+            // 飛行中はY座標を上げる
+            position.current.y = THREE.MathUtils.lerp(position.current.y, 4.0, 0.05);
+        } else {
+            // 通常は地面
+            position.current.y = THREE.MathUtils.lerp(position.current.y, 0, 0.1);
+        }
+
         playerRef.current.position.copy(position.current);
+        
+        // 回転
         if (moveDirection.length() > 0.01) {
           const targetAngle = Math.atan2(moveDirection.x, moveDirection.z);
           playerRef.current.quaternion.slerp(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), targetAngle), LERP_FACTOR);
         }
+        
+        // --- FOOTPRINTS LOGIC ---
+        if (moving && !isFlying && state.clock.elapsedTime - lastFootprintTime.current > 0.3) {
+            lastFootprintTime.current = state.clock.elapsedTime;
+            setFootprints(prev => [
+                ...prev.slice(-30), // 最大30個まで
+                { id: Math.random(), x: position.current.x, z: position.current.z, rotation: playerRef.current.rotation.y, opacity: 0.5, createdAt: state.clock.elapsedTime }
+            ]);
+        }
+
+        // カメラ追従
         if (controlsRef.current) {
-          const targetY = isDogMode ? 0.5 : 1.2;
+          // 飛んでる時はカメラも高くする
+          const targetY = isFlying ? 4.0 : (isDogMode ? 0.5 : 1.2);
           controlsRef.current.target.lerp(new THREE.Vector3(position.current.x, targetY, position.current.z), LERP_FACTOR);
           controlsRef.current.update();
         }
@@ -325,35 +360,25 @@
       return (
         <group ref={playerRef}>
           {isDogMode 
-            ? <DogAvatar variantIndex={dogVariant} isMoving={isMoving} /> 
-            : <HumanAvatar variantIndex={humanVariant} isMoving={isMoving} />}
-          <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]}><circleGeometry args={[0.4, 32]} /><meshBasicMaterial color="black" opacity={0.3} transparent /></mesh>
+            ? <DogAvatar variantIndex={dogVariant} isMoving={isMoving} isBarking={isBarking} /> 
+            : <HumanAvatar variantIndex={humanVariant} isMoving={isMoving} isFlying={isFlying} />}
+          {/* 影 */}
+          <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, isFlying ? -position.current.y + 0.02 : 0.02, 0]}><circleGeometry args={[0.4, 32]} /><meshBasicMaterial color="black" opacity={0.3} transparent /></mesh>
         </group>
       );
     };
 
-    const GalleryRoom = ({ onSelectArt }) => {
+    const GalleryRoom = ({ onSelectArt, footprints }) => {
       const items = useMemo(() => {
         let worksData = window.WORKS && window.WORKS.length > 0 ? window.WORKS : DEFAULT_WORKS;
         const res = [];
         const spacing = ROOM_SIZE / 6; 
         worksData.forEach((work, index) => {
           let pos = [0, ART_Y_POS, 0], rot = [0, 0, 0];
-          if (index < 5) { 
-             pos = [(index - 2) * spacing, ART_Y_POS, -ROOM_SIZE / 2 + WALL_OFFSET]; 
-          } 
-          else if (index < 10) { 
-             pos = [ROOM_SIZE / 2 - WALL_OFFSET, ART_Y_POS, (index - 7) * spacing]; 
-             rot = [0, -Math.PI / 2, 0]; 
-          } 
-          else if (index < 15) { 
-             pos = [(12 - index) * spacing, ART_Y_POS, ROOM_SIZE / 2 - WALL_OFFSET]; 
-             rot = [0, Math.PI, 0]; 
-          } 
-          else { 
-             pos = [-ROOM_SIZE / 2 + WALL_OFFSET, ART_Y_POS, (17 - index) * spacing]; 
-             rot = [0, Math.PI / 2, 0]; 
-          }
+          if (index < 5) { pos = [(index - 2) * spacing, ART_Y_POS, -ROOM_SIZE / 2 + WALL_OFFSET]; } 
+          else if (index < 10) { pos = [ROOM_SIZE / 2 - WALL_OFFSET, ART_Y_POS, (index - 7) * spacing]; rot = [0, -Math.PI / 2, 0]; } 
+          else if (index < 15) { pos = [(12 - index) * spacing, ART_Y_POS, ROOM_SIZE / 2 - WALL_OFFSET]; rot = [0, Math.PI, 0]; } 
+          else { pos = [-ROOM_SIZE / 2 + WALL_OFFSET, ART_Y_POS, (17 - index) * spacing]; rot = [0, Math.PI / 2, 0]; }
           res.push(<Artwork key={work.id} data={work} position={pos} rotation={rot} onClick={onSelectArt} />);
         });
         return res;
@@ -371,13 +396,11 @@
           <mesh position={[ROOM_SIZE / 2, WALL_HEIGHT / 2, 0]} rotation={[0, Math.PI / 2, 0]} receiveShadow><boxGeometry args={[ROOM_SIZE, WALL_HEIGHT, 1]} /><meshStandardMaterial color="#444" roughness={0.8} /></mesh>
           <mesh position={[0, WALL_HEIGHT, 0]} rotation={[Math.PI / 2, 0, 0]}><planeGeometry args={[ROOM_SIZE, ROOM_SIZE]} /><meshBasicMaterial color="#000" /></mesh>
           <WallSign />
-          
-          {/* --- 四隅に IMG_1822.png のキャラクターを配置 --- */}
           <MetaverseCharacter position={[14, 0, 14]} rotationSpeed={1} />
           <MetaverseCharacter position={[-14, 0, 14]} rotationSpeed={-1} />
           <MetaverseCharacter position={[14, 0, -14]} rotationSpeed={1.5} />
           <MetaverseCharacter position={[-14, 0, -14]} rotationSpeed={-1.5} />
-
+          <Footprints footprints={footprints} />
           {items}
         </group>
       );
@@ -387,7 +410,6 @@
       const [active, setActive] = useState(false);
       const baseRef = useRef(null);
       const [pos, setPos] = useState({ x: 0, y: 0 });
-
       const handleMove = (clientX, clientY) => {
         if (!baseRef.current) return;
         const base = baseRef.current.getBoundingClientRect();
@@ -401,9 +423,7 @@
         setPos({ x: dx, y: dy });
         onChange({ x: dx / maxDist, y: -(dy / maxDist) });
       };
-
       const handleEnd = () => { setActive(false); setPos({ x: 0, y: 0 }); onChange({ x: 0, y: 0 }); };
-      
       useEffect(() => {
         const onTouchMove = (e) => { if(active) { e.preventDefault(); handleMove(e.touches[0].clientX, e.touches[0].clientY);} };
         const onMouseMove = (e) => { if(active) handleMove(e.clientX, e.clientY); };
@@ -440,17 +460,30 @@
       const [humanVariant, setHumanVariant] = useState(0);
       const [dogVariant, setDogVariant] = useState(0);
       const [selectedArt, setSelectedArt] = useState(null);
+      const [isFlying, setIsFlying] = useState(false);
+      const [isBarking, setIsBarking] = useState(false);
+      const [footprints, setFootprints] = useState([]);
       const joystickState = useRef({ forward: 0, right: 0 });
       const controlsRef = useRef(null);
       
       useEffect(() => {
         const t = setTimeout(() => setIsReady(true), 500);
-        return () => clearTimeout(t);
+        // 足跡のフェードアウト処理
+        const fpInterval = setInterval(() => {
+            setFootprints(prev => prev.map(fp => ({...fp, opacity: fp.opacity - 0.02})).filter(fp => fp.opacity > 0));
+        }, 100);
+        return () => { clearTimeout(t); clearInterval(fpInterval); };
       }, []);
 
-      const handleHumanClick = () => { if (!isDogMode) { setHumanVariant(v => (v + 1) % 20); } else { setIsDogMode(false); } };
-      const handleDogClick = () => { if (isDogMode) { setDogVariant(v => (v + 1) % 20); } else { setIsDogMode(true); } };
+      const handleHumanClick = () => { if (!isDogMode) { setHumanVariant(v => (v + 1) % 20); } else { setIsDogMode(false); setIsFlying(false); } };
+      const handleDogClick = () => { if (isDogMode) { setDogVariant(v => (v + 1) % 20); } else { setIsDogMode(true); setIsFlying(false); } };
       
+      const handleFlyToggle = () => setIsFlying(!isFlying);
+      const handleBark = () => {
+          setIsBarking(true);
+          setTimeout(() => setIsBarking(false), 1000); // 1秒後に戻る
+      };
+
       if (!isReady) return <div className="loading-screen">NOW LOADING...</div>;
 
       return (
@@ -459,8 +492,17 @@
             <Suspense fallback={null}>
               <PerspectiveCamera makeDefault fov={50} position={[0, 3, 8]} />
               <OrbitControls ref={controlsRef} enablePan={false} enableZoom={true} minDistance={2} maxDistance={10} maxPolarAngle={Math.PI / 2 - 0.1} />
-              <GalleryRoom onSelectArt={setSelectedArt} />
-              <Player joystickState={joystickState} controlsRef={controlsRef} isDogMode={isDogMode} humanVariant={humanVariant} dogVariant={dogVariant} />
+              <GalleryRoom onSelectArt={setSelectedArt} footprints={footprints} />
+              <Player 
+                joystickState={joystickState} 
+                controlsRef={controlsRef} 
+                isDogMode={isDogMode} 
+                humanVariant={humanVariant} 
+                dogVariant={dogVariant} 
+                isFlying={isFlying}
+                isBarking={isBarking}
+                setFootprints={setFootprints}
+              />
             </Suspense>
           </Canvas>
           <div className="absolute top-0 left-0 right-0 z-10 p-3 flex justify-between items-center w-full pointer-events-none">
@@ -470,6 +512,23 @@
               <button onClick={handleDogClick} className={`flex items-center gap-2 px-3 py-2 rounded-full transition-all backdrop-blur-md border active:scale-95 ${isDogMode ? 'bg-white text-black border-white' : 'bg-black/40 text-white/70 border-white/20 hover:bg-white/10'}`}><span className="text-xs font-bold tracking-wider">DOG</span></button>
             </div>
           </div>
+          
+          {/* アクションボタン (右下) */}
+          <div className="absolute bottom-32 right-6 z-20 pointer-events-auto flex flex-col gap-4">
+             {/* 人間モード: FLYボタン */}
+             {!isDogMode && (
+                 <button onClick={handleFlyToggle} className={`action-btn w-16 h-16 rounded-full border-2 flex items-center justify-center shadow-lg transition-all ${isFlying ? 'bg-blue-500 border-blue-300 text-white' : 'bg-black/50 border-white/50 text-white/80'}`}>
+                    <span className="text-xs font-bold">FLY</span>
+                 </button>
+             )}
+             {/* 犬モード: BARKボタン */}
+             {isDogMode && (
+                 <button onClick={handleBark} className="action-btn w-16 h-16 rounded-full bg-red-500/80 border-2 border-red-300 flex items-center justify-center shadow-lg text-white active:bg-red-600">
+                    <span className="text-xs font-bold">BARK</span>
+                 </button>
+             )}
+          </div>
+
           <JoystickControl onChange={(data) => { joystickState.current.forward = data.y; joystickState.current.right = data.x; }} />
           {selectedArt && (
             <div className={`absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 transition-opacity duration-300`} onClick={() => setSelectedArt(null)}>

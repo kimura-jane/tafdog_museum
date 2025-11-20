@@ -26,6 +26,8 @@
   }
   </script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <!-- 念のため data.js と date.js 両方を読み込む -->
+  <script src="data.js" defer></script>
   <script src="date.js" defer></script>
 </head>
 <body>
@@ -84,16 +86,15 @@
     DOG_VARIANTS[2] = { body: "#eeeeee", ear: "#dddddd" }; 
     DOG_VARIANTS[3] = { body: "#78716c", ear: "#57534e" }; 
 
-    // **FIX: 部屋を広くする**
+    // **FIX: 部屋を広く、絵を大きく**
     const ROOM_SIZE = 32; 
     const WALL_HEIGHT = 10;
-    const ART_Y_POS = 3.0;
-    const ART_SCALE = 3.5; // 絵も少し大きく
+    const ART_Y_POS = 3.5;
+    const ART_SCALE = 4.0;
     const MOVEMENT_SPEED = 0.04; 
     const LERP_FACTOR = 0.15;
-    const WALL_OFFSET = 1.5; 
+    const WALL_OFFSET = 1.5; // 壁からの距離
 
-    // --- AVATAR COMPONENTS ---
     const HumanAvatar = ({ variantIndex, isMoving }) => {
       const colors = HUMAN_VARIANTS[variantIndex % HUMAN_VARIANTS.length];
       const leftArm = useRef();
@@ -178,33 +179,25 @@
         const loader = new THREE.TextureLoader();
         loader.setCrossOrigin('anonymous');
         
-        // **FIX: 大文字小文字の揺らぎに対応するため、複数のパターンを試す**
+        // **FIX: images/ などの予測をやめて、ファイル名を直接読み込む**
+        // スクリーンショットを見る限り、index.htmlと同じ場所に画像があるため
         const filename = data.image;
-        const paths = [
-          `images/${filename}`,           // images/taf_dog_02.png
-          filename,                       // taf_dog_02.png
-          `images/${filename.replace('.png', '.PNG')}`, // images/taf_dog_02.PNG
-          `images/${filename.replace('.jpg', '.JPG')}`, // images/taf_dog_02.JPG
-          `images/${filename.replace('.PNG', '.png')}`  // images/taf_dog_02.png (逆)
-        ];
-
-        const tryLoad = (index) => {
-          if (index >= paths.length) {
-            setError(true);
-            return;
+        loader.load(
+          filename, 
+          (tex) => { 
+            tex.encoding = THREE.sRGBEncoding; 
+            setTexture(tex); 
+          }, 
+          undefined, 
+          () => {
+             // 念のため大文字拡張子も試す
+             loader.load(filename.replace('.png', '.PNG'), 
+               (tex2) => { tex2.encoding = THREE.sRGBEncoding; setTexture(tex2); },
+               undefined,
+               () => setError(true)
+             )
           }
-          loader.load(
-            paths[index], 
-            (tex) => { 
-              tex.encoding = THREE.sRGBEncoding; 
-              setTexture(tex); 
-            }, 
-            undefined, 
-            () => tryLoad(index + 1)
-          );
-        };
-
-        tryLoad(0);
+        );
       }, [data.image]);
 
       const materialProps = (!error && texture) ? { map: texture, color: "white" } : { color: "#CCCCCC" };
@@ -221,7 +214,6 @@
                <boxGeometry args={[ART_SCALE + 0.2, ART_SCALE + 0.2, 0.05]} />
                <meshStandardMaterial color="#eeeeee" roughness={0.9} />
             </mesh>
-            
             <mesh 
               position={[0, 0, 0.3]} 
               onClick={(e) => { e.stopPropagation(); onClick({ ...data, image: error ? null : (texture ? texture.image.src : null) }); }}
@@ -265,6 +257,7 @@
         cameraForward.normalize();
         cameraRight.crossVectors(cameraForward, camera.up);
 
+        // 上入力(プラス) = 前進(カメラの向き)
         moveDirection.set(0, 0, 0)
           .add(cameraForward.multiplyScalar(forward)) 
           .add(cameraRight.multiplyScalar(right))
@@ -272,7 +265,7 @@
 
         velocity.current.lerp(moveDirection.multiplyScalar(MOVEMENT_SPEED), LERP_FACTOR);
         const nextPos = position.current.clone().add(velocity.current);
-        const limit = ROOM_SIZE / 2 - 1.5;
+        const limit = ROOM_SIZE / 2 - 2.0;
         if (Math.abs(nextPos.x) < limit && Math.abs(nextPos.z) < limit) {
             position.current.copy(nextPos);
         }

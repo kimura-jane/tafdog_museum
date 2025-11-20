@@ -10,6 +10,7 @@
     body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background-color: #000; touch-action: none; font-family: sans-serif; }
     #root { width: 100%; height: 100%; }
     ::-webkit-scrollbar { display: none; }
+    .loading-screen { color: white; display: flex; align-items: center; justify-content: center; height: 100%; font-size: 1.2rem; letter-spacing: 0.1em; }
   </style>
   
   <script type="importmap">
@@ -19,17 +20,18 @@
       "react/jsx-runtime": "https://esm.sh/react@18.2.0/jsx-runtime",
       "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
       "three": "https://esm.sh/three@0.150.1",
-      "@react-three/fiber": "https://esm.sh/all/@react-three/fiber@8.13.0",
-      "@react-three/drei": "https://esm.sh/all/@react-three/drei@9.57.0",
-      "lucide-react": "https://esm.sh/lucide-react@0.263.1"
+      "@react-three/fiber": "https://esm.sh/@react-three/fiber@8.13.0?external=react,react-dom,three",
+      "@react-three/drei": "https://esm.sh/@react-three/drei@9.57.0?external=react,react-dom,three,@react-three/fiber"
     }
   }
   </script>
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-  <script src="date.js" defer></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js" crossorigin="anonymous"></script>
+  <script src="date.js" defer crossorigin="anonymous"></script>
 </head>
 <body>
-  <div id="root"></div>
+  <div id="root">
+    <div class="loading-screen">NOW LOADING...</div>
+  </div>
 
   <script type="text/babel" data-type="module">
     import React, { useState, useRef, useEffect, useMemo, Suspense } from "react";
@@ -37,8 +39,25 @@
     import { Canvas, useFrame, useThree } from "@react-three/fiber";
     import { Text, PerspectiveCamera, Float, OrbitControls } from "@react-three/drei";
     import * as THREE from "three";
-    import { Dog as LucideDog, User as LucideUser, Move as LucideMove, X as LucideX } from "lucide-react";
 
+    // --- ERROR BOUNDARY ---
+    class ErrorBoundary extends React.Component {
+      constructor(props) {
+        super(props);
+        this.state = { hasError: false, error: null };
+      }
+      static getDerivedStateFromError(error) {
+        return { hasError: true, error };
+      }
+      render() {
+        if (this.state.hasError) {
+          return <div className="loading-screen" style={{flexDirection:'column'}}><h1>エラーが発生しました</h1><p style={{fontSize:'0.8rem', opacity:0.7}}>{this.state.error?.message}</p></div>;
+        }
+        return this.props.children; 
+      }
+    }
+
+    // --- CONSTANTS & DATA ---
     const HUMAN_VARIANTS = Array.from({ length: 20 }, (_, i) => ({
       shirt: `hsl(${(i * 137) % 360}, 60%, ${30 + (i % 3) * 10}%)`,
       skin: `hsl(${20 + (i % 5) * 5}, ${60 - (i % 3) * 10}%, ${80 - (i % 5) * 10}%)`,
@@ -58,36 +77,87 @@
     const MOVEMENT_SPEED = 0.08; 
     const LERP_FACTOR = 0.15;
 
-    class ErrorBoundary extends React.Component {
-      constructor(props) {
-        super(props);
-        this.state = { hasError: false };
-      }
-      static getDerivedStateFromError(error) {
-        return { hasError: true };
-      }
-      render() {
-        if (this.state.hasError) {
-          return <div style={{ color: 'white', padding: '20px' }}><h1>エラーが発生しました。</h1><p>ページをリロードしてみてください。</p></div>;
-        }
-        return this.props.children; 
-      }
-    }
+    // --- AVATAR COMPONENTS ---
+    const HumanAvatar = ({ variantIndex, isMoving }) => {
+      const colors = HUMAN_VARIANTS[variantIndex % HUMAN_VARIANTS.length];
+      const leftArm = useRef();
+      const rightArm = useRef();
+      const leftLeg = useRef();
+      const rightLeg = useRef();
 
+      useFrame((state) => {
+        const t = state.clock.getElapsedTime();
+        const angle = isMoving ? Math.sin(t * 12) * 0.5 : 0;
+        
+        if (leftArm.current && rightArm.current && leftLeg.current && rightLeg.current) {
+          leftArm.current.rotation.x = angle;
+          rightArm.current.rotation.x = -angle;
+          leftLeg.current.rotation.x = -angle;
+          rightLeg.current.rotation.x = angle;
+        }
+      });
+
+      return (
+        <group position={[0, 0.9, 0]}>
+          <mesh position={[0, 0.75, 0]} castShadow><boxGeometry args={[0.25, 0.25, 0.25]} /><meshStandardMaterial color={colors.skin} /></mesh>
+          <mesh position={[0, 0.88, 0]}><boxGeometry args={[0.27, 0.05, 0.27]} /><meshStandardMaterial color="#111" /></mesh>
+          <mesh position={[0, 0.35, 0]} castShadow><boxGeometry args={[0.35, 0.5, 0.2]} /><meshStandardMaterial color={colors.shirt} /></mesh>
+          <group ref={leftArm} position={[-0.24, 0.55, 0]}>
+            <mesh position={[0, -0.25, 0]}><boxGeometry args={[0.1, 0.5, 0.1]} /><meshStandardMaterial color={colors.shirt} /></mesh>
+            <mesh position={[0, -0.5, 0]}><boxGeometry args={[0.08, 0.1, 0.08]} /><meshStandardMaterial color={colors.skin} /></mesh>
+          </group>
+          <group ref={rightArm} position={[0.24, 0.55, 0]}>
+            <mesh position={[0, -0.25, 0]}><boxGeometry args={[0.1, 0.5, 0.1]} /><meshStandardMaterial color={colors.shirt} /></mesh>
+            <mesh position={[0, -0.5, 0]}><boxGeometry args={[0.08, 0.1, 0.08]} /><meshStandardMaterial color={colors.skin} /></mesh>
+          </group>
+          <group ref={leftLeg} position={[-0.1, 0.1, 0]}>
+            <mesh position={[0, -0.3, 0]}><boxGeometry args={[0.12, 0.6, 0.12]} /><meshStandardMaterial color="#333" /></mesh>
+          </group>
+          <group ref={rightLeg} position={[0.1, 0.1, 0]}>
+            <mesh position={[0, -0.3, 0]}><boxGeometry args={[0.12, 0.6, 0.12]} /><meshStandardMaterial color="#333" /></mesh>
+          </group>
+        </group>
+      );
+    };
+
+    const DogAvatar = ({ variantIndex, isMoving }) => {
+      const colors = DOG_VARIANTS[variantIndex % DOG_VARIANTS.length];
+      const group = useRef();
+      useFrame((state) => {
+        if (group.current && isMoving) {
+          const t = state.clock.getElapsedTime();
+          group.current.position.y = 0.3 + Math.abs(Math.sin(t * 15)) * 0.05;
+          group.current.rotation.z = Math.sin(t * 15) * 0.05;
+        }
+      });
+      return (
+        <group ref={group} position={[0, 0.3, 0]}>
+          <mesh position={[0, 0, -0.1]} castShadow rotation={[0.1, 0, 0]}><boxGeometry args={[0.3, 0.4, 0.7]} /><meshStandardMaterial color={colors.body} roughness={0.8} /></mesh>
+          <mesh position={[0, 0.35, 0.35]}><boxGeometry args={[0.35, 0.35, 0.3]} /><meshStandardMaterial color={colors.ear} roughness={0.8} /></mesh>
+          <mesh position={[0.12, 0.55, 0.3]}><coneGeometry args={[0.08, 0.2, 4]} /><meshStandardMaterial color={colors.ear} roughness={0.8} /></mesh>
+          <mesh position={[-0.12, 0.55, 0.3]}><coneGeometry args={[0.08, 0.2, 4]} /><meshStandardMaterial color={colors.ear} roughness={0.8} /></mesh>
+          <mesh position={[0, 0.2, -0.5]} rotation={[-0.5, 0, 0]}><cylinderGeometry args={[0.04, 0.02, 0.4]} /><meshStandardMaterial color={colors.body} /></mesh>
+          <mesh position={[-0.1, -0.2, 0.15]}><boxGeometry args={[0.08, 0.4, 0.08]} /><meshStandardMaterial color={colors.ear} /></mesh>
+          <mesh position={[0.1, -0.2, 0.15]}><boxGeometry args={[0.08, 0.4, 0.08]} /><meshStandardMaterial color={colors.ear} /></mesh>
+          <mesh position={[-0.1, -0.2, -0.35]}><boxGeometry args={[0.08, 0.4, 0.08]} /><meshStandardMaterial color={colors.ear} /></mesh>
+          <mesh position={[0.1, -0.2, -0.35]}><boxGeometry args={[0.08, 0.4, 0.08]} /><meshStandardMaterial color={colors.ear} /></mesh>
+        </group>
+      );
+    };
+
+    // --- SCENE COMPONENTS ---
     const Artwork = ({ data, position, rotation, onClick }) => {
       const [texture, setTexture] = useState(null);
       const imageUrl = data.image; 
-
       useEffect(() => {
         const loader = new THREE.TextureLoader();
+        loader.setCrossOrigin('anonymous');
         loader.load(imageUrl, (loadedTexture) => {
           loadedTexture.encoding = THREE.sRGBEncoding; 
           setTexture(loadedTexture);
-        });
+        }, undefined, (e) => console.warn("Image load error", e));
       }, [imageUrl]);
-      
       const materialProps = texture ? { map: texture } : { color: "#FFFFFF" };
-
       return (
         <group position={position} rotation={rotation}>
           <Float speed={2} rotationIntensity={0.05} floatIntensity={0.2}>
@@ -100,43 +170,10 @@
               <boxGeometry args={[ART_SCALE, ART_SCALE, 0.1]} />
               <meshStandardMaterial {...materialProps} roughness={0.2} metalness={0.1} />
             </mesh>
-            <mesh position={[0, -0.1, 0.05]}>
-              <planeGeometry args={[ART_SCALE * 0.9, ART_SCALE * 0.9]} />
-              <meshBasicMaterial color="black" opacity={0.6} transparent />
-            </mesh>
+            <mesh position={[0, -0.1, 0.05]}><planeGeometry args={[ART_SCALE * 0.9, ART_SCALE * 0.9]} /><meshBasicMaterial color="black" opacity={0.6} transparent /></mesh>
           </Float>
           <spotLight color="#FFFAF0" position={[0, 5, 5]} angle={0.4} penumbra={0.4} intensity={3} distance={12} />
-          <Text position={[0, -ART_SCALE / 2 - 0.4, 0.2]} fontSize={0.12} color="white" anchorX="center" anchorY="top">
-            {data.title.toUpperCase()}
-          </Text>
-        </group>
-      );
-    };
-    
-    const HumanAvatar = ({ variantIndex }) => {
-      const colors = HUMAN_VARIANTS[variantIndex % HUMAN_VARIANTS.length];
-      return (
-        <group position={[0, 0.85, 0]}>
-          <mesh position={[0, 0, 0]} castShadow><capsuleGeometry args={[0.3, 1.2, 4, 8]} /><meshStandardMaterial color={colors.shirt} roughness={0.3} /></mesh>
-          <mesh position={[0, 0.75, 0]}><sphereGeometry args={[0.25, 16, 16]} /><meshStandardMaterial color="#111" roughness={0.2} /></mesh>
-          <mesh position={[0, 0.55, 0]}><cylinderGeometry args={[0.1, 0.15, 0.2]} /><meshStandardMaterial color={colors.skin} /></mesh>
-        </group>
-      );
-    };
-
-    const DogAvatar = ({ variantIndex }) => {
-      const colors = DOG_VARIANTS[variantIndex % DOG_VARIANTS.length];
-      return (
-        <group position={[0, 0.3, 0]}>
-          <mesh position={[0, 0, -0.1]} castShadow rotation={[0.1, 0, 0]}><boxGeometry args={[0.3, 0.4, 0.7]} /><meshStandardMaterial color={colors.body} roughness={0.8} /></mesh>
-          <mesh position={[0, 0.35, 0.35]}><boxGeometry args={[0.35, 0.35, 0.3]} /><meshStandardMaterial color={colors.ear} roughness={0.8} /></mesh>
-          <mesh position={[0.12, 0.55, 0.3]}><coneGeometry args={[0.08, 0.2, 4]} /><meshStandardMaterial color={colors.ear} roughness={0.8} /></mesh>
-          <mesh position={[-0.12, 0.55, 0.3]}><coneGeometry args={[0.08, 0.2, 4]} /><meshStandardMaterial color={colors.ear} roughness={0.8} /></mesh>
-          <mesh position={[0, 0.2, -0.5]} rotation={[-0.5, 0, 0]}><cylinderGeometry args={[0.04, 0.02, 0.4]} /><meshStandardMaterial color={colors.body} /></mesh>
-          <mesh position={[-0.1, -0.2, 0.15]}> <boxGeometry args={[0.08, 0.4, 0.08]} /> <meshStandardMaterial color={colors.ear} /> </mesh>
-          <mesh position={[0.1, -0.2, 0.15]}> <boxGeometry args={[0.08, 0.4, 0.08]} /> <meshStandardMaterial color={colors.ear} /> </mesh>
-          <mesh position={[-0.1, -0.2, -0.35]}> <boxGeometry args={[0.08, 0.4, 0.08]} /> <meshStandardMaterial color={colors.ear} /> </mesh>
-          <mesh position={[0.1, -0.2, -0.35]}> <boxGeometry args={[0.08, 0.4, 0.08]} /> <meshStandardMaterial color={colors.ear} /> </mesh>
+          <Text position={[0, -ART_SCALE / 2 - 0.4, 0.2]} fontSize={0.12} color="white" anchorX="center" anchorY="top">{data.title.toUpperCase()}</Text>
         </group>
       );
     };
@@ -149,10 +186,14 @@
       const cameraForward = useMemo(() => new THREE.Vector3(), []);
       const cameraRight = useMemo(() => new THREE.Vector3(), []);
       const moveDirection = useMemo(() => new THREE.Vector3(), []);
+      const [isMoving, setIsMoving] = useState(false);
       
       useFrame(() => {
         if (!playerRef.current) return;
         const { forward, right } = joystickState.current;
+        const moving = Math.abs(forward) > 0.01 || Math.abs(right) > 0.01;
+        if (moving !== isMoving) setIsMoving(moving);
+
         camera.getWorldDirection(cameraForward);
         cameraForward.y = 0;
         cameraForward.normalize();
@@ -178,7 +219,9 @@
 
       return (
         <group ref={playerRef}>
-          {isDogMode ? <DogAvatar variantIndex={dogVariant} /> : <HumanAvatar variantIndex={humanVariant} />}
+          {isDogMode 
+            ? <DogAvatar variantIndex={dogVariant} isMoving={isMoving} /> 
+            : <HumanAvatar variantIndex={humanVariant} isMoving={isMoving} />}
           <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]}><circleGeometry args={[0.4, 32]} /><meshBasicMaterial color="black" opacity={0.3} transparent /></mesh>
         </group>
       );
@@ -203,16 +246,15 @@
 
       return (
         <group>
-          <directionalLight position={[10, 20, 5]} intensity={1.0} castShadow shadow-mapSize-width={1024} shadow-mapSize-height={1024} />
-          {/* ** FIX: Increased ambient lighting ** */}
-          <hemisphereLight intensity={1.5} groundColor="#000000" />
-          <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow><planeGeometry args={[ROOM_SIZE, ROOM_SIZE]} /><meshStandardMaterial color="#0a0a0a" roughness={0.1} metalness={0.6} /></mesh>
-          <gridHelper args={[ROOM_SIZE, 10, '#444444', '#222222']} position={[0, 0.01, 0]} />
-          <mesh position={[0, WALL_HEIGHT / 2, -ROOM_SIZE / 2]} receiveShadow><boxGeometry args={[ROOM_SIZE, WALL_HEIGHT, 1]} /><meshStandardMaterial color="#555555" roughness={0.9} /></mesh>
-          <mesh position={[0, WALL_HEIGHT / 2, ROOM_SIZE / 2]} receiveShadow><boxGeometry args={[ROOM_SIZE, WALL_HEIGHT, 1]} /><meshStandardMaterial color="#555555" roughness={0.9} /></mesh>
-          <mesh position={[-ROOM_SIZE / 2, WALL_HEIGHT / 2, 0]} rotation={[0, Math.PI / 2, 0]} receiveShadow><boxGeometry args={[ROOM_SIZE, WALL_HEIGHT, 1]} /><meshStandardMaterial color="#555555" roughness={0.9} /></mesh>
-          <mesh position={[ROOM_SIZE / 2, WALL_HEIGHT / 2, 0]} rotation={[0, Math.PI / 2, 0]} receiveShadow><boxGeometry args={[ROOM_SIZE, WALL_HEIGHT, 1]} /><meshStandardMaterial color="#555555" roughness={0.9} /></mesh>
-          <mesh position={[0, WALL_HEIGHT, 0]} rotation={[Math.PI / 2, 0, 0]}><planeGeometry args={[ROOM_SIZE, ROOM_SIZE]} /><meshBasicMaterial color="#050505" /></mesh>
+          <directionalLight position={[10, 20, 5]} intensity={2.0} castShadow />
+          <hemisphereLight intensity={2.5} groundColor="#222" color="#fff" />
+          <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow><planeGeometry args={[ROOM_SIZE, ROOM_SIZE]} /><meshStandardMaterial color="#111" roughness={0.2} metalness={0.5} /></mesh>
+          <gridHelper args={[ROOM_SIZE, 10, '#444', '#222']} position={[0, 0.01, 0]} />
+          <mesh position={[0, WALL_HEIGHT / 2, -ROOM_SIZE / 2]} receiveShadow><boxGeometry args={[ROOM_SIZE, WALL_HEIGHT, 1]} /><meshStandardMaterial color="#444" roughness={0.8} /></mesh>
+          <mesh position={[0, WALL_HEIGHT / 2, ROOM_SIZE / 2]} receiveShadow><boxGeometry args={[ROOM_SIZE, WALL_HEIGHT, 1]} /><meshStandardMaterial color="#444" roughness={0.8} /></mesh>
+          <mesh position={[-ROOM_SIZE / 2, WALL_HEIGHT / 2, 0]} rotation={[0, Math.PI / 2, 0]} receiveShadow><boxGeometry args={[ROOM_SIZE, WALL_HEIGHT, 1]} /><meshStandardMaterial color="#444" roughness={0.8} /></mesh>
+          <mesh position={[ROOM_SIZE / 2, WALL_HEIGHT / 2, 0]} rotation={[0, Math.PI / 2, 0]} receiveShadow><boxGeometry args={[ROOM_SIZE, WALL_HEIGHT, 1]} /><meshStandardMaterial color="#444" roughness={0.8} /></mesh>
+          <mesh position={[0, WALL_HEIGHT, 0]} rotation={[Math.PI / 2, 0, 0]}><planeGeometry args={[ROOM_SIZE, ROOM_SIZE]} /><meshBasicMaterial color="#000" /></mesh>
           <mesh position={[0, 0.5, 0]} castShadow receiveShadow><boxGeometry args={[5, 0.6, 1.5]} /><meshStandardMaterial color="#111" roughness={0.2} /></mesh>
           {artworks}
         </group>
@@ -222,8 +264,6 @@
     const JoystickControl = ({ onChange }) => {
       const [active, setActive] = useState(false);
       const baseRef = useRef(null);
-      const [pos, setPos] = useState({ x: 0, y: 0 });
-      const handleEnd = () => { setActive(false); setPos({ x: 0, y: 0 }); onChange({ x: 0, y: 0 }); };
       const handleMove = (clientX, clientY) => {
         if (!baseRef.current) return;
         const base = baseRef.current.getBoundingClientRect();
@@ -233,9 +273,9 @@
         const distance = Math.sqrt(dx*dx + dy*dy);
         const maxDist = 40; 
         if (distance > maxDist) { const ratio = maxDist / distance; dx *= ratio; dy *= ratio; }
-        setPos({ x: dx, y: -dy }); 
         onChange({ x: dx / maxDist, y: dy / maxDist });
       };
+      const handleEnd = () => { setActive(false); onChange({ x: 0, y: 0 }); };
       useEffect(() => {
         const onTouchMove = (e) => { if(active) { e.preventDefault(); handleMove(e.touches[0].clientX, e.touches[0].clientY);} };
         const onMouseMove = (e) => { if(active) handleMove(e.clientX, e.clientY); };
@@ -255,8 +295,11 @@
       }, [active]);
       return (
         <div className="absolute bottom-12 left-1/2 -translate-x-1/2 z-20 touch-none select-none">
-          <div ref={baseRef} className="w-32 h-32 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 flex items-center justify-center cursor-pointer shadow-2xl" onMouseDown={(e) => { setActive(true); handleMove(e.clientX, e.clientY); }} onTouchStart={(e) => { setActive(true); handleMove(e.touches[0].clientX, e.touches[0].clientY); }}>
-            <div className="w-12 h-12 rounded-full bg-white shadow-[0_0_15px_rgba(255,255,255,0.5)] flex items-center justify-center text-black/50" style={{ transform: `translate(${pos.x}px, ${pos.y}px)` }}><LucideMove size={20} /></div>
+          <div ref={baseRef} 
+               className="w-32 h-32 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 flex items-center justify-center cursor-pointer shadow-2xl" 
+               onMouseDown={(e) => { setActive(true); handleMove(e.clientX, e.clientY); }} 
+               onTouchStart={(e) => { setActive(true); handleMove(e.touches[0].clientX, e.touches[0].clientY); }}>
+            <div className="w-12 h-12 rounded-full bg-white shadow-[0_0_15px_rgba(255,255,255,0.5)] flex items-center justify-center text-black/50">●</div>
           </div>
           <div className="text-white/30 text-[10px] text-center mt-4 tracking-[0.2em] pointer-events-none">DRAG TO WALK</div>
         </div>
@@ -273,46 +316,23 @@
       const controlsRef = useRef(null);
       
       useEffect(() => {
-        // ** FIX: Robust data loading **
-        if (window.WORKS) {
+        if (window.WORKS && window.WORKS.length > 0) {
           setIsDataLoaded(true);
         } else {
-          const interval = setInterval(() => {
-            if (window.WORKS) {
-              setIsDataLoaded(true);
-              clearInterval(interval);
-            }
-          }, 100);
-          return () => clearInterval(interval);
+          const i = setInterval(() => {
+             if (window.WORKS && window.WORKS.length > 0) {
+               setIsDataLoaded(true);
+               clearInterval(i);
+             }
+          }, 200);
+          return () => clearInterval(i);
         }
       }, []);
 
       const handleHumanClick = () => { if (!isDogMode) { setHumanVariant(v => (v + 1) % 20); } else { setIsDogMode(false); } };
       const handleDogClick = () => { if (isDogMode) { setDogVariant(v => (v + 1) % 20); } else { setIsDogMode(true); } };
       
-      useEffect(() => {
-        const handleKeyDown = (e) => {
-          switch(e.key) {
-            case "ArrowUp": case "w": joystickState.current.forward = 1; break;
-            case "ArrowDown": case "s": joystickState.current.forward = -1; break;
-            case "ArrowLeft": case "a": joystickState.current.right = -1; break;
-            case "ArrowRight": case "d": joystickState.current.right = 1; break;
-          }
-        };
-        const handleKeyUp = (e) => {
-          switch(e.key) {
-            case "ArrowUp": case "ArrowDown": case "w": case "s": joystickState.current.forward = 0; break;
-            case "ArrowLeft": case "ArrowRight": case "a": case "d": joystickState.current.right = 0; break;
-          }
-        };
-        window.addEventListener("keydown", handleKeyDown);
-        window.addEventListener("keyup", handleKeyUp);
-        return () => { window.removeEventListener("keydown", handleKeyDown); window.removeEventListener("keyup", handleKeyUp); };
-      }, []);
-
-      if (!isDataLoaded) {
-        return <div style={{ color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>NOW LOADING...</div>;
-      }
+      if (!isDataLoaded) return <div className="loading-screen">NOW LOADING...</div>;
 
       return (
         <div className="relative w-full h-screen bg-black overflow-hidden font-sans select-none">
@@ -324,12 +344,11 @@
               <Player joystickState={joystickState} controlsRef={controlsRef} isDogMode={isDogMode} humanVariant={humanVariant} dogVariant={dogVariant} />
             </Suspense>
           </Canvas>
-          {/* ** FIX: Header layout for mobile ** */}
           <div className="absolute top-0 left-0 right-0 z-10 p-3 flex justify-between items-center w-full pointer-events-none">
             <h1 className="text-white text-lg sm:text-xl font-bold tracking-wider opacity-90 drop-shadow-lg min-w-0 truncate">TAF DOG MUSEUM</h1>
             <div className="flex gap-2 pointer-events-auto flex-shrink-0">
-              <button onClick={handleHumanClick} className={`flex items-center gap-2 px-3 py-2 rounded-full transition-all backdrop-blur-md border active:scale-95 ${!isDogMode ? 'bg-white text-black border-white' : 'bg-black/40 text-white/70 border-white/20 hover:bg-white/10'}`}><LucideUser size={16} /><span className="text-xs font-bold tracking-wider">HUMAN</span></button>
-              <button onClick={handleDogClick} className={`flex items-center gap-2 px-3 py-2 rounded-full transition-all backdrop-blur-md border active:scale-95 ${isDogMode ? 'bg-white text-black border-white' : 'bg-black/40 text-white/70 border-white/20 hover:bg-white/10'}`}><LucideDog size={16} /><span className="text-xs font-bold tracking-wider">DOG</span></button>
+              <button onClick={handleHumanClick} className={`flex items-center gap-2 px-3 py-2 rounded-full transition-all backdrop-blur-md border active:scale-95 ${!isDogMode ? 'bg-white text-black border-white' : 'bg-black/40 text-white/70 border-white/20 hover:bg-white/10'}`}><span className="text-xs font-bold tracking-wider">HUMAN</span></button>
+              <button onClick={handleDogClick} className={`flex items-center gap-2 px-3 py-2 rounded-full transition-all backdrop-blur-md border active:scale-95 ${isDogMode ? 'bg-white text-black border-white' : 'bg-black/40 text-white/70 border-white/20 hover:bg-white/10'}`}><span className="text-xs font-bold tracking-wider">DOG</span></button>
             </div>
           </div>
           <JoystickControl onChange={(data) => { joystickState.current.forward = data.y; joystickState.current.right = data.x; }} />
@@ -346,10 +365,15 @@
                   </div>
                   <div className="mt-12 flex justify-between items-end">
                     <div><span className="block text-gray-600 text-[10px] uppercase tracking-widest mb-1">Artist</span><span className="text-white text-sm">TAF DOG Project</span></div>
-                    <button className="bg-white text-black px-6 py-3 text-xs font-bold tracking-wider hover:bg-gray-200 transition-colors">OPENSEA</button>
+                    <button 
+                      className="bg-white text-black px-6 py-3 text-xs font-bold tracking-wider hover:bg-gray-200 transition-colors"
+                      onClick={() => window.open('https://opensea.io/ja/collection/taf-dog', '_blank')}
+                    >
+                      OPENSEA
+                    </button>
                   </div>
                 </div>
-                <button className="absolute top-4 right-4 text-white/50 hover:text-white p-2" onClick={() => setSelectedArt(null)}><LucideX size={24} /></button>
+                <button className="absolute top-4 right-4 text-white/50 hover:text-white p-2" onClick={() => setSelectedArt(null)}>X</button>
               </div>
             </div>
           )}
@@ -357,7 +381,6 @@
       );
     };
     
-    // ** FIX: Wait for DOM and date.js to be ready **
     window.addEventListener('load', () => {
       const container = document.getElementById("root");
       if (container) {

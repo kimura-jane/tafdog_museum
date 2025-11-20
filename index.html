@@ -11,7 +11,6 @@
     #root { width: 100%; height: 100%; }
     ::-webkit-scrollbar { display: none; }
     .loading-screen { color: white; display: flex; align-items: center; justify-content: center; height: 100%; font-size: 1.2rem; letter-spacing: 0.1em; flex-direction: column; gap: 1rem; }
-    /* アクションボタンのアニメーション */
     .action-btn:active { transform: scale(0.9); }
   </style>
   
@@ -126,13 +125,14 @@
       );
     };
 
+    // **FIX: 足跡コンポーネントを追加 (色は白っぽく)**
     const Footprints = ({ footprints }) => {
       return (
         <group>
           {footprints.map((fp) => (
             <mesh key={fp.id} position={[fp.x, 0.02, fp.z]} rotation={[-Math.PI/2, 0, fp.rotation]}>
               <circleGeometry args={[0.15, 16]} />
-              <meshBasicMaterial color="black" transparent opacity={fp.opacity} />
+              <meshBasicMaterial color="#888888" transparent opacity={fp.opacity} />
             </mesh>
           ))}
         </group>
@@ -148,17 +148,14 @@
 
       useFrame((state) => {
         const t = state.clock.getElapsedTime();
-        // 飛んでいるときは手足を広げる、歩いているときは振る
         const angle = isFlying ? 0.5 : (isMoving ? Math.sin(t * 12) * 0.5 : 0);
         const legAngle = isFlying ? 0.2 : (isMoving ? Math.sin(t * 12) * 0.5 : 0);
         
         if (leftArm.current && rightArm.current && leftLeg.current && rightLeg.current) {
           leftArm.current.rotation.x = isFlying ? 0 : angle;
-          leftArm.current.rotation.z = isFlying ? 0.5 : 0; // Fly pose
-          
+          leftArm.current.rotation.z = isFlying ? 0.5 : 0; 
           rightArm.current.rotation.x = isFlying ? 0 : -angle;
-          rightArm.current.rotation.z = isFlying ? -0.5 : 0; // Fly pose
-
+          rightArm.current.rotation.z = isFlying ? -0.5 : 0; 
           leftLeg.current.rotation.x = isFlying ? 0.2 : -legAngle;
           rightLeg.current.rotation.x = isFlying ? 0.2 : legAngle;
         }
@@ -197,7 +194,6 @@
             let zRot = 0;
             
             if (isBarking) {
-                // 吠えるときは跳ねる
                 yOffset = 0.3 + Math.abs(Math.sin(t * 20)) * 0.2;
             } else if (isMoving) {
                 yOffset = 0.3 + Math.abs(Math.sin(t * 15)) * 0.05;
@@ -210,19 +206,19 @@
       return (
         <group>
             <group ref={group} position={[0, 0.3, 0]}>
-            <mesh position={[0, 0, -0.1]} castShadow rotation={[0.1, 0, 0]}><boxGeometry args={[0.3, 0.4, 0.7]} /><meshStandardMaterial color={colors.body} roughness={0.8} /></mesh>
-            <mesh position={[0, 0.35, 0.35]}><boxGeometry args={[0.35, 0.35, 0.3]} /><meshStandardMaterial color={colors.ear} roughness={0.8} /></mesh>
-            <mesh position={[0.12, 0.55, 0.3]}><coneGeometry args={[0.08, 0.2, 4]} /><meshStandardMaterial color={colors.ear} roughness={0.8} /></mesh>
-            <mesh position={[-0.12, 0.55, 0.3]}><coneGeometry args={[0.08, 0.2, 4]} /><meshStandardMaterial color={colors.ear} roughness={0.8} /></mesh>
-            <mesh position={[0, 0.2, -0.5]} rotation={[-0.5, 0, 0]}><cylinderGeometry args={[0.04, 0.02, 0.4]} /><meshStandardMaterial color={colors.body} /></mesh>
-            <mesh position={[-0.1, -0.2, 0.15]}><boxGeometry args={[0.08, 0.4, 0.08]} /><meshStandardMaterial color={colors.ear} /></mesh>
-            <mesh position={[0.1, -0.2, 0.15]}><boxGeometry args={[0.08, 0.4, 0.08]} /><meshStandardMaterial color={colors.ear} /></mesh>
-            <mesh position={[-0.1, -0.2, -0.35]}><boxGeometry args={[0.08, 0.4, 0.08]} /><meshStandardMaterial color={colors.ear} /></mesh>
-            <mesh position={[0.1, -0.2, -0.35]}><boxGeometry args={[0.08, 0.4, 0.08]} /><meshStandardMaterial color={colors.ear} /></mesh>
+                <mesh position={[0, 0, -0.1]} castShadow rotation={[0.1, 0, 0]}><boxGeometry args={[0.3, 0.4, 0.7]} /><meshStandardMaterial color={colors.body} roughness={0.8} /></mesh>
+                <mesh position={[0, 0.35, 0.35]}><boxGeometry args={[0.35, 0.35, 0.3]} /><meshStandardMaterial color={colors.ear} roughness={0.8} /></mesh>
+                <mesh position={[0.12, 0.55, 0.3]}><coneGeometry args={[0.08, 0.2, 4]} /><meshStandardMaterial color={colors.ear} roughness={0.8} /></mesh>
+                <mesh position={[-0.12, 0.55, 0.3]}><coneGeometry args={[0.08, 0.2, 4]} /><meshStandardMaterial color={colors.ear} roughness={0.8} /></mesh>
+                <mesh position={[0, 0.2, -0.5]} rotation={[-0.5, 0, 0]}><cylinderGeometry args={[0.04, 0.02, 0.4]} /><meshStandardMaterial color={colors.body} /></mesh>
+                <mesh position={[-0.1, -0.2, 0.15]}><boxGeometry args={[0.08, 0.4, 0.08]} /><meshStandardMaterial color={colors.ear} /></mesh>
+                <mesh position={[0.1, -0.2, 0.15]}><boxGeometry args={[0.08, 0.4, 0.08]} /><meshStandardMaterial color={colors.ear} /></mesh>
+                <mesh position={[-0.1, -0.2, -0.35]}><boxGeometry args={[0.08, 0.4, 0.08]} /><meshStandardMaterial color={colors.ear} /></mesh>
+                <mesh position={[0.1, -0.2, -0.35]}><boxGeometry args={[0.08, 0.4, 0.08]} /><meshStandardMaterial color={colors.ear} /></mesh>
             </group>
-            {/* 吠える吹き出し */}
+            {/* **FIX: Billboardを使って文字を常にカメラに向ける** */}
             {isBarking && (
-                <Billboard position={[0, 1.5, 0]}>
+                <Billboard position={[0, 1.2, 0]}>
                     <Text fontSize={0.5} color="white" outlineWidth={0.05} outlineColor="black">WAN!</Text>
                 </Billboard>
             )}
@@ -248,24 +244,44 @@
         const loader = new THREE.TextureLoader();
         loader.setCrossOrigin('anonymous');
         const filename = data.image;
-        loader.load(filename, 
-          (tex) => { tex.encoding = THREE.sRGBEncoding; tex.minFilter = THREE.LinearFilter; tex.generateMipmaps = false; setTexture(tex); }, 
+        loader.load(
+          filename, 
+          (tex) => { 
+            tex.encoding = THREE.sRGBEncoding; 
+            tex.minFilter = THREE.LinearFilter;
+            tex.generateMipmaps = false; 
+            setTexture(tex); 
+          }, 
           undefined, 
           () => {
              loader.load(filename.replace('.png', '.PNG'), 
-               (tex2) => { tex2.encoding = THREE.sRGBEncoding; tex2.minFilter = THREE.LinearFilter; tex2.generateMipmaps = false; setTexture(tex2); },
+               (tex2) => { 
+                 tex2.encoding = THREE.sRGBEncoding;
+                 tex2.minFilter = THREE.LinearFilter;
+                 tex2.generateMipmaps = false;
+                 setTexture(tex2); 
+               },
                undefined,
                () => setError(true)
              )
           }
         );
       }, [data.image]);
+
       const materialProps = (!error && texture) ? { map: texture, color: "white" } : { color: "#CCCCCC" };
+
       return (
         <group position={position} rotation={rotation}>
           <Float speed={2} rotationIntensity={0.05} floatIntensity={0.2}>
-            <mesh position={[0, 0, 0.22]}><boxGeometry args={[ART_SCALE + 0.4, ART_SCALE + 0.4, 0.05]} /><meshStandardMaterial color="#111" roughness={0.4} /></mesh>
-            <mesh position={[0, 0, 0.26]}><boxGeometry args={[ART_SCALE + 0.2, ART_SCALE + 0.2, 0.05]} /><meshStandardMaterial color="#eeeeee" roughness={0.9} /></mesh>
+            {/* 額装 */}
+            <mesh position={[0, 0, 0.22]}>
+               <boxGeometry args={[ART_SCALE + 0.4, ART_SCALE + 0.4, 0.05]} />
+               <meshStandardMaterial color="#111" roughness={0.4} />
+            </mesh>
+            <mesh position={[0, 0, 0.26]}>
+               <boxGeometry args={[ART_SCALE + 0.2, ART_SCALE + 0.2, 0.05]} />
+               <meshStandardMaterial color="#eeeeee" roughness={0.9} />
+            </mesh>
             <mesh 
               position={[0, 0, 0.3]} 
               onClick={(e) => { e.stopPropagation(); onClick({ ...data, image: error ? null : (texture ? texture.image.src : null) }); }}
@@ -275,6 +291,7 @@
               <boxGeometry args={[ART_SCALE, ART_SCALE, 0.02]} />
               <meshStandardMaterial {...materialProps} roughness={0.2} metalness={0.1} />
             </mesh>
+            {/* エラー表示 */}
             {(!texture || error) && (
                <Text position={[0, 0, 0.4]} fontSize={0.3} color="black" maxWidth={ART_SCALE * 0.8} textAlign="center">
                  {error ? "NO IMAGE" : "LOADING..."}
@@ -296,7 +313,6 @@
       const cameraRight = useMemo(() => new THREE.Vector3(), []);
       const moveDirection = useMemo(() => new THREE.Vector3(), []);
       const [isMoving, setIsMoving] = useState(false);
-      // 足跡用タイマー
       const lastFootprintTime = useRef(0);
       
       useFrame((state) => {
@@ -322,35 +338,28 @@
             position.current.copy(nextPos);
         }
         
-        // --- FLY MODE LOGIC ---
         if (isFlying) {
-            // 飛行中はY座標を上げる
             position.current.y = THREE.MathUtils.lerp(position.current.y, 4.0, 0.05);
         } else {
-            // 通常は地面
             position.current.y = THREE.MathUtils.lerp(position.current.y, 0, 0.1);
         }
 
         playerRef.current.position.copy(position.current);
-        
-        // 回転
         if (moveDirection.length() > 0.01) {
           const targetAngle = Math.atan2(moveDirection.x, moveDirection.z);
           playerRef.current.quaternion.slerp(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), targetAngle), LERP_FACTOR);
         }
         
-        // --- FOOTPRINTS LOGIC ---
+        // 足跡生成 (飛んでない時のみ)
         if (moving && !isFlying && state.clock.elapsedTime - lastFootprintTime.current > 0.3) {
             lastFootprintTime.current = state.clock.elapsedTime;
             setFootprints(prev => [
-                ...prev.slice(-30), // 最大30個まで
-                { id: Math.random(), x: position.current.x, z: position.current.z, rotation: playerRef.current.rotation.y, opacity: 0.5, createdAt: state.clock.elapsedTime }
+                ...prev.slice(-30), 
+                { id: Math.random(), x: position.current.x, z: position.current.z, rotation: playerRef.current.rotation.y, opacity: 0.5 }
             ]);
         }
 
-        // カメラ追従
         if (controlsRef.current) {
-          // 飛んでる時はカメラも高くする
           const targetY = isFlying ? 4.0 : (isDogMode ? 0.5 : 1.2);
           controlsRef.current.target.lerp(new THREE.Vector3(position.current.x, targetY, position.current.z), LERP_FACTOR);
           controlsRef.current.update();
@@ -400,7 +409,10 @@
           <MetaverseCharacter position={[-14, 0, 14]} rotationSpeed={-1} />
           <MetaverseCharacter position={[14, 0, -14]} rotationSpeed={1.5} />
           <MetaverseCharacter position={[-14, 0, -14]} rotationSpeed={-1.5} />
+          
+          {/* **FIX: 足跡コンポーネントをここに追加** */}
           <Footprints footprints={footprints} />
+          
           {items}
         </group>
       );
@@ -468,7 +480,6 @@
       
       useEffect(() => {
         const t = setTimeout(() => setIsReady(true), 500);
-        // 足跡のフェードアウト処理
         const fpInterval = setInterval(() => {
             setFootprints(prev => prev.map(fp => ({...fp, opacity: fp.opacity - 0.02})).filter(fp => fp.opacity > 0));
         }, 100);
@@ -481,7 +492,7 @@
       const handleFlyToggle = () => setIsFlying(!isFlying);
       const handleBark = () => {
           setIsBarking(true);
-          setTimeout(() => setIsBarking(false), 1000); // 1秒後に戻る
+          setTimeout(() => setIsBarking(false), 1000); 
       };
 
       if (!isReady) return <div className="loading-screen">NOW LOADING...</div>;
@@ -513,15 +524,12 @@
             </div>
           </div>
           
-          {/* アクションボタン (右下) */}
           <div className="absolute bottom-32 right-6 z-20 pointer-events-auto flex flex-col gap-4">
-             {/* 人間モード: FLYボタン */}
              {!isDogMode && (
                  <button onClick={handleFlyToggle} className={`action-btn w-16 h-16 rounded-full border-2 flex items-center justify-center shadow-lg transition-all ${isFlying ? 'bg-blue-500 border-blue-300 text-white' : 'bg-black/50 border-white/50 text-white/80'}`}>
                     <span className="text-xs font-bold">FLY</span>
                  </button>
              )}
-             {/* 犬モード: BARKボタン */}
              {isDogMode && (
                  <button onClick={handleBark} className="action-btn w-16 h-16 rounded-full bg-red-500/80 border-2 border-red-300 flex items-center justify-center shadow-lg text-white active:bg-red-600">
                     <span className="text-xs font-bold">BARK</span>

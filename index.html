@@ -26,6 +26,7 @@
   }
   </script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="date.js" defer></script>
 </head>
 <body>
   <div id="root">
@@ -43,6 +44,7 @@
     import * as THREE from "three";
 
     // --- DATA EMBEDDED (Fallback) ---
+    // 画像が見つかりやすいように 'images/' プレフィックスをつけるのが一般的です
     const DEFAULT_WORKS = [
       { id: 1,  title: 'TAF DOG #01', image: 'taf_dog_01.png' },
       { id: 2,  title: 'TAF DOG #02', image: 'taf_dog_02.png' },
@@ -64,21 +66,10 @@
       { id: 18, title: 'TAF DOG #18', image: 'taf_dog_18.png' }
     ];
 
-    // --- ERROR BOUNDARY ---
     class ErrorBoundary extends React.Component {
-      constructor(props) {
-        super(props);
-        this.state = { hasError: false };
-      }
-      static getDerivedStateFromError(error) {
-        return { hasError: true };
-      }
-      render() {
-        if (this.state.hasError) {
-          return <div className="loading-screen"><h1>エラーが発生しました。</h1></div>;
-        }
-        return this.props.children; 
-      }
+      constructor(props) { super(props); this.state = { hasError: false }; }
+      static getDerivedStateFromError(error) { return { hasError: true }; }
+      render() { if (this.state.hasError) return <div className="loading-screen"><h1>エラーが発生しました。</h1></div>; return this.props.children; }
     }
 
     // --- CONSTANTS ---
@@ -172,32 +163,62 @@
     // --- SCENE ---
     const Artwork = ({ data, position, rotation, onClick }) => {
       const [texture, setTexture] = useState(null);
-      const imageUrl = data.image; 
+      const [error, setError] = useState(false);
+      
       useEffect(() => {
         const loader = new THREE.TextureLoader();
         loader.setCrossOrigin('anonymous');
-        loader.load(imageUrl, (loadedTexture) => {
-          loadedTexture.encoding = THREE.sRGBEncoding; 
-          setTexture(loadedTexture);
-        }, undefined, () => {});
-      }, [imageUrl]);
-      const materialProps = texture ? { map: texture } : { color: "#FFFFFF" };
+
+        // 1. まず images/ フォルダの中を探す
+        const path1 = `images/${data.image}`;
+        // 2. ダメならルートを探す (または外部URLならそのまま)
+        const path2 = data.image;
+
+        loader.load(path1, 
+          (tex) => { 
+            tex.encoding = THREE.sRGBEncoding; 
+            setTexture(tex); 
+          },
+          undefined,
+          () => {
+            // 失敗したら、プレフィックスなしで再トライ
+            loader.load(path2, 
+              (tex2) => { 
+                tex2.encoding = THREE.sRGBEncoding; 
+                setTexture(tex2); 
+              },
+              undefined,
+              () => setError(true) // 完全にダメならエラー状態へ
+            );
+          }
+        );
+      }, [data.image]);
+
+      const materialProps = texture ? { map: texture } : { color: "#444" };
+
       return (
         <group position={position} rotation={rotation}>
           <Float speed={2} rotationIntensity={0.05} floatIntensity={0.2}>
             <mesh 
               position={[0, 0, 0.3]} 
-              onClick={(e) => { e.stopPropagation(); onClick({ ...data, image: imageUrl }); }}
+              onClick={(e) => { e.stopPropagation(); onClick({ ...data, image: error ? null : (texture ? texture.image.src : null) }); }}
               onPointerOver={() => (document.body.style.cursor = "pointer")}
               onPointerOut={() => (document.body.style.cursor = "auto")}
             >
               <boxGeometry args={[ART_SCALE, ART_SCALE, 0.1]} />
               <meshStandardMaterial {...materialProps} roughness={0.2} metalness={0.1} />
             </mesh>
+            {/* エラー時やロード中にタイトルを表示する */}
+            {(!texture || error) && (
+               <Text position={[0, 0, 0.4]} fontSize={0.2} color="white" maxWidth={ART_SCALE * 0.8} textAlign="center">
+                 {error ? "NO IMAGE" : "LOADING..."}
+                 {"\n"}{data.title}
+               </Text>
+            )}
             <mesh position={[0, -0.1, 0.05]}><planeGeometry args={[ART_SCALE * 0.9, ART_SCALE * 0.9]} /><meshBasicMaterial color="black" opacity={0.6} transparent /></mesh>
           </Float>
-          <spotLight color="#FFFAF0" position={[0, 5, 5]} angle={0.4} penumbra={0.4} intensity={3} distance={12} />
-          <Text position={[0, -ART_SCALE / 2 - 0.4, 0.2]} fontSize={0.12} color="white" anchorX="center" anchorY="top">{data.title.toUpperCase()}</Text>
+          <spotLight color="#FFFAF0" position={[0, 5, 5]} angle={0.5} penumbra={0.4} intensity={5} distance={15} />
+          <Text position={[0, -ART_SCALE / 2 - 0.4, 0.2]} fontSize={0.15} color="white" anchorX="center" anchorY="top">{data.title.toUpperCase()}</Text>
         </group>
       );
     };
@@ -253,7 +274,8 @@
 
     const GalleryRoom = ({ onSelectArt }) => {
       const items = useMemo(() => {
-        const worksData = window.WORKS && window.WORKS.length > 0 ? window.WORKS : DEFAULT_WORKS; 
+        // 優先度: window.WORKS -> DEFAULT_WORKS
+        let worksData = window.WORKS && window.WORKS.length > 0 ? window.WORKS : DEFAULT_WORKS;
         const res = [];
         const spacing = ROOM_SIZE / 6; 
         worksData.forEach((work, index) => {
@@ -329,8 +351,8 @@
     };
 
     const App = () => {
-      // Force loading to complete immediately
-      const [isDataLoaded, setIsDataLoaded] = useState(true);
+      // Force load after a short delay to ensure date.js has a chance, but don't block
+      const [isReady, setIsReady] = useState(false);
       const [isDogMode, setIsDogMode] = useState(false);
       const [humanVariant, setHumanVariant] = useState(0);
       const [dogVariant, setDogVariant] = useState(0);
@@ -338,16 +360,17 @@
       const joystickState = useRef({ forward: 0, right: 0 });
       const controlsRef = useRef(null);
       
-      // Check for external data but don't block
       useEffect(() => {
-        if (window.WORKS && window.WORKS.length > 0) {
-          setIsDataLoaded(true);
-        }
+        // 500msだけ待って、データがなくても強制的にスタートさせる（フォールバックデータを使うため）
+        const t = setTimeout(() => setIsReady(true), 500);
+        return () => clearTimeout(t);
       }, []);
 
       const handleHumanClick = () => { if (!isDogMode) { setHumanVariant(v => (v + 1) % 20); } else { setIsDogMode(false); } };
       const handleDogClick = () => { if (isDogMode) { setDogVariant(v => (v + 1) % 20); } else { setIsDogMode(true); } };
       
+      if (!isReady) return <div className="loading-screen">NOW LOADING...</div>;
+
       return (
         <div className="relative w-full h-screen bg-black overflow-hidden font-sans select-none">
           <Canvas shadows dpr={[1, 1.5]}>
@@ -370,7 +393,11 @@
             <div className={`absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 transition-opacity duration-300`} onClick={() => setSelectedArt(null)}>
               <div className="bg-[#1a1a1a] border border-gray-800 max-w-4xl w-full max-h-[90vh] overflow-y-auto flex flex-col md:flex-row rounded-sm shadow-2xl" onClick={(e) => e.stopPropagation()}>
                 <div className="w-full md:w-1/2 bg-black flex items-center justify-center p-4 md:p-12 relative min-h-[300px]">
-                  <img src={selectedArt.image} alt={selectedArt.title} className="max-w-full max-h-[60vh] shadow-[0_0_30px_rgba(0,0,0,0.5)] relative z-10" />
+                  {selectedArt.image ? (
+                    <img src={selectedArt.image} alt={selectedArt.title} className="max-w-full max-h-[60vh] shadow-[0_0_30px_rgba(0,0,0,0.5)] relative z-10" />
+                  ) : (
+                    <div className="text-white">NO IMAGE</div>
+                  )}
                 </div>
                 <div className="w-full md:w-1/2 p-8 md:p-12 flex flex-col justify-between">
                   <div>

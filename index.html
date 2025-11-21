@@ -18,7 +18,7 @@
     window.process = {
       env: {
         NODE_ENV: 'production',
-        API_KEY: '' // API Key is handled internally or via URL params if needed, but mostly static mode here.
+        API_KEY: '' // API Key is handled internally or via URL params if needed.
       }
     };
   </script>
@@ -69,6 +69,7 @@
     const BASE_IMAGE_URL = "https://kimura-jane.github.io/tafdog_museum/";
     const PROXY_URL = "https://wsrv.nl/?url=";
 
+    // Data for all 20 paintings
     const USER_WORKS = [
       { id: 1,  title: 'TAF DOG #01', image: 'taf_dog_01.png' },
       { id: 2,  title: 'TAF DOG #02', image: 'taf_dog_02.png' },
@@ -87,24 +88,33 @@
       { id: 15, title: 'TAF DOG #15', image: 'taf_dog_15.png' },
       { id: 16, title: 'TAF DOG #16', image: 'taf_dog_16.png' },
       { id: 17, title: 'TAF DOG #17', image: 'taf_dog_17.png' },
-      { id: 18, title: 'TAF DOG #18', image: 'taf_dog_18.png' }
+      { id: 18, title: 'TAF DOG #18', image: 'taf_dog_18.png' },
+      { id: 19, title: 'TAF DOG #19', image: 'taf_dog_19.png' },
+      { id: 20, title: 'TAF DOG #20', image: 'taf_dog_20.png' }
     ];
 
-    // Calculate positions for each painting
+    // Calculate positions for each painting (5 per wall)
     const PAINTINGS = USER_WORKS.map((work, index) => {
-      const spacing = ROOM_SIZE / 6;
+      const spacing = ROOM_SIZE / 6; // Fits 5 items comfortably
       let pos = [0, ART_Y_POS, 0];
       let rot = [0, 0, 0];
       
+      // 0-4: Back Wall (z = -)
       if (index < 5) { 
         pos = [(index - 2) * spacing, ART_Y_POS, -ROOM_SIZE / 2 + WALL_OFFSET]; 
-      } else if (index < 10) { 
+      } 
+      // 5-9: Right Wall (x = +)
+      else if (index < 10) { 
         pos = [ROOM_SIZE / 2 - WALL_OFFSET, ART_Y_POS, (index - 7) * spacing]; 
         rot = [0, -Math.PI / 2, 0]; 
-      } else if (index < 15) { 
+      } 
+      // 10-14: Front Wall (z = +)
+      else if (index < 15) { 
         pos = [(12 - index) * spacing, ART_Y_POS, ROOM_SIZE / 2 - WALL_OFFSET]; 
         rot = [0, Math.PI, 0]; 
-      } else { 
+      } 
+      // 15-19: Left Wall (x = -)
+      else { 
         pos = [-ROOM_SIZE / 2 + WALL_OFFSET, ART_Y_POS, (17 - index) * spacing]; 
         rot = [0, Math.PI / 2, 0]; 
       }
@@ -112,6 +122,8 @@
       return {
         ...work,
         id: String(work.id),
+        // Construct image URL for GitHub Pages
+        image: BASE_IMAGE_URL + work.image,
         position: pos,
         rotation: rot
       };
@@ -220,21 +232,27 @@
         canvas.width = 1024; canvas.height = 1024;
         const ctx = canvas.getContext('2d');
         if (ctx) {
-          ctx.fillStyle = '#e0e0e0'; ctx.fillRect(0, 0, 1024, 1024);
+          // Base: Bright pale grey
+          ctx.fillStyle = '#e0e0e0'; 
+          ctx.fillRect(0, 0, 1024, 1024);
+          // Heavy Noise
           for (let i = 0; i < 400000; i++) {
             const x = Math.random() * 1024; const y = Math.random() * 1024;
             ctx.fillStyle = Math.random() > 0.5 ? 'rgba(255, 255, 255, 0.3)' : 'rgba(0, 0, 0, 0.05)';
             ctx.fillRect(x, y, 2, 2);
           }
+          // Formwork Lines
           ctx.strokeStyle = 'rgba(100,100,100,0.15)'; ctx.lineWidth = 2;
           const pw = 512; const ph = 256;
           ctx.beginPath();
           for (let y = 0; y <= 1024; y += ph) { ctx.moveTo(0, y); ctx.lineTo(1024, y); }
           for (let x = 0; x <= 1024; x += pw) { ctx.moveTo(x, 0); ctx.lineTo(x, 1024); }
           ctx.stroke();
+          // Tie Holes
           for (let y = ph/2; y < 1024; y += ph) {
             for (let x = pw/4; x < 1024; x += pw/2) {
                  ctx.fillStyle = 'rgba(50,50,50,0.4)'; ctx.beginPath(); ctx.arc(x, y, 6, 0, Math.PI * 2); ctx.fill();
+                 ctx.fillStyle = 'rgba(255,255,255,0.5)'; ctx.beginPath(); ctx.arc(x, y+2, 6, 0, Math.PI * 2); ctx.fill();
             }
           }
         }
@@ -323,8 +341,8 @@
         let timeoutId;
         const loadWithRetry = (retryCount = 0) => {
             if (!isMounted) return;
-            const fullUrl = BASE_IMAGE_URL + data.image;
-            const proxyUrl = `${PROXY_URL}${encodeURIComponent(fullUrl.replace(/^https?:\/\//, ''))}&w=512&output=png&q=85&t=${Date.now()}`;
+            // Construct PROXY URL with optimization (resize to 512, webp/png) and cache buster
+            const proxyUrl = `${PROXY_URL}${encodeURIComponent(data.image.replace(/^https?:\/\//, ''))}&w=512&output=png&q=85&t=${Date.now()}`;
             const loader = new THREE.TextureLoader();
             loader.setCrossOrigin('anonymous');
             loader.load(proxyUrl, 
@@ -333,6 +351,7 @@
                 () => { if (retryCount < 1) setTimeout(() => loadWithRetry(retryCount + 1), 2000); else if (isMounted) { setError(true); setLoading(false); } }
             );
         };
+        // Stagger load: 600ms
         const delay = index * 600;
         timeoutId = setTimeout(() => loadWithRetry(), delay);
         return () => { isMounted = false; if(timeoutId) clearTimeout(timeoutId); };
@@ -340,16 +359,19 @@
 
       const handleClick = (e) => {
         e.stopPropagation();
-        const fullUrl = BASE_IMAGE_URL + data.image;
-        const imageUrl = `${PROXY_URL}${encodeURIComponent(fullUrl.replace(/^https?:\/\//, ''))}&output=png&q=95`;
+        // High res for modal
+        const imageUrl = `${PROXY_URL}${encodeURIComponent(data.image.replace(/^https?:\/\//, ''))}&output=png&q=95`;
         onClick({ ...data, image: imageUrl });
       };
 
       return (
         <group ref={groupRef} position={data.position} rotation={data.rotation}>
           <Float speed={2} rotationIntensity={0.05} floatIntensity={0.2}>
+            {/* Frame */}
             <mesh position={[0, 0, 0.15]} castShadow receiveShadow><boxGeometry args={[ART_SCALE + 0.5, ART_SCALE + 0.5, 0.1]} /><meshStandardMaterial color="#1a1a1a" roughness={0.2} metalness={0.1} /></mesh>
+            {/* Mat */}
             <mesh position={[0, 0, 0.21]}><boxGeometry args={[ART_SCALE + 0.3, ART_SCALE + 0.3, 0.05]} /><meshStandardMaterial color="#fdfdfd" roughness={0.9} /></mesh>
+            {/* Canvas */}
             <mesh position={[0, 0, 0.26]} onClick={handleClick} onPointerOver={() => (document.body.style.cursor = "pointer")} onPointerOut={() => (document.body.style.cursor = "auto")}>
               <boxGeometry args={[ART_SCALE, ART_SCALE, 0.01]} />
               {texture && !error ? <meshBasicMaterial map={texture} toneMapped={false} /> : <meshStandardMaterial color={error ? "#222" : "#e0e0e0"} roughness={0.9} />}
@@ -396,13 +418,17 @@
                 }
             } else if (autoState.current === 'VIEWING') {
                 const pPos = new THREE.Vector3(...target.position);
+                // Rotate Player to face art
                 const dirToArt = pPos.clone().sub(position.current).normalize();
                 const targetAngle = Math.atan2(dirToArt.x, dirToArt.z);
                 playerRef.current.quaternion.slerp(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), targetAngle), 0.05);
+                
+                // Rotate Camera to face art center
                 if (controlsRef.current) {
-                   const focus = pPos.clone(); focus.y = ART_Y_POS;
+                   const focus = pPos.clone(); focus.y = ART_Y_POS; // Look at center of art
                    controlsRef.current.target.lerp(focus, 0.05);
                 }
+
                 if (state.clock.elapsedTime - viewStartTime.current > 4.0) {
                     autoTargetIndex.current = (autoTargetIndex.current + 1) % PAINTINGS.length;
                     autoState.current = 'MOVING';
@@ -446,6 +472,7 @@
       return (
         <group ref={playerRef}>
           {isDogMode ? <DogAvatar variantIndex={dogVariant} isMoving={isMoving} isBarking={isBarking} /> : <HumanAvatar variantIndex={humanVariant} isMoving={isMoving} isFlying={isFlying} />}
+          {/* Ground shadow for character */}
           <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]}><circleGeometry args={[0.35, 32]} /><meshBasicMaterial color="#000000" opacity={0.5} transparent depthWrite={false} /></mesh>
         </group>
       );
@@ -460,15 +487,26 @@
           <DustParticles />
           <ambientLight intensity={0.6} color="#ffffff" />
           <directionalLight position={[5, 10, 5]} intensity={0.8} color="#ffffff" castShadow />
+          
+          {/* Floor: Light Blue Water */}
           <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
             <planeGeometry args={[ROOM_SIZE, ROOM_SIZE]} />
-            <meshStandardMaterial color="#88ccff" roughness={0.1} metalness={0.8} normalMap={waterNormal} normalScale={new THREE.Vector2(0.15, 0.15)} />
+            <meshStandardMaterial 
+              color="#88ccff" 
+              roughness={0.1} 
+              metalness={0.8} 
+              normalMap={waterNormal} 
+              normalScale={new THREE.Vector2(0.15, 0.15)} 
+            />
           </mesh>
+          
+          {/* Walls: Bright Concrete */}
           <mesh position={[0, WALL_HEIGHT / 2, -ROOM_SIZE / 2]} receiveShadow><boxGeometry args={[ROOM_SIZE, WALL_HEIGHT, 1]} /><meshStandardMaterial map={concreteTexture} color="#fff" roughness={0.8} /></mesh>
           <mesh position={[0, WALL_HEIGHT / 2, ROOM_SIZE / 2]} receiveShadow><boxGeometry args={[ROOM_SIZE, WALL_HEIGHT, 1]} /><meshStandardMaterial map={concreteTexture} color="#fff" roughness={0.8} /></mesh>
           <mesh position={[-ROOM_SIZE / 2, WALL_HEIGHT / 2, 0]} rotation={[0, Math.PI / 2, 0]} receiveShadow><boxGeometry args={[ROOM_SIZE, WALL_HEIGHT, 1]} /><meshStandardMaterial map={concreteTexture} color="#fff" roughness={0.8} /></mesh>
           <mesh position={[ROOM_SIZE / 2, WALL_HEIGHT / 2, 0]} rotation={[0, Math.PI / 2, 0]} receiveShadow><boxGeometry args={[ROOM_SIZE, WALL_HEIGHT, 1]} /><meshStandardMaterial map={concreteTexture} color="#fff" roughness={0.8} /></mesh>
           <mesh position={[0, WALL_HEIGHT, 0]} rotation={[Math.PI / 2, 0, 0]}><planeGeometry args={[ROOM_SIZE, ROOM_SIZE]} /><meshBasicMaterial color="#000" /></mesh>
+          
           <MetaverseCharacter position={[14, 0, 14]} rotationSpeed={1} />
           <MetaverseCharacter position={[-14, 0, 14]} rotationSpeed={-1} />
           <MetaverseCharacter position={[14, 0, -14]} rotationSpeed={1.5} />

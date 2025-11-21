@@ -65,6 +65,7 @@
     const apiKey = process.env.API_KEY;
     const ai = new GoogleGenAI({ apiKey: apiKey || '' });
 
+    // Fallback image generator (Canvas)
     const createFallbackImage = (text) => {
       const canvas = document.createElement('canvas');
       canvas.width = 512; canvas.height = 512;
@@ -88,16 +89,21 @@
       if (!item) return;
       activeRequests++;
       const { prompt, resolve } = item;
-      const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 15000));
+
+      // 10-second timeout to force next item if stuck
+      const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 10000));
 
       try {
         if (!apiKey) throw new Error("No API Key");
+        
         const apiCall = ai.models.generateContent({
           model: 'gemini-2.5-flash-image',
           contents: { parts: [{ text: `Create an oil painting, museum quality, elegant and artistic. Subject: ${prompt}. Ensure it looks like a classic masterpiece.` }] },
           config: { imageConfig: { aspectRatio: "1:1" } }
         });
+
         const response = await Promise.race([apiCall, timeout]);
+
         let found = false;
         if (response.candidates && response.candidates[0]?.content?.parts) {
             for (const part of response.candidates[0].content.parts) {
@@ -110,7 +116,8 @@
         }
         if (!found) resolve(createFallbackImage(prompt));
       } catch (error) {
-        console.warn("Gemini generation failed:", error);
+        console.warn("Gemini generation failed/timed out:", error);
+        // Always resolve with something, never leave hanging
         resolve(createFallbackImage(prompt));
       } finally {
         setTimeout(() => { activeRequests--; processQueue(); }, 200);
@@ -125,28 +132,57 @@
       });
     };
 
-    // --- DATA INTEGRATION (User's Data + AI Prompts) ---
-    // static image paths are merged with prompts for fallback
-    const PAINTINGS = [
-      { id: "1", title: "TAF DOG #01", image: "taf_dog_01.png", prompt: "A futuristic cyber-dog with neon circuitry, digital art style" },
-      { id: "2", title: "TAF DOG #02", image: "taf_dog_02.png", prompt: "A royal pug wearing a velvet robe and crown, renaissance oil painting" },
-      { id: "3", title: "TAF DOG #03", image: "taf_dog_03.png", prompt: "A Shiba Inu sitting in a zen garden with cherry blossoms, watercolor" },
-      { id: "4", title: "TAF DOG #04", image: "taf_dog_04.png", prompt: "A steampunk dachshund with brass gears and goggles, detailed illustration" },
-      { id: "5", title: "TAF DOG #05", image: "taf_dog_05.png", prompt: "A greyhound running at light speed, motion blur, abstract expressionism" },
-      { id: "6", title: "TAF DOG #06", image: "taf_dog_06.png", prompt: "A bulldog as a noir detective in rain, black and white photography style" },
-      { id: "7", title: "TAF DOG #07", image: "taf_dog_07.png", prompt: "A poodle made of clouds in a surreal blue sky, Magritte style" },
-      { id: "8", title: "TAF DOG #08", image: "taf_dog_08.png", prompt: "A geometric low-poly husky, vibrant colors, 3d render" },
-      { id: "9", title: "TAF DOG #09", image: "taf_dog_09.png", prompt: "A golden retriever playing poker, vintage classic style" },
-      { id: "10", title: "TAF DOG #10", image: "taf_dog_10.png", prompt: "A chihuahua astronaut floating in space, realistic 8k" },
-      { id: "11", title: "TAF DOG #11", image: "taf_dog_11.png", prompt: "A dalmatian pattern abstract art, pop art style" },
-      { id: "12", title: "TAF DOG #12", image: "taf_dog_12.png", prompt: "A ghost dog, transparent and glowing, ethereal fantasy art" },
-      { id: "13", title: "TAF DOG #13", image: "taf_dog_13.png", prompt: "A robot dog schematic blueprint, technical drawing" },
-      { id: "14", title: "TAF DOG #14", image: "taf_dog_14.png", prompt: "A beagle sleeping on a pile of old books, cozy warm lighting" },
-      { id: "15", title: "TAF DOG #15", image: "taf_dog_15.png", prompt: "A corgi made of lego bricks, macro photography" },
-      { id: "16", title: "TAF DOG #16", image: "taf_dog_16.png", prompt: "A border collie herding sheep in a van gogh starry night style" },
-      { id: "17", title: "TAF DOG #17", image: "taf_dog_17.png", prompt: "A pitbull smiling with flowers, art nouveau poster" },
-      { id: "18", title: "TAF DOG #18", image: "taf_dog_18.png", prompt: "A zombie dog, spooky horror style but cute" },
+    // --- DATA MERGING ---
+    // User provided data
+    const USER_WORKS = [
+      { id: 1,  title: 'TAF DOG #01', image: 'taf_dog_01.png' },
+      { id: 2,  title: 'TAF DOG #02', image: 'taf_dog_02.png' },
+      { id: 3,  title: 'TAF DOG #03', image: 'taf_dog_03.png' },
+      { id: 4,  title: 'TAF DOG #04', image: 'taf_dog_04.png' },
+      { id: 5,  title: 'TAF DOG #05', image: 'taf_dog_05.png' },
+      { id: 6,  title: 'TAF DOG #06', image: 'taf_dog_06.png' },
+      { id: 7,  title: 'TAF DOG #07', image: 'taf_dog_07.png' },
+      { id: 8,  title: 'TAF DOG #08', image: 'taf_dog_08.png' },
+      { id: 9,  title: 'TAF DOG #09', image: 'taf_dog_09.png' },
+      { id: 10, title: 'TAF DOG #10', image: 'taf_dog_10.png' },
+      { id: 11, title: 'TAF DOG #11', image: 'taf_dog_11.png' },
+      { id: 12, title: 'TAF DOG #12', image: 'taf_dog_12.png' },
+      { id: 13, title: 'TAF DOG #13', image: 'taf_dog_13.png' },
+      { id: 14, title: 'TAF DOG #14', image: 'taf_dog_14.png' },
+      { id: 15, title: 'TAF DOG #15', image: 'taf_dog_15.png' },
+      { id: 16, title: 'TAF DOG #16', image: 'taf_dog_16.png' },
+      { id: 17, title: 'TAF DOG #17', image: 'taf_dog_17.png' },
+      { id: 18, title: 'TAF DOG #18', image: 'taf_dog_18.png' }
     ];
+
+    // AI Prompts for fallback
+    const PROMPTS = [
+      "A futuristic cyber-dog with neon circuitry",
+      "A royal pug wearing a velvet robe and crown",
+      "A Shiba Inu sitting in a zen garden",
+      "A steampunk dachshund with brass gears",
+      "A greyhound running at light speed",
+      "A bulldog as a noir detective in rain",
+      "A poodle made of clouds in a blue sky",
+      "A geometric low-poly husky",
+      "A golden retriever playing poker",
+      "A chihuahua astronaut floating in space",
+      "A dalmatian pattern abstract art",
+      "A ghost dog, transparent and glowing",
+      "A robot dog schematic blueprint",
+      "A beagle sleeping on old books",
+      "A corgi made of lego bricks",
+      "A border collie herding sheep starry night",
+      "A pitbull smiling with flowers art nouveau",
+      "A zombie dog, spooky horror style"
+    ];
+
+    // Merge logic
+    const PAINTINGS = USER_WORKS.map((work, index) => ({
+      ...work,
+      id: String(work.id),
+      prompt: PROMPTS[index] || `A mysterious artistic dog portrait: ${work.title}`
+    }));
 
     const ROOM_SIZE = 32; 
     const WALL_HEIGHT = 10;
@@ -155,49 +191,16 @@
     const WALL_OFFSET = 1.5; 
 
     // --- COMPONENTS ---
-    const HUMAN_VARIANTS = Array.from({ length: 20 }, (_, i) => ({
-      shirt: `hsl(${(i * 137) % 360}, 60%, ${30 + (i % 3) * 10}%)`,
-      skin: `hsl(${20 + (i % 5) * 5}, ${60 - (i % 3) * 10}%, ${80 - (i % 5) * 10}%)`,
-      pants: `hsl(${(i * 50 + 180) % 360}, 20%, 20%)`
-    }));
-    const DOG_VARIANTS = Array.from({ length: 20 }, (_, i) => ({
-      body: `hsl(${(30 + i * 15) % 60}, ${70 + (i % 4) * 10}%, ${40 + (i % 5) * 10}%)`,
-      ear: `hsl(${(30 + i * 15) % 60}, ${80}%, ${30}%)`
-    }));
-    DOG_VARIANTS[1] = { body: "#111111", ear: "#222222" }; 
-    DOG_VARIANTS[2] = { body: "#eeeeee", ear: "#dddddd" }; 
-    DOG_VARIANTS[3] = { body: "#78716c", ear: "#57534e" }; 
-
-    const MetaverseCharacter = ({ position, rotationSpeed }) => {
-      const [texture, setTexture] = useState(null);
-      const groupRef = useRef();
-      useEffect(() => {
-        const loader = new THREE.TextureLoader();
-        loader.setCrossOrigin('anonymous');
-        loader.load('IMG_1822.png', (tex) => {
-          tex.colorSpace = THREE.SRGBColorSpace;
-          setTexture(tex);
-        }, undefined, () => console.log("Character image not found, hiding."));
-      }, []);
-      useFrame((state, delta) => {
-        if (groupRef.current) {
-          groupRef.current.rotation.y += delta * rotationSpeed;
-          groupRef.current.position.y = 1.5 + Math.sin(state.clock.elapsedTime * 2) * 0.1;
-        }
-      });
-      if (!texture) return null;
-      return (
-        <group ref={groupRef} position={position}>
-          <mesh>
-            <planeGeometry args={[2, 4]} />
-            <meshStandardMaterial map={texture} transparent={true} side={THREE.DoubleSide} alphaTest={0.5} />
-          </mesh>
-        </group>
-      );
-    };
-
     const HumanAvatar = ({ variantIndex, isMoving, isFlying }) => {
-      const colors = HUMAN_VARIANTS[variantIndex % HUMAN_VARIANTS.length];
+      const colors = useMemo(() => {
+        const i = variantIndex;
+        return {
+          shirt: `hsl(${(i * 137) % 360}, 60%, ${30 + (i % 3) * 10}%)`,
+          skin: `hsl(${20 + (i % 5) * 5}, ${60 - (i % 3) * 10}%, ${80 - (i % 5) * 10}%)`,
+          pants: `hsl(${(i * 50 + 180) % 360}, 20%, 20%)`
+        };
+      }, [variantIndex]);
+      
       const leftArm = useRef(); const rightArm = useRef(); const leftLeg = useRef(); const rightLeg = useRef();
       useFrame((state) => {
         const t = state.clock.getElapsedTime();
@@ -226,7 +229,18 @@
     };
 
     const DogAvatar = ({ variantIndex, isMoving, isBarking }) => {
-      const colors = DOG_VARIANTS[variantIndex % DOG_VARIANTS.length];
+      const colors = useMemo(() => {
+        const i = variantIndex;
+        const vars = Array.from({ length: 20 }, (_, j) => ({
+           body: `hsl(${(30 + j * 15) % 60}, ${70 + (j % 4) * 10}%, ${40 + (j % 5) * 10}%)`,
+           ear: `hsl(${(30 + j * 15) % 60}, ${80}%, ${30}%)`
+        }));
+        vars[1] = { body: "#111111", ear: "#222222" };
+        vars[2] = { body: "#eeeeee", ear: "#dddddd" };
+        vars[3] = { body: "#78716c", ear: "#57534e" };
+        return vars[i % vars.length];
+      }, [variantIndex]);
+      
       const group = useRef();
       useFrame((state) => {
         if (group.current) {
@@ -254,6 +268,35 @@
         </group>
       );
     };
+    
+    const MetaverseCharacter = ({ position, rotationSpeed }) => {
+      const [texture, setTexture] = useState(null);
+      const groupRef = useRef();
+      useEffect(() => {
+        const loader = new THREE.TextureLoader();
+        loader.setCrossOrigin('anonymous');
+        loader.load('IMG_1822.png', 
+          (tex) => { tex.colorSpace = THREE.SRGBColorSpace; setTexture(tex); }, 
+          undefined, 
+          () => console.log("IMG_1822.png not found")
+        );
+      }, []);
+      useFrame((state, delta) => {
+        if (groupRef.current) {
+          groupRef.current.rotation.y += delta * rotationSpeed;
+          groupRef.current.position.y = 1.5 + Math.sin(state.clock.elapsedTime * 2) * 0.1;
+        }
+      });
+      if (!texture) return null;
+      return (
+        <group ref={groupRef} position={position}>
+          <mesh>
+            <planeGeometry args={[2, 4]} />
+            <meshStandardMaterial map={texture} transparent={true} side={THREE.DoubleSide} alphaTest={0.5} />
+          </mesh>
+        </group>
+      );
+    };
 
     const ArtFrame = ({ data, onClick }) => {
       const [texture, setTexture] = useState(null);
@@ -278,7 +321,7 @@
         };
 
         const init = () => {
-             // Hybrid loading: Try static first, if fail -> AI
+            // Strategy: Try loading static image first. If fail, fallback to AI.
             if (data.image) {
                 const loader = new THREE.TextureLoader();
                 loader.setCrossOrigin('anonymous');
@@ -286,14 +329,13 @@
                     data.image,
                     (tex) => { if (isMounted) { tex.colorSpace = THREE.SRGBColorSpace; setTexture(tex); setLoading(false); } },
                     undefined,
-                    () => {
-                        // Static load failed, fallback to AI
-                        console.log(`Static image ${data.image} failed, switching to AI.`);
+                    (err) => {
+                        console.log(`Static load failed for ${data.image}, switching to AI.`);
+                        // Fallback to AI
                         loadAI();
                     }
                 );
             } else {
-                // No static image, use AI directly
                 loadAI();
             }
         };
@@ -311,7 +353,7 @@
               <boxGeometry args={[ART_SCALE, ART_SCALE, 0.02]} />
               {texture && !error ? <meshStandardMaterial map={texture} color="white" roughness={0.2} /> : <meshStandardMaterial color="#1a1a1a" roughness={0.9} />}
             </mesh>
-            {(loading || error) && (<group position={[0, 0, 0.35]}><Text color="#666" fontSize={0.3} anchorX="center" anchorY="middle">{error ? "FAIL" : (texture ? "LOADING..." : "PAINTING...")}</Text></group>)}
+            {(loading || error) && (<group position={[0, 0, 0.35]}><Text color="#666" fontSize={0.3} anchorX="center" anchorY="middle">{error ? "FAIL" : (texture ? "LOADING" : "PAINTING...")}</Text></group>)}
           </Float>
           <spotLight color="#FFFAF0" position={[0, 5, 5]} angle={0.5} penumbra={0.4} intensity={5} distance={20} />
           <Text position={[0, -ART_SCALE / 2 - 0.6, 0.2]} fontSize={0.2} color="#888" anchorX="center" anchorY="top">{data.title.toUpperCase()}</Text>

@@ -30,7 +30,7 @@
     .action-btn:active { transform: scale(0.95); }
   </style>
   
-  <!-- Import Map: STRICTLY REACT 18 ONLY - Fixed to prevent crashes -->
+  <!-- Import Map: STRICTLY REACT 18 ONLY -->
   <script type="importmap">
 {
   "imports": {
@@ -80,7 +80,7 @@
 
     const queue = [];
     let activeRequests = 0;
-    const MAX_CONCURRENT = 3;
+    const MAX_CONCURRENT = 2;
 
     const processQueue = async () => {
       if (activeRequests >= MAX_CONCURRENT || queue.length === 0) return;
@@ -89,19 +89,20 @@
       activeRequests++;
       const { prompt, resolve } = item;
 
-      if (!apiKey) {
-         resolve(createFallbackImage(prompt));
-         activeRequests--;
-         processQueue();
-         return;
-      }
+      // Timeout promise to prevent hanging
+      const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 15000));
 
       try {
-        const response = await ai.models.generateContent({
+        if (!apiKey) throw new Error("No API Key");
+        
+        const apiCall = ai.models.generateContent({
           model: 'gemini-2.5-flash-image',
           contents: { parts: [{ text: `Create an oil painting, museum quality, elegant and artistic. Subject: ${prompt}. Ensure it looks like a classic masterpiece.` }] },
           config: { imageConfig: { aspectRatio: "1:1" } }
         });
+
+        const response = await Promise.race([apiCall, timeout]);
+
         let found = false;
         if (response.candidates && response.candidates[0]?.content?.parts) {
             for (const part of response.candidates[0].content.parts) {
@@ -114,10 +115,10 @@
         }
         if (!found) resolve(createFallbackImage(prompt));
       } catch (error) {
-        console.error("Gemini generation failed:", error);
+        console.warn("Gemini generation failed:", error);
         resolve(createFallbackImage(prompt));
       } finally {
-        setTimeout(() => { activeRequests--; processQueue(); }, 100);
+        setTimeout(() => { activeRequests--; processQueue(); }, 200);
         if(activeRequests < MAX_CONCURRENT) processQueue();
       }
     };
@@ -143,11 +144,12 @@
     DOG_VARIANTS[2] = { body: "#eeeeee", ear: "#dddddd" }; 
     DOG_VARIANTS[3] = { body: "#78716c", ear: "#57534e" }; 
 
+    // Removed static image references so everything is generated via AI to prevent white screens
     const PAINTINGS = [
       { id: "1", title: "TAF DOG #01", prompt: "A futuristic cyber-dog with neon circuitry, digital art style" },
-      { id: "2", title: "TAF DOG #02", image: "taf_dog_02.png", prompt: "A royal pug wearing a velvet robe and crown, renaissance oil painting" },
-      { id: "3", title: "TAF DOG #03", image: "taf_dog_03.png", prompt: "A Shiba Inu sitting in a zen garden with cherry blossoms, watercolor" },
-      { id: "4", title: "TAF DOG #04", image: "taf_dog_04.png", prompt: "A steampunk dachshund with brass gears and goggles, detailed illustration" },
+      { id: "2", title: "TAF DOG #02", prompt: "A royal pug wearing a velvet robe and crown, renaissance oil painting" },
+      { id: "3", title: "TAF DOG #03", prompt: "A Shiba Inu sitting in a zen garden with cherry blossoms, watercolor" },
+      { id: "4", title: "TAF DOG #04", prompt: "A steampunk dachshund with brass gears and goggles, detailed illustration" },
       { id: "5", title: "TAF DOG #05", prompt: "A greyhound running at light speed, motion blur, abstract expressionism" },
       { id: "6", title: "TAF DOG #06", prompt: "A bulldog as a noir detective in rain, black and white photography style" },
       { id: "7", title: "TAF DOG #07", prompt: "A poodle made of clouds in a surreal blue sky, Magritte style" },
@@ -239,11 +241,6 @@
         let isMounted = true;
         const fetchArt = async () => {
           setLoading(true); setError(false);
-          if (data.image) {
-            const loader = new THREE.TextureLoader(); loader.setCrossOrigin('anonymous');
-            loader.load(data.image, (tex) => { if(isMounted) { tex.colorSpace = THREE.SRGBColorSpace; setTexture(tex); setLoading(false); } }, undefined, () => { if(isMounted) { setError(true); setLoading(false); } });
-            return;
-          }
           try {
             const url = await generateMuseumImage(data.prompt);
             if (!isMounted) return;
@@ -253,7 +250,7 @@
         };
         fetchArt();
         return () => { isMounted = false; };
-      }, [data.prompt, data.image]);
+      }, [data.prompt]);
 
       return (
         <group position={data.position} rotation={data.rotation}>
@@ -262,9 +259,9 @@
             <mesh position={[0, 0, 0.26]}><boxGeometry args={[ART_SCALE + 0.2, ART_SCALE + 0.2, 0.05]} /><meshStandardMaterial color="#eeeeee" roughness={0.9} /></mesh>
             <mesh position={[0, 0, 0.3]} onClick={(e) => { e.stopPropagation(); onClick({ ...data, image: (texture && !error) ? texture.image.src : null }); }} onPointerOver={() => (document.body.style.cursor = "pointer")} onPointerOut={() => (document.body.style.cursor = "auto")}>
               <boxGeometry args={[ART_SCALE, ART_SCALE, 0.02]} />
-              {texture && !error ? <meshStandardMaterial map={texture} color="white" roughness={0.2} /> : <meshStandardMaterial color="#e6e2d3" roughness={0.9} />}
+              {texture && !error ? <meshStandardMaterial map={texture} color="white" roughness={0.2} /> : <meshStandardMaterial color="#1a1a1a" roughness={0.9} />}
             </mesh>
-            {(loading || error) && (<group position={[0, 0, 0.35]}><Text color="#333" fontSize={0.3} anchorX="center" anchorY="middle">{error ? "LOAD FAILED" : (data.image ? "LOADING..." : "NOW PAINTING...")}</Text></group>)}
+            {(loading || error) && (<group position={[0, 0, 0.35]}><Text color="#666" fontSize={0.3} anchorX="center" anchorY="middle">{error ? "FAIL" : "PAINTING..."}</Text></group>)}
           </Float>
           <spotLight color="#FFFAF0" position={[0, 5, 5]} angle={0.5} penumbra={0.4} intensity={5} distance={20} />
           <Text position={[0, -ART_SCALE / 2 - 0.6, 0.2]} fontSize={0.2} color="#888" anchorX="center" anchorY="top">{data.title.toUpperCase()}</Text>

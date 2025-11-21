@@ -17,5 +17,7 @@ window.WORKS = [
   { id: 15, title: 'TAF DOG #15', image: 'taf_dog_15.png' },
   { id: 16, title: 'TAF DOG #16', image: 'taf_dog_16.png' },
   { id: 17, title: 'TAF DOG #17', image: 'taf_dog_17.png' },
-  { id: 18, title: 'TAF DOG #18', image: 'taf_dog_18.png' }
+  { id: 18, title: 'TAF DOG #18', image: 'taf_dog_18.png' },
+  { id: 19, title: 'TAF DOG #19', image: 'taf_dog_19.png' },
+  { id: 20, title: 'TAF DOG #20', image: 'taf_dog_20.png' }
 ];

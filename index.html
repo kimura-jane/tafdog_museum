@@ -7,17 +7,18 @@
   
   <!-- OGP Settings -->
   <meta property="og:title" content="TAF DOG MUSEUM">
-  <meta property="og:description" content="Gemini AIがリアルタイムで描く、犬たちのための3D美術館。">
+  <meta property="og:description" content="A 3D virtual art gallery where you can explore as a human or a dog.">
   <meta name="twitter:card" content="summary_large_image">
 
+  <!-- Styles & Scripts -->
   <script src="https://cdn.tailwindcss.com"></script>
   
-  <!-- Process Env Shim -->
+  <!-- Environment Shim -->
   <script>
     window.process = {
       env: {
         NODE_ENV: 'production',
-        API_KEY: '' // The system will inject the key automatically
+        API_KEY: '' // API Key is handled internally or via URL params if needed, but mostly static mode here.
       }
     };
   </script>
@@ -30,7 +31,7 @@
     .action-btn:active { transform: scale(0.95); }
   </style>
   
-  <!-- Import Map: STRICTLY REACT 18 ONLY -->
+  <!-- Import Map: Using reliable ESM CDN for React 18 and Three.js -->
   <script type="importmap">
 {
   "imports": {
@@ -39,8 +40,7 @@
     "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
     "three": "https://esm.sh/three@0.160.0",
     "@react-three/fiber": "https://esm.sh/@react-three/fiber@8.15.16?external=react,react-dom,three",
-    "@react-three/drei": "https://esm.sh/@react-three/drei@9.99.0?external=react,react-dom,three,@react-three/fiber",
-    "@google/genai": "https://esm.sh/@google/genai"
+    "@react-three/drei": "https://esm.sh/@react-three/drei@9.99.0?external=react,react-dom,three,@react-three/fiber"
   }
 }
 </script>
@@ -59,81 +59,16 @@
     import { Canvas, useFrame, useThree } from "@react-three/fiber";
     import { Text, PerspectiveCamera, Float, OrbitControls, Billboard } from "@react-three/drei";
     import * as THREE from "three";
-    import { GoogleGenAI } from "@google/genai";
 
-    // --- SERVICES ---
-    const apiKey = process.env.API_KEY;
-    const ai = new GoogleGenAI({ apiKey: apiKey || '' });
+    // --- CONSTANTS ---
+    const ROOM_SIZE = 32;
+    const WALL_HEIGHT = 10;
+    const ART_Y_POS = 3.5;
+    const ART_SCALE = 4.0;
+    const WALL_OFFSET = 1.5;
+    const BASE_IMAGE_URL = "https://kimura-jane.github.io/tafdog_museum/";
+    const PROXY_URL = "https://wsrv.nl/?url=";
 
-    // Fallback image generator (Canvas)
-    const createFallbackImage = (text) => {
-      const canvas = document.createElement('canvas');
-      canvas.width = 512; canvas.height = 512;
-      const ctx = canvas.getContext('2d');
-      if (ctx) {
-        ctx.fillStyle = '#1a1a1a'; ctx.fillRect(0, 0, 512, 512);
-        ctx.fillStyle = '#2a2a2a'; ctx.beginPath(); ctx.arc(256, 256, 150, 0, Math.PI * 2); ctx.fill();
-        ctx.fillStyle = '#4a4a4a'; ctx.font = 'bold 40px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('AI ARTWORK', 256, 230);
-        ctx.font = '20px Arial'; ctx.fillStyle = '#666'; ctx.fillText('Generation Unavailable', 256, 270);
-      }
-      return canvas.toDataURL('image/png');
-    };
-
-    const queue = [];
-    let activeRequests = 0;
-    const MAX_CONCURRENT = 2;
-
-    const processQueue = async () => {
-      if (activeRequests >= MAX_CONCURRENT || queue.length === 0) return;
-      const item = queue.shift();
-      if (!item) return;
-      activeRequests++;
-      const { prompt, resolve } = item;
-
-      // 10-second timeout to force next item if stuck
-      const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 10000));
-
-      try {
-        if (!apiKey) throw new Error("No API Key");
-        
-        const apiCall = ai.models.generateContent({
-          model: 'gemini-2.5-flash-image',
-          contents: { parts: [{ text: `Create an oil painting, museum quality, elegant and artistic. Subject: ${prompt}. Ensure it looks like a classic masterpiece.` }] },
-          config: { imageConfig: { aspectRatio: "1:1" } }
-        });
-
-        const response = await Promise.race([apiCall, timeout]);
-
-        let found = false;
-        if (response.candidates && response.candidates[0]?.content?.parts) {
-            for (const part of response.candidates[0].content.parts) {
-                if (part.inlineData) {
-                    resolve(`data:image/png;base64,${part.inlineData.data}`);
-                    found = true;
-                    break;
-                }
-            }
-        }
-        if (!found) resolve(createFallbackImage(prompt));
-      } catch (error) {
-        console.warn("Gemini generation failed/timed out:", error);
-        // Always resolve with something, never leave hanging
-        resolve(createFallbackImage(prompt));
-      } finally {
-        setTimeout(() => { activeRequests--; processQueue(); }, 200);
-        if(activeRequests < MAX_CONCURRENT) processQueue();
-      }
-    };
-
-    const generateMuseumImage = (prompt) => {
-      return new Promise((resolve, reject) => {
-        queue.push({ prompt, resolve, reject });
-        processQueue();
-      });
-    };
-
-    // --- DATA MERGING ---
-    // User provided data
     const USER_WORKS = [
       { id: 1,  title: 'TAF DOG #01', image: 'taf_dog_01.png' },
       { id: 2,  title: 'TAF DOG #02', image: 'taf_dog_02.png' },
@@ -155,68 +90,62 @@
       { id: 18, title: 'TAF DOG #18', image: 'taf_dog_18.png' }
     ];
 
-    // AI Prompts for fallback
-    const PROMPTS = [
-      "A futuristic cyber-dog with neon circuitry",
-      "A royal pug wearing a velvet robe and crown",
-      "A Shiba Inu sitting in a zen garden",
-      "A steampunk dachshund with brass gears",
-      "A greyhound running at light speed",
-      "A bulldog as a noir detective in rain",
-      "A poodle made of clouds in a blue sky",
-      "A geometric low-poly husky",
-      "A golden retriever playing poker",
-      "A chihuahua astronaut floating in space",
-      "A dalmatian pattern abstract art",
-      "A ghost dog, transparent and glowing",
-      "A robot dog schematic blueprint",
-      "A beagle sleeping on old books",
-      "A corgi made of lego bricks",
-      "A border collie herding sheep starry night",
-      "A pitbull smiling with flowers art nouveau",
-      "A zombie dog, spooky horror style"
-    ];
-
-    // Merge logic
-    const PAINTINGS = USER_WORKS.map((work, index) => ({
-      ...work,
-      id: String(work.id),
-      prompt: PROMPTS[index] || `A mysterious artistic dog portrait: ${work.title}`
-    }));
-
-    const ROOM_SIZE = 32; 
-    const WALL_HEIGHT = 10;
-    const ART_Y_POS = 3.5;
-    const ART_SCALE = 4.0;
-    const WALL_OFFSET = 1.5; 
-
-    // --- COMPONENTS ---
-    const HumanAvatar = ({ variantIndex, isMoving, isFlying }) => {
-      const colors = useMemo(() => {
-        const i = variantIndex;
-        return {
-          shirt: `hsl(${(i * 137) % 360}, 60%, ${30 + (i % 3) * 10}%)`,
-          skin: `hsl(${20 + (i % 5) * 5}, ${60 - (i % 3) * 10}%, ${80 - (i % 5) * 10}%)`,
-          pants: `hsl(${(i * 50 + 180) % 360}, 20%, 20%)`
-        };
-      }, [variantIndex]);
+    // Calculate positions for each painting
+    const PAINTINGS = USER_WORKS.map((work, index) => {
+      const spacing = ROOM_SIZE / 6;
+      let pos = [0, ART_Y_POS, 0];
+      let rot = [0, 0, 0];
       
+      if (index < 5) { 
+        pos = [(index - 2) * spacing, ART_Y_POS, -ROOM_SIZE / 2 + WALL_OFFSET]; 
+      } else if (index < 10) { 
+        pos = [ROOM_SIZE / 2 - WALL_OFFSET, ART_Y_POS, (index - 7) * spacing]; 
+        rot = [0, -Math.PI / 2, 0]; 
+      } else if (index < 15) { 
+        pos = [(12 - index) * spacing, ART_Y_POS, ROOM_SIZE / 2 - WALL_OFFSET]; 
+        rot = [0, Math.PI, 0]; 
+      } else { 
+        pos = [-ROOM_SIZE / 2 + WALL_OFFSET, ART_Y_POS, (17 - index) * spacing]; 
+        rot = [0, Math.PI / 2, 0]; 
+      }
+
+      return {
+        ...work,
+        id: String(work.id),
+        position: pos,
+        rotation: rot
+      };
+    });
+
+    // --- AVATARS ---
+    const HUMAN_VARIANTS = Array.from({ length: 20 }, (_, i) => ({
+      shirt: `hsl(${(i * 137) % 360}, 60%, ${30 + (i % 3) * 10}%)`,
+      skin: `hsl(${20 + (i % 5) * 5}, ${60 - (i % 3) * 10}%, ${80 - (i % 5) * 10}%)`,
+      pants: `hsl(${(i * 50 + 180) % 360}, 20%, 20%)`
+    }));
+    const DOG_VARIANTS = Array.from({ length: 20 }, (_, i) => ({
+      body: `hsl(${(30 + i * 15) % 60}, ${70 + (j => j % 4)(i) * 10}%, ${40 + (j => j % 5)(i) * 10}%)`,
+      ear: `hsl(${(30 + i * 15) % 60}, ${80}%, ${30}%)`
+    }));
+    DOG_VARIANTS[1] = { body: "#111111", ear: "#222222" };
+    DOG_VARIANTS[2] = { body: "#eeeeee", ear: "#dddddd" };
+    DOG_VARIANTS[3] = { body: "#78716c", ear: "#57534e" };
+
+    const HumanAvatar = ({ variantIndex, isMoving, isFlying }) => {
+      const colors = HUMAN_VARIANTS[variantIndex % HUMAN_VARIANTS.length];
       const leftArm = useRef(); const rightArm = useRef(); const leftLeg = useRef(); const rightLeg = useRef();
       useFrame((state) => {
         const t = state.clock.getElapsedTime();
         const angle = isFlying ? 0.5 : (isMoving ? Math.sin(t * 12) * 0.5 : 0);
         const legAngle = isFlying ? 0.2 : (isMoving ? Math.sin(t * 12) * 0.5 : 0);
-        if (leftArm.current && rightArm.current && leftLeg.current && rightLeg.current) {
-          leftArm.current.rotation.x = isFlying ? 0 : angle;
-          leftArm.current.rotation.z = isFlying ? 0.5 : 0; 
-          rightArm.current.rotation.x = isFlying ? 0 : -angle;
-          rightArm.current.rotation.z = isFlying ? -0.5 : 0; 
-          leftLeg.current.rotation.x = isFlying ? 0.2 : -legAngle;
-          rightLeg.current.rotation.x = isFlying ? 0.2 : legAngle;
+        if (leftArm.current) {
+          leftArm.current.rotation.x = isFlying ? 0 : angle; leftArm.current.rotation.z = isFlying ? 0.5 : 0; 
+          rightArm.current.rotation.x = isFlying ? 0 : -angle; rightArm.current.rotation.z = isFlying ? -0.5 : 0; 
+          leftLeg.current.rotation.x = isFlying ? 0.2 : -legAngle; rightLeg.current.rotation.x = isFlying ? 0.2 : legAngle;
         }
       });
       return (
-        <group position={[0, 0.9, 0]}>
+        <group position={[0, 0.55, 0]}>
           <mesh position={[0, 0.75, 0]} castShadow><boxGeometry args={[0.25, 0.25, 0.25]} /><meshStandardMaterial color={colors.skin} /></mesh>
           <mesh position={[0, 0.88, 0]}><boxGeometry args={[0.27, 0.05, 0.27]} /><meshStandardMaterial color="#111" /></mesh>
           <mesh position={[0, 0.35, 0]} castShadow><boxGeometry args={[0.35, 0.5, 0.2]} /><meshStandardMaterial color={colors.shirt} /></mesh>
@@ -229,18 +158,7 @@
     };
 
     const DogAvatar = ({ variantIndex, isMoving, isBarking }) => {
-      const colors = useMemo(() => {
-        const i = variantIndex;
-        const vars = Array.from({ length: 20 }, (_, j) => ({
-           body: `hsl(${(30 + j * 15) % 60}, ${70 + (j % 4) * 10}%, ${40 + (j % 5) * 10}%)`,
-           ear: `hsl(${(30 + j * 15) % 60}, ${80}%, ${30}%)`
-        }));
-        vars[1] = { body: "#111111", ear: "#222222" };
-        vars[2] = { body: "#eeeeee", ear: "#dddddd" };
-        vars[3] = { body: "#78716c", ear: "#57534e" };
-        return vars[i % vars.length];
-      }, [variantIndex]);
-      
+      const colors = DOG_VARIANTS[variantIndex % DOG_VARIANTS.length];
       const group = useRef();
       useFrame((state) => {
         if (group.current) {
@@ -268,18 +186,15 @@
         </group>
       );
     };
-    
+
     const MetaverseCharacter = ({ position, rotationSpeed }) => {
       const [texture, setTexture] = useState(null);
       const groupRef = useRef();
       useEffect(() => {
         const loader = new THREE.TextureLoader();
         loader.setCrossOrigin('anonymous');
-        loader.load('IMG_1822.png', 
-          (tex) => { tex.colorSpace = THREE.SRGBColorSpace; setTexture(tex); }, 
-          undefined, 
-          () => console.log("IMG_1822.png not found")
-        );
+        const url = PROXY_URL + encodeURIComponent(BASE_IMAGE_URL + 'IMG_1822.png');
+        loader.load(url, (tex) => { tex.colorSpace = THREE.SRGBColorSpace; setTexture(tex); }, undefined, () => {});
       }, []);
       useFrame((state, delta) => {
         if (groupRef.current) {
@@ -298,139 +213,268 @@
       );
     };
 
-    const ArtFrame = ({ data, onClick }) => {
+    // --- SCENE ELEMENTS ---
+    const useConcreteTexture = () => {
+      return useMemo(() => {
+        const canvas = document.createElement('canvas');
+        canvas.width = 1024; canvas.height = 1024;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.fillStyle = '#e0e0e0'; ctx.fillRect(0, 0, 1024, 1024);
+          for (let i = 0; i < 400000; i++) {
+            const x = Math.random() * 1024; const y = Math.random() * 1024;
+            ctx.fillStyle = Math.random() > 0.5 ? 'rgba(255, 255, 255, 0.3)' : 'rgba(0, 0, 0, 0.05)';
+            ctx.fillRect(x, y, 2, 2);
+          }
+          ctx.strokeStyle = 'rgba(100,100,100,0.15)'; ctx.lineWidth = 2;
+          const pw = 512; const ph = 256;
+          ctx.beginPath();
+          for (let y = 0; y <= 1024; y += ph) { ctx.moveTo(0, y); ctx.lineTo(1024, y); }
+          for (let x = 0; x <= 1024; x += pw) { ctx.moveTo(x, 0); ctx.lineTo(x, 1024); }
+          ctx.stroke();
+          for (let y = ph/2; y < 1024; y += ph) {
+            for (let x = pw/4; x < 1024; x += pw/2) {
+                 ctx.fillStyle = 'rgba(50,50,50,0.4)'; ctx.beginPath(); ctx.arc(x, y, 6, 0, Math.PI * 2); ctx.fill();
+            }
+          }
+        }
+        const tex = new THREE.CanvasTexture(canvas);
+        tex.wrapS = THREE.RepeatWrapping; tex.wrapT = THREE.RepeatWrapping;
+        tex.repeat.set(2, 1);
+        return tex;
+      }, []);
+    };
+
+    const useWaterNormalMap = () => {
+        return useMemo(() => {
+            const canvas = document.createElement('canvas');
+            canvas.width = 512; canvas.height = 512;
+            const ctx = canvas.getContext('2d');
+            if (ctx) {
+                ctx.fillStyle = '#8080ff'; ctx.fillRect(0, 0, 512, 512);
+                for(let i=0; i<1000; i++) {
+                    const x = Math.random() * 512; const y = Math.random() * 512; const r = Math.random() * 50 + 20;
+                    const grad = ctx.createRadialGradient(x, y, 0, x, y, r);
+                    grad.addColorStop(0, 'rgba(200, 150, 255, 0.1)'); grad.addColorStop(1, 'rgba(128, 128, 255, 0)');
+                    ctx.fillStyle = grad; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+                }
+            }
+            const tex = new THREE.CanvasTexture(canvas);
+            tex.wrapS = THREE.RepeatWrapping; tex.wrapT = THREE.RepeatWrapping; tex.repeat.set(8, 8);
+            return tex;
+        }, []);
+    };
+
+    const DustParticles = () => {
+      const count = 600;
+      const mesh = useRef();
+      const dummy = useMemo(() => new THREE.Object3D(), []);
+      const particles = useMemo(() => {
+        const temp = [];
+        for (let i = 0; i < count; i++) temp.push({ x: (Math.random()-0.5)*ROOM_SIZE, y: Math.random()*WALL_HEIGHT, z: (Math.random()-0.5)*ROOM_SIZE, speed: 0.1+Math.random()*0.3, offset: Math.random()*100 });
+        return temp;
+      }, []);
+      useFrame((state) => {
+        if (!mesh.current) return;
+        const time = state.clock.getElapsedTime();
+        particles.forEach((p, i) => {
+          const y = p.y + Math.sin(time * p.speed + p.offset) * 0.5;
+          const wrappedY = (y + 2) % (WALL_HEIGHT + 2) - 2;
+          dummy.position.set(p.x + Math.sin(time * 0.1 + p.offset) * 0.2, Math.abs(wrappedY), p.z + Math.cos(time * 0.1 + p.offset) * 0.2);
+          const s = (Math.sin(time * 2 + p.offset) + 2) * 0.015;
+          dummy.scale.set(s, s, s); dummy.updateMatrix();
+          mesh.current.setMatrixAt(i, dummy.matrix);
+        });
+        mesh.current.instanceMatrix.needsUpdate = true;
+      });
+      return (<instancedMesh ref={mesh} args={[undefined, undefined, count]}><sphereGeometry args={[1, 8, 8]} /><meshBasicMaterial color="#ffffff" transparent opacity={0.3} blending={THREE.AdditiveBlending} /></instancedMesh>);
+    };
+
+    const Ripple = ({ x, z, rotation, createdAt }) => {
+      const meshRef = useRef();
+      const materialRef = useRef();
+      useFrame(() => {
+        if (meshRef.current && materialRef.current) {
+          const age = (Date.now() - createdAt) / 1000;
+          if (age > 3.0) { meshRef.current.visible = false; return; }
+          const scale = 1 + age * 1.5;
+          meshRef.current.scale.set(scale, scale, 1);
+          materialRef.current.opacity = Math.max(0, 1 - (age / 3.0)) * 0.4;
+        }
+      });
+      return (<mesh ref={meshRef} position={[x, 0.05, z]} rotation={[-Math.PI / 2, 0, rotation]}><ringGeometry args={[0.15, 0.2, 32]} /><meshBasicMaterial ref={materialRef} color="#aaddff" transparent opacity={0.4} blending={THREE.AdditiveBlending} /></mesh>);
+    };
+
+    const ArtFrame = ({ data, onClick, index }) => {
       const [texture, setTexture] = useState(null);
       const [loading, setLoading] = useState(true);
       const [error, setError] = useState(false);
-      
+      const lightRef = useRef();
+      const groupRef = useRef();
+
+      useFrame((state) => {
+        if (!groupRef.current || !lightRef.current) return;
+        const dist = state.camera.position.distanceTo(groupRef.current.position);
+        lightRef.current.intensity = THREE.MathUtils.lerp(lightRef.current.intensity, dist < 8 ? 2.5 : 0.5, 0.05);
+      });
+
       useEffect(() => {
         let isMounted = true;
-        
-        const loadAI = async () => {
+        let timeoutId;
+        const loadWithRetry = (retryCount = 0) => {
             if (!isMounted) return;
-            setLoading(true);
-            try {
-                const url = await generateMuseumImage(data.prompt);
-                if (!isMounted) return;
-                new THREE.TextureLoader().load(url, (tex) => {
-                    if (isMounted) { tex.colorSpace = THREE.SRGBColorSpace; setTexture(tex); setLoading(false); setError(false); }
-                });
-            } catch {
-                if (isMounted) { setError(true); setLoading(false); }
-            }
+            const fullUrl = BASE_IMAGE_URL + data.image;
+            const proxyUrl = `${PROXY_URL}${encodeURIComponent(fullUrl.replace(/^https?:\/\//, ''))}&w=512&output=png&q=85&t=${Date.now()}`;
+            const loader = new THREE.TextureLoader();
+            loader.setCrossOrigin('anonymous');
+            loader.load(proxyUrl, 
+                (tex) => { if (isMounted) { tex.colorSpace = THREE.SRGBColorSpace; tex.minFilter = THREE.LinearFilter; setTexture(tex); setLoading(false); setError(false); } },
+                undefined,
+                () => { if (retryCount < 1) setTimeout(() => loadWithRetry(retryCount + 1), 2000); else if (isMounted) { setError(true); setLoading(false); } }
+            );
         };
+        const delay = index * 600;
+        timeoutId = setTimeout(() => loadWithRetry(), delay);
+        return () => { isMounted = false; if(timeoutId) clearTimeout(timeoutId); };
+      }, [data.image, index]);
 
-        const init = () => {
-            // Strategy: Try loading static image first. If fail, fallback to AI.
-            if (data.image) {
-                const loader = new THREE.TextureLoader();
-                loader.setCrossOrigin('anonymous');
-                loader.load(
-                    data.image,
-                    (tex) => { if (isMounted) { tex.colorSpace = THREE.SRGBColorSpace; setTexture(tex); setLoading(false); } },
-                    undefined,
-                    (err) => {
-                        console.log(`Static load failed for ${data.image}, switching to AI.`);
-                        // Fallback to AI
-                        loadAI();
-                    }
-                );
-            } else {
-                loadAI();
-            }
-        };
-
-        init();
-        return () => { isMounted = false; };
-      }, [data.prompt, data.image]);
+      const handleClick = (e) => {
+        e.stopPropagation();
+        const fullUrl = BASE_IMAGE_URL + data.image;
+        const imageUrl = `${PROXY_URL}${encodeURIComponent(fullUrl.replace(/^https?:\/\//, ''))}&output=png&q=95`;
+        onClick({ ...data, image: imageUrl });
+      };
 
       return (
-        <group position={data.position} rotation={data.rotation}>
+        <group ref={groupRef} position={data.position} rotation={data.rotation}>
           <Float speed={2} rotationIntensity={0.05} floatIntensity={0.2}>
-            <mesh position={[0, 0, 0.22]}><boxGeometry args={[ART_SCALE + 0.4, ART_SCALE + 0.4, 0.05]} /><meshStandardMaterial color="#111" roughness={0.4} /></mesh>
-            <mesh position={[0, 0, 0.26]}><boxGeometry args={[ART_SCALE + 0.2, ART_SCALE + 0.2, 0.05]} /><meshStandardMaterial color="#eeeeee" roughness={0.9} /></mesh>
-            <mesh position={[0, 0, 0.3]} onClick={(e) => { e.stopPropagation(); onClick({ ...data, image: (texture && !error) ? texture.image.src : null }); }} onPointerOver={() => (document.body.style.cursor = "pointer")} onPointerOut={() => (document.body.style.cursor = "auto")}>
-              <boxGeometry args={[ART_SCALE, ART_SCALE, 0.02]} />
-              {texture && !error ? <meshStandardMaterial map={texture} color="white" roughness={0.2} /> : <meshStandardMaterial color="#1a1a1a" roughness={0.9} />}
+            <mesh position={[0, 0, 0.15]} castShadow receiveShadow><boxGeometry args={[ART_SCALE + 0.5, ART_SCALE + 0.5, 0.1]} /><meshStandardMaterial color="#1a1a1a" roughness={0.2} metalness={0.1} /></mesh>
+            <mesh position={[0, 0, 0.21]}><boxGeometry args={[ART_SCALE + 0.3, ART_SCALE + 0.3, 0.05]} /><meshStandardMaterial color="#fdfdfd" roughness={0.9} /></mesh>
+            <mesh position={[0, 0, 0.26]} onClick={handleClick} onPointerOver={() => (document.body.style.cursor = "pointer")} onPointerOut={() => (document.body.style.cursor = "auto")}>
+              <boxGeometry args={[ART_SCALE, ART_SCALE, 0.01]} />
+              {texture && !error ? <meshBasicMaterial map={texture} toneMapped={false} /> : <meshStandardMaterial color={error ? "#222" : "#e0e0e0"} roughness={0.9} />}
             </mesh>
-            {(loading || error) && (<group position={[0, 0, 0.35]}><Text color="#666" fontSize={0.3} anchorX="center" anchorY="middle">{error ? "FAIL" : (texture ? "LOADING" : "PAINTING...")}</Text></group>)}
+            {(loading || error) && (<group position={[0, 0, 0.3]}><Text color="#666" fontSize={0.3} anchorX="center" anchorY="middle">{error ? "LOAD FAILED" : "LOADING..."}</Text></group>)}
           </Float>
-          <spotLight color="#FFFAF0" position={[0, 5, 5]} angle={0.5} penumbra={0.4} intensity={5} distance={20} />
-          <Text position={[0, -ART_SCALE / 2 - 0.6, 0.2]} fontSize={0.2} color="#888" anchorX="center" anchorY="top">{data.title.toUpperCase()}</Text>
+          <pointLight ref={lightRef} color="#fff" position={[0, 2, 2]} intensity={0.5} distance={8} decay={2} />
+          <Text position={[0, -ART_SCALE / 2 - 0.8, 0.2]} fontSize={0.25} color="#000000" anchorX="center" anchorY="top">{data.title.toUpperCase()}</Text>
         </group>
       );
     };
 
-    const Player = ({ moveVector, controlsRef, isDogMode, humanVariant, dogVariant, isFlying, isBarking, setFootprints }) => {
+    const Player = ({ moveVector, controlsRef, isDogMode, humanVariant, dogVariant, isFlying, isBarking, isAutoMode, setFootprints }) => {
       const { camera } = useThree();
       const playerRef = useRef();
       const position = useRef(new THREE.Vector3(0, 0, 5));
       const velocity = useRef(new THREE.Vector3());
       const [isMoving, setIsMoving] = useState(false);
       const lastFootprintTime = useRef(0);
+      const autoTargetIndex = useRef(0);
+      const autoState = useRef('MOVING');
+      const viewStartTime = useRef(0);
+
       useFrame((state) => {
         if (!playerRef.current) return;
-        const moving = Math.abs(moveVector.y) > 0.01 || Math.abs(moveVector.x) > 0.01;
+        let moving = false;
+        const moveDirection = new THREE.Vector3();
+
+        if (isAutoMode) {
+            const target = PAINTINGS[autoTargetIndex.current];
+            const tPos = new THREE.Vector3(...target.position);
+            const offset = new THREE.Vector3(0, 0, 4.5).applyEuler(new THREE.Euler(...target.rotation));
+            const standPos = tPos.clone().add(offset); standPos.y = 0;
+            const dist = position.current.distanceTo(standPos);
+
+            if (autoState.current === 'MOVING') {
+                if (dist > 0.5) {
+                    moveDirection.copy(standPos.clone().sub(position.current).normalize());
+                    moving = true;
+                } else {
+                    autoState.current = 'VIEWING';
+                    viewStartTime.current = state.clock.elapsedTime;
+                    moving = false;
+                }
+            } else if (autoState.current === 'VIEWING') {
+                const pPos = new THREE.Vector3(...target.position);
+                const dirToArt = pPos.clone().sub(position.current).normalize();
+                const targetAngle = Math.atan2(dirToArt.x, dirToArt.z);
+                playerRef.current.quaternion.slerp(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), targetAngle), 0.05);
+                if (controlsRef.current) {
+                   const focus = pPos.clone(); focus.y = ART_Y_POS;
+                   controlsRef.current.target.lerp(focus, 0.05);
+                }
+                if (state.clock.elapsedTime - viewStartTime.current > 4.0) {
+                    autoTargetIndex.current = (autoTargetIndex.current + 1) % PAINTINGS.length;
+                    autoState.current = 'MOVING';
+                }
+            }
+        } else {
+            moving = Math.abs(moveVector.y) > 0.01 || Math.abs(moveVector.x) > 0.01;
+            const fwd = new THREE.Vector3(); camera.getWorldDirection(fwd); fwd.y = 0; fwd.normalize();
+            const right = new THREE.Vector3().crossVectors(fwd, camera.up);
+            moveDirection.set(0, 0, 0).add(fwd.multiplyScalar(moveVector.y)).add(right.multiplyScalar(moveVector.x)).normalize();
+        }
+
         if (moving !== isMoving) setIsMoving(moving);
-        const cameraForward = new THREE.Vector3(); camera.getWorldDirection(cameraForward); cameraForward.y = 0; cameraForward.normalize();
-        const cameraRight = new THREE.Vector3(); cameraRight.crossVectors(cameraForward, camera.up);
-        const moveDirection = new THREE.Vector3(0, 0, 0).add(cameraForward.multiplyScalar(moveVector.y)).add(cameraRight.multiplyScalar(moveVector.x)).normalize();
-        velocity.current.lerp(moveDirection.multiplyScalar(0.04), 0.15);
+        const speed = isAutoMode ? 0.03 : 0.04;
+        velocity.current.lerp(moving ? moveDirection.multiplyScalar(speed) : new THREE.Vector3(0,0,0), 0.15);
         const nextPos = position.current.clone().add(velocity.current);
-        if (Math.abs(nextPos.x) < (ROOM_SIZE/2 - 2) && Math.abs(nextPos.z) < (ROOM_SIZE/2 - 2)) position.current.copy(nextPos);
+        if (Math.abs(nextPos.x) < (ROOM_SIZE/2 - 1.5) && Math.abs(nextPos.z) < (ROOM_SIZE/2 - 1.5)) position.current.copy(nextPos);
         position.current.y = THREE.MathUtils.lerp(position.current.y, isFlying ? 4.0 : 0, isFlying ? 0.05 : 0.1);
         playerRef.current.position.copy(position.current);
-        if (moveDirection.length() > 0.01) {
+
+        if (!isAutoMode && moving && moveDirection.length() > 0.01) {
           const targetAngle = Math.atan2(moveDirection.x, moveDirection.z);
           playerRef.current.quaternion.slerp(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), targetAngle), 0.15);
+        } else if (isAutoMode && autoState.current === 'MOVING' && moving) {
+          const targetAngle = Math.atan2(moveDirection.x, moveDirection.z);
+          playerRef.current.quaternion.slerp(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), targetAngle), 0.05);
         }
+
         if (moving && !isFlying && state.clock.elapsedTime - lastFootprintTime.current > 0.3) {
             lastFootprintTime.current = state.clock.elapsedTime;
-            setFootprints(prev => [...prev.slice(-30), { id: Math.random(), x: position.current.x, z: position.current.z, rotation: playerRef.current.rotation.y, opacity: 0.5 }]);
+            setFootprints(prev => [...prev.slice(-30), { id: Math.random(), x: position.current.x, z: position.current.z, rotation: playerRef.current.rotation.y, createdAt: Date.now() }]);
         }
-        if (controlsRef.current) {
-          controlsRef.current.target.lerp(new THREE.Vector3(position.current.x, isFlying ? 4.0 : (isDogMode ? 0.5 : 1.2), position.current.z), 0.15);
+
+        if (controlsRef.current && (!isAutoMode || autoState.current === 'MOVING')) {
+          const targetY = isFlying ? 4.0 : (isDogMode ? 0.5 : 1.2);
+          controlsRef.current.target.lerp(new THREE.Vector3(position.current.x, targetY, position.current.z), isAutoMode ? 0.03 : 0.15);
           controlsRef.current.update();
         }
       });
+
       return (
         <group ref={playerRef}>
           {isDogMode ? <DogAvatar variantIndex={dogVariant} isMoving={isMoving} isBarking={isBarking} /> : <HumanAvatar variantIndex={humanVariant} isMoving={isMoving} isFlying={isFlying} />}
-          <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, isFlying ? -position.current.y + 0.02 : 0.02, 0]}><circleGeometry args={[0.4, 32]} /><meshBasicMaterial color="black" opacity={0.3} transparent /></mesh>
+          <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]}><circleGeometry args={[0.35, 32]} /><meshBasicMaterial color="#000000" opacity={0.5} transparent depthWrite={false} /></mesh>
         </group>
       );
     };
 
     const GalleryRoom = ({ onSelectArt, footprints }) => {
-      const positionedPaintings = useMemo(() => {
-        const spacing = ROOM_SIZE / 6;
-        return PAINTINGS.map((p, index) => {
-          let pos = [0, ART_Y_POS, 0], rot = [0, 0, 0];
-          if (index < 5) { pos = [(index - 2) * spacing, ART_Y_POS, -ROOM_SIZE / 2 + WALL_OFFSET]; } 
-          else if (index < 10) { pos = [ROOM_SIZE / 2 - WALL_OFFSET, ART_Y_POS, (index - 7) * spacing]; rot = [0, -Math.PI / 2, 0]; } 
-          else if (index < 15) { pos = [(12 - index) * spacing, ART_Y_POS, ROOM_SIZE / 2 - WALL_OFFSET]; rot = [0, Math.PI, 0]; } 
-          else { pos = [-ROOM_SIZE / 2 + WALL_OFFSET, ART_Y_POS, (17 - index) * spacing]; rot = [0, Math.PI / 2, 0]; }
-          return { ...p, position: pos, rotation: rot };
-        });
-      }, []);
+      const concreteTexture = useConcreteTexture();
+      const waterNormal = useWaterNormalMap();
       return (
         <group>
-          <directionalLight position={[10, 20, 5]} intensity={2.0} castShadow />
-          <hemisphereLight intensity={0.5} groundColor="#222" color="#fff" />
-          <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow><planeGeometry args={[ROOM_SIZE, ROOM_SIZE]} /><meshStandardMaterial color="#111" roughness={0.2} metalness={0.5} /></mesh>
-          <gridHelper args={[ROOM_SIZE, 10, '#444', '#222']} position={[0, 0.01, 0]} />
-          <mesh position={[0, WALL_HEIGHT / 2, -ROOM_SIZE / 2]} receiveShadow><boxGeometry args={[ROOM_SIZE, WALL_HEIGHT, 1]} /><meshStandardMaterial color="#444" roughness={0.8} /></mesh>
-          <mesh position={[0, WALL_HEIGHT / 2, ROOM_SIZE / 2]} receiveShadow><boxGeometry args={[ROOM_SIZE, WALL_HEIGHT, 1]} /><meshStandardMaterial color="#444" roughness={0.8} /></mesh>
-          <mesh position={[-ROOM_SIZE / 2, WALL_HEIGHT / 2, 0]} rotation={[0, Math.PI / 2, 0]} receiveShadow><boxGeometry args={[ROOM_SIZE, WALL_HEIGHT, 1]} /><meshStandardMaterial color="#444" roughness={0.8} /></mesh>
-          <mesh position={[ROOM_SIZE / 2, WALL_HEIGHT / 2, 0]} rotation={[0, Math.PI / 2, 0]} receiveShadow><boxGeometry args={[ROOM_SIZE, WALL_HEIGHT, 1]} /><meshStandardMaterial color="#444" roughness={0.8} /></mesh>
+          <fog attach="fog" args={['#222', 5, 30]} />
+          <DustParticles />
+          <ambientLight intensity={0.6} color="#ffffff" />
+          <directionalLight position={[5, 10, 5]} intensity={0.8} color="#ffffff" castShadow />
+          <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+            <planeGeometry args={[ROOM_SIZE, ROOM_SIZE]} />
+            <meshStandardMaterial color="#88ccff" roughness={0.1} metalness={0.8} normalMap={waterNormal} normalScale={new THREE.Vector2(0.15, 0.15)} />
+          </mesh>
+          <mesh position={[0, WALL_HEIGHT / 2, -ROOM_SIZE / 2]} receiveShadow><boxGeometry args={[ROOM_SIZE, WALL_HEIGHT, 1]} /><meshStandardMaterial map={concreteTexture} color="#fff" roughness={0.8} /></mesh>
+          <mesh position={[0, WALL_HEIGHT / 2, ROOM_SIZE / 2]} receiveShadow><boxGeometry args={[ROOM_SIZE, WALL_HEIGHT, 1]} /><meshStandardMaterial map={concreteTexture} color="#fff" roughness={0.8} /></mesh>
+          <mesh position={[-ROOM_SIZE / 2, WALL_HEIGHT / 2, 0]} rotation={[0, Math.PI / 2, 0]} receiveShadow><boxGeometry args={[ROOM_SIZE, WALL_HEIGHT, 1]} /><meshStandardMaterial map={concreteTexture} color="#fff" roughness={0.8} /></mesh>
+          <mesh position={[ROOM_SIZE / 2, WALL_HEIGHT / 2, 0]} rotation={[0, Math.PI / 2, 0]} receiveShadow><boxGeometry args={[ROOM_SIZE, WALL_HEIGHT, 1]} /><meshStandardMaterial map={concreteTexture} color="#fff" roughness={0.8} /></mesh>
           <mesh position={[0, WALL_HEIGHT, 0]} rotation={[Math.PI / 2, 0, 0]}><planeGeometry args={[ROOM_SIZE, ROOM_SIZE]} /><meshBasicMaterial color="#000" /></mesh>
-          <group position={[0, 6, -ROOM_SIZE/2 + 0.6]}><Text fontSize={1.5} color="#333" anchorX="center" anchorY="middle" letterSpacing={0.2}>TAF DOG EXHIBITION</Text></group>
           <MetaverseCharacter position={[14, 0, 14]} rotationSpeed={1} />
           <MetaverseCharacter position={[-14, 0, 14]} rotationSpeed={-1} />
           <MetaverseCharacter position={[14, 0, -14]} rotationSpeed={1.5} />
           <MetaverseCharacter position={[-14, 0, -14]} rotationSpeed={-1.5} />
-          <group>{footprints.map((fp) => (<mesh key={fp.id} position={[fp.x, 0.02, fp.z]} rotation={[-Math.PI/2, 0, fp.rotation]}><circleGeometry args={[0.15, 16]} /><meshBasicMaterial color="#888888" transparent opacity={fp.opacity} /></mesh>))}</group>
-          {positionedPaintings.map((p) => (<ArtFrame key={p.id} data={p} onClick={onSelectArt} />))}
+          <group>{footprints.map((fp) => (<Ripple key={fp.id} x={fp.x} z={fp.z} rotation={fp.rotation} createdAt={fp.createdAt} />))}</group>
+          {PAINTINGS.map((p, index) => (<ArtFrame key={p.id} data={p} onClick={onSelectArt} index={index} />))}
         </group>
       );
     };
@@ -474,16 +518,24 @@
       const [selectedArt, setSelectedArt] = useState(null);
       const [isFlying, setIsFlying] = useState(false);
       const [isBarking, setIsBarking] = useState(false);
+      const [isAutoMode, setIsAutoMode] = useState(false);
       const [footprints, setFootprints] = useState([]);
       const [moveVector, setMoveVector] = useState({ x: 0, y: 0 });
       const controlsRef = useRef();
+
       useEffect(() => {
-        const fpInterval = setInterval(() => { setFootprints(prev => prev.map(fp => ({...fp, opacity: fp.opacity - 0.02})).filter(fp => fp.opacity > 0)); }, 100);
+        const fpInterval = setInterval(() => { const now = Date.now(); setFootprints(prev => prev.filter(fp => (now - fp.createdAt) < 2500)); }, 500);
         return () => clearInterval(fpInterval);
       }, []);
-      const handleHumanClick = () => { if (!isDogMode) { setHumanVariant(v => (v + 1) % 20); } else { setIsDogMode(false); setIsFlying(false); } };
-      const handleDogClick = () => { if (isDogMode) { setDogVariant(v => (v + 1) % 20); } else { setIsDogMode(true); setIsFlying(false); } };
+
+      useEffect(() => { if ((Math.abs(moveVector.x) > 0 || Math.abs(moveVector.y) > 0) && isAutoMode) setIsAutoMode(false); }, [moveVector, isAutoMode]);
+
+      const handleHumanClick = () => { if (!isDogMode) setHumanVariant(v => (v + 1) % 20); else { setIsDogMode(false); setIsFlying(false); } };
+      const handleDogClick = () => { if (isDogMode) setDogVariant(v => (v + 1) % 20); else { setIsDogMode(true); setIsFlying(false); } };
+      const handleAutoClick = () => { setIsAutoMode(!isAutoMode); if (!isAutoMode) setIsFlying(false); };
+      const handleFlyToggle = () => setIsFlying(!isFlying);
       const handleBark = () => { setIsBarking(true); setTimeout(() => setIsBarking(false), 1000); };
+
       return (
         <div className="relative w-full h-full bg-black overflow-hidden font-sans select-none">
           <Canvas shadows dpr={[1, 1.5]} className="w-full h-full">
@@ -491,28 +543,31 @@
               <PerspectiveCamera makeDefault fov={50} position={[0, 3, 8]} />
               <OrbitControls ref={controlsRef} enablePan={false} enableZoom={true} minDistance={2} maxDistance={10} maxPolarAngle={Math.PI / 2 - 0.1} />
               <GalleryRoom onSelectArt={setSelectedArt} footprints={footprints} />
-              <Player moveVector={moveVector} controlsRef={controlsRef} isDogMode={isDogMode} humanVariant={humanVariant} dogVariant={dogVariant} isFlying={isFlying} isBarking={isBarking} setFootprints={setFootprints} />
+              <Player moveVector={moveVector} controlsRef={controlsRef} isDogMode={isDogMode} humanVariant={humanVariant} dogVariant={dogVariant} isFlying={isFlying} isBarking={isBarking} isAutoMode={isAutoMode} setFootprints={setFootprints} />
             </Suspense>
           </Canvas>
           <div className="absolute top-0 left-0 right-0 z-10 p-3 flex justify-between items-center w-full pointer-events-none">
             <h1 className="text-white text-lg sm:text-xl font-bold tracking-wider opacity-90 drop-shadow-lg min-w-0 truncate">TAF DOG MUSEUM</h1>
             <div className="flex gap-2 pointer-events-auto flex-shrink-0">
+              <button onClick={handleAutoClick} className={`flex items-center gap-2 px-3 py-2 rounded-full transition-all backdrop-blur-md border active:scale-95 ${isAutoMode ? 'bg-green-600 text-white border-green-400 shadow-[0_0_10px_rgba(34,197,94,0.5)]' : 'bg-black/40 text-white/70 border-white/20 hover:bg-white/10'}`}><span className="text-xs font-bold tracking-wider">AUTO</span></button>
               <button onClick={handleHumanClick} className={`flex items-center gap-2 px-3 py-2 rounded-full transition-all backdrop-blur-md border active:scale-95 ${!isDogMode ? 'bg-white text-black border-white' : 'bg-black/40 text-white/70 border-white/20 hover:bg-white/10'}`}><span className="text-xs font-bold tracking-wider">HUMAN</span></button>
               <button onClick={handleDogClick} className={`flex items-center gap-2 px-3 py-2 rounded-full transition-all backdrop-blur-md border active:scale-95 ${isDogMode ? 'bg-white text-black border-white' : 'bg-black/40 text-white/70 border-white/20 hover:bg-white/10'}`}><span className="text-xs font-bold tracking-wider">DOG</span></button>
             </div>
           </div>
           <div className="absolute bottom-32 right-6 z-20 pointer-events-auto flex flex-col gap-4">
-             {!isDogMode && (<button onClick={() => setIsFlying(!isFlying)} className={`w-16 h-16 rounded-full border-2 flex items-center justify-center shadow-lg transition-all active:scale-95 ${isFlying ? 'bg-blue-500 border-blue-300 text-white' : 'bg-black/50 border-white/50 text-white/80'}`}><span className="text-xs font-bold">FLY</span></button>)}
+             {!isDogMode && (<button onClick={handleFlyToggle} className={`w-16 h-16 rounded-full border-2 flex items-center justify-center shadow-lg transition-all active:scale-95 ${isFlying ? 'bg-blue-500 border-blue-300 text-white' : 'bg-black/50 border-white/50 text-white/80'}`}><span className="text-xs font-bold">FLY</span></button>)}
              {isDogMode && (<button onClick={handleBark} className="w-16 h-16 rounded-full bg-red-500/80 border-2 border-red-300 flex items-center justify-center shadow-lg text-white active:bg-red-600 active:scale-95 transition-all"><span className="text-xs font-bold">BARK</span></button>)}
           </div>
           <div className="pointer-events-auto"><Joystick onMove={setMoveVector} /></div>
           {selectedArt && (
             <div className={`absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 transition-opacity duration-300`} onClick={() => setSelectedArt(null)}>
               <div className="bg-[#1a1a1a] border border-gray-800 max-w-4xl w-full max-h-[90vh] overflow-y-auto flex flex-col md:flex-row rounded-sm shadow-2xl" onClick={(e) => e.stopPropagation()}>
-                <div className="w-full md:w-1/2 bg-black flex items-center justify-center p-4 md:p-12 relative min-h-[300px]">{selectedArt.image ? (<img src={selectedArt.image} alt={selectedArt.title} className="max-w-full max-h-[60vh] shadow-[0_0_30px_rgba(0,0,0,0.5)] relative z-10" />) : (<div className="text-white">NO IMAGE</div>)}</div>
+                <div className="w-full md:w-1/2 bg-black flex items-center justify-center p-4 md:p-12 relative min-h-[300px]">
+                  {selectedArt.image ? (<img src={selectedArt.image} alt={selectedArt.title} className="max-w-full max-h-[60vh] shadow-[0_0_30px_rgba(0,0,0,0.5)] relative z-10" />) : (<div className="text-white">NO IMAGE</div>)}
+                </div>
                 <div className="w-full md:w-1/2 p-8 md:p-12 flex flex-col justify-between">
                   <div><h2 className="text-4xl font-light text-white mb-2 tracking-wide">{selectedArt.title}</h2><p className="text-gray-400 mt-4 leading-relaxed font-light text-sm">TAF DOGコレクションのユニークな作品。ローポリゴンの美学と、どこか哀愁漂う表情が特徴です。</p></div>
-                  <div className="mt-12 flex justify-between items-end"><div><span className="block text-gray-600 text-[10px] uppercase tracking-widest mb-1">Artist</span><span className="text-white text-sm">Unknown & Gemini</span></div><button className="bg-white text-black px-6 py-3 text-xs font-bold tracking-wider hover:bg-gray-200 transition-colors" onClick={() => window.open('https://opensea.io/ja/collection/taf-dog', '_blank')}>OPENSEA</button></div>
+                  <div className="mt-12 flex justify-between items-end"><div><span className="block text-gray-600 text-[10px] uppercase tracking-widest mb-1">Artist</span><span className="text-white text-sm">草間縄文</span></div><button className="bg-white text-black px-6 py-3 text-xs font-bold tracking-wider hover:bg-gray-200 transition-colors" onClick={() => window.open('https://opensea.io/ja/collection/taf-dog', '_blank')}>OPENSEA</button></div>
                 </div>
                 <button className="absolute top-4 right-4 text-white/50 hover:text-white p-2" onClick={() => setSelectedArt(null)}>X</button>
               </div>

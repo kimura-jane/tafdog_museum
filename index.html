@@ -88,21 +88,16 @@
       if (!item) return;
       activeRequests++;
       const { prompt, resolve } = item;
-
-      // Timeout promise to prevent hanging
       const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 15000));
 
       try {
         if (!apiKey) throw new Error("No API Key");
-        
         const apiCall = ai.models.generateContent({
           model: 'gemini-2.5-flash-image',
           contents: { parts: [{ text: `Create an oil painting, museum quality, elegant and artistic. Subject: ${prompt}. Ensure it looks like a classic masterpiece.` }] },
           config: { imageConfig: { aspectRatio: "1:1" } }
         });
-
         const response = await Promise.race([apiCall, timeout]);
-
         let found = false;
         if (response.candidates && response.candidates[0]?.content?.parts) {
             for (const part of response.candidates[0].content.parts) {
@@ -130,7 +125,36 @@
       });
     };
 
-    // --- DATA ---
+    // --- DATA INTEGRATION (User's Data + AI Prompts) ---
+    // static image paths are merged with prompts for fallback
+    const PAINTINGS = [
+      { id: "1", title: "TAF DOG #01", image: "taf_dog_01.png", prompt: "A futuristic cyber-dog with neon circuitry, digital art style" },
+      { id: "2", title: "TAF DOG #02", image: "taf_dog_02.png", prompt: "A royal pug wearing a velvet robe and crown, renaissance oil painting" },
+      { id: "3", title: "TAF DOG #03", image: "taf_dog_03.png", prompt: "A Shiba Inu sitting in a zen garden with cherry blossoms, watercolor" },
+      { id: "4", title: "TAF DOG #04", image: "taf_dog_04.png", prompt: "A steampunk dachshund with brass gears and goggles, detailed illustration" },
+      { id: "5", title: "TAF DOG #05", image: "taf_dog_05.png", prompt: "A greyhound running at light speed, motion blur, abstract expressionism" },
+      { id: "6", title: "TAF DOG #06", image: "taf_dog_06.png", prompt: "A bulldog as a noir detective in rain, black and white photography style" },
+      { id: "7", title: "TAF DOG #07", image: "taf_dog_07.png", prompt: "A poodle made of clouds in a surreal blue sky, Magritte style" },
+      { id: "8", title: "TAF DOG #08", image: "taf_dog_08.png", prompt: "A geometric low-poly husky, vibrant colors, 3d render" },
+      { id: "9", title: "TAF DOG #09", image: "taf_dog_09.png", prompt: "A golden retriever playing poker, vintage classic style" },
+      { id: "10", title: "TAF DOG #10", image: "taf_dog_10.png", prompt: "A chihuahua astronaut floating in space, realistic 8k" },
+      { id: "11", title: "TAF DOG #11", image: "taf_dog_11.png", prompt: "A dalmatian pattern abstract art, pop art style" },
+      { id: "12", title: "TAF DOG #12", image: "taf_dog_12.png", prompt: "A ghost dog, transparent and glowing, ethereal fantasy art" },
+      { id: "13", title: "TAF DOG #13", image: "taf_dog_13.png", prompt: "A robot dog schematic blueprint, technical drawing" },
+      { id: "14", title: "TAF DOG #14", image: "taf_dog_14.png", prompt: "A beagle sleeping on a pile of old books, cozy warm lighting" },
+      { id: "15", title: "TAF DOG #15", image: "taf_dog_15.png", prompt: "A corgi made of lego bricks, macro photography" },
+      { id: "16", title: "TAF DOG #16", image: "taf_dog_16.png", prompt: "A border collie herding sheep in a van gogh starry night style" },
+      { id: "17", title: "TAF DOG #17", image: "taf_dog_17.png", prompt: "A pitbull smiling with flowers, art nouveau poster" },
+      { id: "18", title: "TAF DOG #18", image: "taf_dog_18.png", prompt: "A zombie dog, spooky horror style but cute" },
+    ];
+
+    const ROOM_SIZE = 32; 
+    const WALL_HEIGHT = 10;
+    const ART_Y_POS = 3.5;
+    const ART_SCALE = 4.0;
+    const WALL_OFFSET = 1.5; 
+
+    // --- COMPONENTS ---
     const HUMAN_VARIANTS = Array.from({ length: 20 }, (_, i) => ({
       shirt: `hsl(${(i * 137) % 360}, 60%, ${30 + (i % 3) * 10}%)`,
       skin: `hsl(${20 + (i % 5) * 5}, ${60 - (i % 3) * 10}%, ${80 - (i % 5) * 10}%)`,
@@ -144,35 +168,34 @@
     DOG_VARIANTS[2] = { body: "#eeeeee", ear: "#dddddd" }; 
     DOG_VARIANTS[3] = { body: "#78716c", ear: "#57534e" }; 
 
-    // Removed static image references so everything is generated via AI to prevent white screens
-    const PAINTINGS = [
-      { id: "1", title: "TAF DOG #01", prompt: "A futuristic cyber-dog with neon circuitry, digital art style" },
-      { id: "2", title: "TAF DOG #02", prompt: "A royal pug wearing a velvet robe and crown, renaissance oil painting" },
-      { id: "3", title: "TAF DOG #03", prompt: "A Shiba Inu sitting in a zen garden with cherry blossoms, watercolor" },
-      { id: "4", title: "TAF DOG #04", prompt: "A steampunk dachshund with brass gears and goggles, detailed illustration" },
-      { id: "5", title: "TAF DOG #05", prompt: "A greyhound running at light speed, motion blur, abstract expressionism" },
-      { id: "6", title: "TAF DOG #06", prompt: "A bulldog as a noir detective in rain, black and white photography style" },
-      { id: "7", title: "TAF DOG #07", prompt: "A poodle made of clouds in a surreal blue sky, Magritte style" },
-      { id: "8", title: "TAF DOG #08", prompt: "A geometric low-poly husky, vibrant colors, 3d render" },
-      { id: "9", title: "TAF DOG #09", prompt: "A golden retriever playing poker, vintage classic style" },
-      { id: "10", title: "TAF DOG #10", prompt: "A chihuahua astronaut floating in space, realistic 8k" },
-      { id: "11", title: "TAF DOG #11", prompt: "A dalmatian pattern abstract art, pop art style" },
-      { id: "12", title: "TAF DOG #12", prompt: "A ghost dog, transparent and glowing, ethereal fantasy art" },
-      { id: "13", title: "TAF DOG #13", prompt: "A robot dog schematic blueprint, technical drawing" },
-      { id: "14", title: "TAF DOG #14", prompt: "A beagle sleeping on a pile of old books, cozy warm lighting" },
-      { id: "15", title: "TAF DOG #15", prompt: "A corgi made of lego bricks, macro photography" },
-      { id: "16", title: "TAF DOG #16", prompt: "A border collie herding sheep in a van gogh starry night style" },
-      { id: "17", title: "TAF DOG #17", prompt: "A pitbull smiling with flowers, art nouveau poster" },
-      { id: "18", title: "TAF DOG #18", prompt: "A zombie dog, spooky horror style but cute" },
-    ];
+    const MetaverseCharacter = ({ position, rotationSpeed }) => {
+      const [texture, setTexture] = useState(null);
+      const groupRef = useRef();
+      useEffect(() => {
+        const loader = new THREE.TextureLoader();
+        loader.setCrossOrigin('anonymous');
+        loader.load('IMG_1822.png', (tex) => {
+          tex.colorSpace = THREE.SRGBColorSpace;
+          setTexture(tex);
+        }, undefined, () => console.log("Character image not found, hiding."));
+      }, []);
+      useFrame((state, delta) => {
+        if (groupRef.current) {
+          groupRef.current.rotation.y += delta * rotationSpeed;
+          groupRef.current.position.y = 1.5 + Math.sin(state.clock.elapsedTime * 2) * 0.1;
+        }
+      });
+      if (!texture) return null;
+      return (
+        <group ref={groupRef} position={position}>
+          <mesh>
+            <planeGeometry args={[2, 4]} />
+            <meshStandardMaterial map={texture} transparent={true} side={THREE.DoubleSide} alphaTest={0.5} />
+          </mesh>
+        </group>
+      );
+    };
 
-    const ROOM_SIZE = 32; 
-    const WALL_HEIGHT = 10;
-    const ART_Y_POS = 3.5;
-    const ART_SCALE = 4.0;
-    const WALL_OFFSET = 1.5; 
-
-    // --- COMPONENTS ---
     const HumanAvatar = ({ variantIndex, isMoving, isFlying }) => {
       const colors = HUMAN_VARIANTS[variantIndex % HUMAN_VARIANTS.length];
       const leftArm = useRef(); const rightArm = useRef(); const leftLeg = useRef(); const rightLeg = useRef();
@@ -239,18 +262,45 @@
       
       useEffect(() => {
         let isMounted = true;
-        const fetchArt = async () => {
-          setLoading(true); setError(false);
-          try {
-            const url = await generateMuseumImage(data.prompt);
+        
+        const loadAI = async () => {
             if (!isMounted) return;
-            const loader = new THREE.TextureLoader(); loader.setCrossOrigin('anonymous');
-            loader.load(url, (tex) => { if(isMounted) { tex.colorSpace = THREE.SRGBColorSpace; setTexture(tex); setLoading(false); } }, undefined, () => { if(isMounted) { setError(true); setLoading(false); } });
-          } catch (e) { if(isMounted) { setError(true); setLoading(false); } }
+            setLoading(true);
+            try {
+                const url = await generateMuseumImage(data.prompt);
+                if (!isMounted) return;
+                new THREE.TextureLoader().load(url, (tex) => {
+                    if (isMounted) { tex.colorSpace = THREE.SRGBColorSpace; setTexture(tex); setLoading(false); setError(false); }
+                });
+            } catch {
+                if (isMounted) { setError(true); setLoading(false); }
+            }
         };
-        fetchArt();
+
+        const init = () => {
+             // Hybrid loading: Try static first, if fail -> AI
+            if (data.image) {
+                const loader = new THREE.TextureLoader();
+                loader.setCrossOrigin('anonymous');
+                loader.load(
+                    data.image,
+                    (tex) => { if (isMounted) { tex.colorSpace = THREE.SRGBColorSpace; setTexture(tex); setLoading(false); } },
+                    undefined,
+                    () => {
+                        // Static load failed, fallback to AI
+                        console.log(`Static image ${data.image} failed, switching to AI.`);
+                        loadAI();
+                    }
+                );
+            } else {
+                // No static image, use AI directly
+                loadAI();
+            }
+        };
+
+        init();
         return () => { isMounted = false; };
-      }, [data.prompt]);
+      }, [data.prompt, data.image]);
 
       return (
         <group position={data.position} rotation={data.rotation}>
@@ -261,7 +311,7 @@
               <boxGeometry args={[ART_SCALE, ART_SCALE, 0.02]} />
               {texture && !error ? <meshStandardMaterial map={texture} color="white" roughness={0.2} /> : <meshStandardMaterial color="#1a1a1a" roughness={0.9} />}
             </mesh>
-            {(loading || error) && (<group position={[0, 0, 0.35]}><Text color="#666" fontSize={0.3} anchorX="center" anchorY="middle">{error ? "FAIL" : "PAINTING..."}</Text></group>)}
+            {(loading || error) && (<group position={[0, 0, 0.35]}><Text color="#666" fontSize={0.3} anchorX="center" anchorY="middle">{error ? "FAIL" : (texture ? "LOADING..." : "PAINTING...")}</Text></group>)}
           </Float>
           <spotLight color="#FFFAF0" position={[0, 5, 5]} angle={0.5} penumbra={0.4} intensity={5} distance={20} />
           <Text position={[0, -ART_SCALE / 2 - 0.6, 0.2]} fontSize={0.2} color="#888" anchorX="center" anchorY="top">{data.title.toUpperCase()}</Text>
@@ -333,6 +383,10 @@
           <mesh position={[ROOM_SIZE / 2, WALL_HEIGHT / 2, 0]} rotation={[0, Math.PI / 2, 0]} receiveShadow><boxGeometry args={[ROOM_SIZE, WALL_HEIGHT, 1]} /><meshStandardMaterial color="#444" roughness={0.8} /></mesh>
           <mesh position={[0, WALL_HEIGHT, 0]} rotation={[Math.PI / 2, 0, 0]}><planeGeometry args={[ROOM_SIZE, ROOM_SIZE]} /><meshBasicMaterial color="#000" /></mesh>
           <group position={[0, 6, -ROOM_SIZE/2 + 0.6]}><Text fontSize={1.5} color="#333" anchorX="center" anchorY="middle" letterSpacing={0.2}>TAF DOG EXHIBITION</Text></group>
+          <MetaverseCharacter position={[14, 0, 14]} rotationSpeed={1} />
+          <MetaverseCharacter position={[-14, 0, 14]} rotationSpeed={-1} />
+          <MetaverseCharacter position={[14, 0, -14]} rotationSpeed={1.5} />
+          <MetaverseCharacter position={[-14, 0, -14]} rotationSpeed={-1.5} />
           <group>{footprints.map((fp) => (<mesh key={fp.id} position={[fp.x, 0.02, fp.z]} rotation={[-Math.PI/2, 0, fp.rotation]}><circleGeometry args={[0.15, 16]} /><meshBasicMaterial color="#888888" transparent opacity={fp.opacity} /></mesh>))}</group>
           {positionedPaintings.map((p) => (<ArtFrame key={p.id} data={p} onClick={onSelectArt} />))}
         </group>
@@ -415,8 +469,8 @@
               <div className="bg-[#1a1a1a] border border-gray-800 max-w-4xl w-full max-h-[90vh] overflow-y-auto flex flex-col md:flex-row rounded-sm shadow-2xl" onClick={(e) => e.stopPropagation()}>
                 <div className="w-full md:w-1/2 bg-black flex items-center justify-center p-4 md:p-12 relative min-h-[300px]">{selectedArt.image ? (<img src={selectedArt.image} alt={selectedArt.title} className="max-w-full max-h-[60vh] shadow-[0_0_30px_rgba(0,0,0,0.5)] relative z-10" />) : (<div className="text-white">NO IMAGE</div>)}</div>
                 <div className="w-full md:w-1/2 p-8 md:p-12 flex flex-col justify-between">
-                  <div><h2 className="text-4xl font-light text-white mb-2 tracking-wide">{selectedArt.title}</h2><p className="text-gray-400 mt-4 leading-relaxed font-light text-sm">TAF DOGコレクションのユニークな作品。Geminiによって生成されたローポリゴンの美学と、どこか哀愁漂う表情が特徴です。</p></div>
-                  <div className="mt-12 flex justify-between items-end"><div><span className="block text-gray-600 text-[10px] uppercase tracking-widest mb-1">Artist</span><span className="text-white text-sm">Gemini 2.5 & User</span></div><button className="bg-white text-black px-6 py-3 text-xs font-bold tracking-wider hover:bg-gray-200 transition-colors" onClick={() => window.open('https://opensea.io/ja/collection/taf-dog', '_blank')}>OPENSEA</button></div>
+                  <div><h2 className="text-4xl font-light text-white mb-2 tracking-wide">{selectedArt.title}</h2><p className="text-gray-400 mt-4 leading-relaxed font-light text-sm">TAF DOGコレクションのユニークな作品。ローポリゴンの美学と、どこか哀愁漂う表情が特徴です。</p></div>
+                  <div className="mt-12 flex justify-between items-end"><div><span className="block text-gray-600 text-[10px] uppercase tracking-widest mb-1">Artist</span><span className="text-white text-sm">Unknown & Gemini</span></div><button className="bg-white text-black px-6 py-3 text-xs font-bold tracking-wider hover:bg-gray-200 transition-colors" onClick={() => window.open('https://opensea.io/ja/collection/taf-dog', '_blank')}>OPENSEA</button></div>
                 </div>
                 <button className="absolute top-4 right-4 text-white/50 hover:text-white p-2" onClick={() => setSelectedArt(null)}>X</button>
               </div>

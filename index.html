@@ -4,75 +4,132 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>TAF DOG MUSEUM</title>
+  
+  <!-- OGP Settings -->
+  <meta property="og:title" content="TAF DOG MUSEUM">
+  <meta property="og:description" content="Gemini AIがリアルタイムで描く、犬たちのための3D美術館。">
+  <meta name="twitter:card" content="summary_large_image">
+
   <script src="https://cdn.tailwindcss.com"></script>
-  <script>window.process = { env: { NODE_ENV: 'production' } };</script>
+  
+  <!-- Process Env Shim -->
+  <script>
+    window.process = {
+      env: {
+        NODE_ENV: 'production',
+        API_KEY: '' // The system will inject the key automatically
+      }
+    };
+  </script>
+
   <style>
-    body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background-color: #000; touch-action: none; font-family: sans-serif; }
+    body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background-color: #000; touch-action: none; font-family: sans-serif; user-select: none; -webkit-user-select: none; }
     #root { width: 100%; height: 100%; }
     ::-webkit-scrollbar { display: none; }
-    .loading-screen { color: white; display: flex; align-items: center; justify-content: center; height: 100%; font-size: 1.2rem; letter-spacing: 0.1em; flex-direction: column; gap: 1rem; }
-    .action-btn:active { transform: scale(0.9); }
+    .loading-screen { color: white; display: flex; align-items: center; justify-content: center; height: 100%; font-size: 1.2rem; flex-direction: column; gap: 1rem; }
+    .action-btn:active { transform: scale(0.95); }
   </style>
   
+  <!-- Import Map: STRICTLY REACT 18 ONLY - Fixed to prevent crashes -->
   <script type="importmap">
-  {
-    "imports": {
-      "react": "https://esm.sh/react@18.2.0",
-      "react/jsx-runtime": "https://esm.sh/react@18.2.0/jsx-runtime",
-      "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
-      "three": "https://esm.sh/three@0.150.1",
-      "@react-three/fiber": "https://esm.sh/@react-three/fiber@8.13.0?external=react,react-dom,three",
-      "@react-three/drei": "https://esm.sh/@react-three/drei@9.57.0?external=react,react-dom,three,@react-three/fiber"
-    }
+{
+  "imports": {
+    "react": "https://esm.sh/react@18.2.0",
+    "react/jsx-runtime": "https://esm.sh/react@18.2.0/jsx-runtime",
+    "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
+    "three": "https://esm.sh/three@0.160.0",
+    "@react-three/fiber": "https://esm.sh/@react-three/fiber@8.15.16?external=react,react-dom,three",
+    "@react-three/drei": "https://esm.sh/@react-three/drei@9.99.0?external=react,react-dom,three,@react-three/fiber",
+    "@google/genai": "https://esm.sh/@google/genai"
   }
-  </script>
+}
+</script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-  <script src="data.js" defer></script>
-  <script src="date.js" defer></script>
 </head>
 <body>
   <div id="root">
     <div class="loading-screen">
       <div>NOW LOADING...</div>
-      <div style="font-size: 0.8rem; opacity: 0.6;">(If stuck, please reload)</div>
     </div>
   </div>
 
   <script type="text/babel" data-type="module">
-    import React, { useState, useRef, useEffect, useMemo, Suspense } from "react";
+    import React, { useState, useRef, useEffect, useMemo, Suspense, useCallback } from "react";
     import { createRoot } from "react-dom/client";
     import { Canvas, useFrame, useThree } from "@react-three/fiber";
     import { Text, PerspectiveCamera, Float, OrbitControls, Billboard } from "@react-three/drei";
     import * as THREE from "three";
+    import { GoogleGenAI } from "@google/genai";
 
-    // --- DATA EMBEDDED (Fallback) ---
-    const DEFAULT_WORKS = [
-      { id: 1,  title: 'TAF DOG #01', image: 'taf_dog_01.png' },
-      { id: 2,  title: 'TAF DOG #02', image: 'taf_dog_02.png' },
-      { id: 3,  title: 'TAF DOG #03', image: 'taf_dog_03.png' },
-      { id: 4,  title: 'TAF DOG #04', image: 'taf_dog_04.png' },
-      { id: 5,  title: 'TAF DOG #05', image: 'taf_dog_05.png' },
-      { id: 6,  title: 'TAF DOG #06', image: 'taf_dog_06.png' },
-      { id: 7,  title: 'TAF DOG #07', image: 'taf_dog_07.png' },
-      { id: 8,  title: 'TAF DOG #08', image: 'taf_dog_08.png' },
-      { id: 9,  title: 'TAF DOG #09', image: 'taf_dog_09.png' },
-      { id: 10, title: 'TAF DOG #10', image: 'taf_dog_10.png' },
-      { id: 11, title: 'TAF DOG #11', image: 'taf_dog_11.png' },
-      { id: 12, title: 'TAF DOG #12', image: 'taf_dog_12.png' },
-      { id: 13, title: 'TAF DOG #13', image: 'taf_dog_13.png' },
-      { id: 14, title: 'TAF DOG #14', image: 'taf_dog_14.png' },
-      { id: 15, title: 'TAF DOG #15', image: 'taf_dog_15.png' },
-      { id: 16, title: 'TAF DOG #16', image: 'taf_dog_16.png' },
-      { id: 17, title: 'TAF DOG #17', image: 'taf_dog_17.png' },
-      { id: 18, title: 'TAF DOG #18', image: 'taf_dog_18.png' }
-    ];
+    // --- SERVICES ---
+    const apiKey = process.env.API_KEY;
+    const ai = new GoogleGenAI({ apiKey: apiKey || '' });
 
-    class ErrorBoundary extends React.Component {
-      constructor(props) { super(props); this.state = { hasError: false }; }
-      static getDerivedStateFromError(error) { return { hasError: true }; }
-      render() { if (this.state.hasError) return <div className="loading-screen"><h1>エラーが発生しました。</h1></div>; return this.props.children; }
-    }
+    const createFallbackImage = (text) => {
+      const canvas = document.createElement('canvas');
+      canvas.width = 512; canvas.height = 512;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.fillStyle = '#1a1a1a'; ctx.fillRect(0, 0, 512, 512);
+        ctx.fillStyle = '#2a2a2a'; ctx.beginPath(); ctx.arc(256, 256, 150, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#4a4a4a'; ctx.font = 'bold 40px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('AI ARTWORK', 256, 230);
+        ctx.font = '20px Arial'; ctx.fillStyle = '#666'; ctx.fillText('Generation Unavailable', 256, 270);
+      }
+      return canvas.toDataURL('image/png');
+    };
 
+    const queue = [];
+    let activeRequests = 0;
+    const MAX_CONCURRENT = 3;
+
+    const processQueue = async () => {
+      if (activeRequests >= MAX_CONCURRENT || queue.length === 0) return;
+      const item = queue.shift();
+      if (!item) return;
+      activeRequests++;
+      const { prompt, resolve } = item;
+
+      if (!apiKey) {
+         resolve(createFallbackImage(prompt));
+         activeRequests--;
+         processQueue();
+         return;
+      }
+
+      try {
+        const response = await ai.models.generateContent({
+          model: 'gemini-2.5-flash-image',
+          contents: { parts: [{ text: `Create an oil painting, museum quality, elegant and artistic. Subject: ${prompt}. Ensure it looks like a classic masterpiece.` }] },
+          config: { imageConfig: { aspectRatio: "1:1" } }
+        });
+        let found = false;
+        if (response.candidates && response.candidates[0]?.content?.parts) {
+            for (const part of response.candidates[0].content.parts) {
+                if (part.inlineData) {
+                    resolve(`data:image/png;base64,${part.inlineData.data}`);
+                    found = true;
+                    break;
+                }
+            }
+        }
+        if (!found) resolve(createFallbackImage(prompt));
+      } catch (error) {
+        console.error("Gemini generation failed:", error);
+        resolve(createFallbackImage(prompt));
+      } finally {
+        setTimeout(() => { activeRequests--; processQueue(); }, 100);
+        if(activeRequests < MAX_CONCURRENT) processQueue();
+      }
+    };
+
+    const generateMuseumImage = (prompt) => {
+      return new Promise((resolve, reject) => {
+        queue.push({ prompt, resolve, reject });
+        processQueue();
+      });
+    };
+
+    // --- DATA ---
     const HUMAN_VARIANTS = Array.from({ length: 20 }, (_, i) => ({
       shirt: `hsl(${(i * 137) % 360}, 60%, ${30 + (i % 3) * 10}%)`,
       skin: `hsl(${20 + (i % 5) * 5}, ${60 - (i % 3) * 10}%, ${80 - (i % 5) * 10}%)`,
@@ -86,71 +143,41 @@
     DOG_VARIANTS[2] = { body: "#eeeeee", ear: "#dddddd" }; 
     DOG_VARIANTS[3] = { body: "#78716c", ear: "#57534e" }; 
 
+    const PAINTINGS = [
+      { id: "1", title: "TAF DOG #01", prompt: "A futuristic cyber-dog with neon circuitry, digital art style" },
+      { id: "2", title: "TAF DOG #02", image: "taf_dog_02.png", prompt: "A royal pug wearing a velvet robe and crown, renaissance oil painting" },
+      { id: "3", title: "TAF DOG #03", image: "taf_dog_03.png", prompt: "A Shiba Inu sitting in a zen garden with cherry blossoms, watercolor" },
+      { id: "4", title: "TAF DOG #04", image: "taf_dog_04.png", prompt: "A steampunk dachshund with brass gears and goggles, detailed illustration" },
+      { id: "5", title: "TAF DOG #05", prompt: "A greyhound running at light speed, motion blur, abstract expressionism" },
+      { id: "6", title: "TAF DOG #06", prompt: "A bulldog as a noir detective in rain, black and white photography style" },
+      { id: "7", title: "TAF DOG #07", prompt: "A poodle made of clouds in a surreal blue sky, Magritte style" },
+      { id: "8", title: "TAF DOG #08", prompt: "A geometric low-poly husky, vibrant colors, 3d render" },
+      { id: "9", title: "TAF DOG #09", prompt: "A golden retriever playing poker, vintage classic style" },
+      { id: "10", title: "TAF DOG #10", prompt: "A chihuahua astronaut floating in space, realistic 8k" },
+      { id: "11", title: "TAF DOG #11", prompt: "A dalmatian pattern abstract art, pop art style" },
+      { id: "12", title: "TAF DOG #12", prompt: "A ghost dog, transparent and glowing, ethereal fantasy art" },
+      { id: "13", title: "TAF DOG #13", prompt: "A robot dog schematic blueprint, technical drawing" },
+      { id: "14", title: "TAF DOG #14", prompt: "A beagle sleeping on a pile of old books, cozy warm lighting" },
+      { id: "15", title: "TAF DOG #15", prompt: "A corgi made of lego bricks, macro photography" },
+      { id: "16", title: "TAF DOG #16", prompt: "A border collie herding sheep in a van gogh starry night style" },
+      { id: "17", title: "TAF DOG #17", prompt: "A pitbull smiling with flowers, art nouveau poster" },
+      { id: "18", title: "TAF DOG #18", prompt: "A zombie dog, spooky horror style but cute" },
+    ];
+
     const ROOM_SIZE = 32; 
     const WALL_HEIGHT = 10;
     const ART_Y_POS = 3.5;
     const ART_SCALE = 4.0;
-    const MOVEMENT_SPEED = 0.04; 
-    const LERP_FACTOR = 0.15;
     const WALL_OFFSET = 1.5; 
 
     // --- COMPONENTS ---
-    const MetaverseCharacter = ({ position, rotationSpeed }) => {
-      const [texture, setTexture] = useState(null);
-      const groupRef = useRef();
-      useEffect(() => {
-        const loader = new THREE.TextureLoader();
-        loader.setCrossOrigin('anonymous');
-        loader.load('IMG_1822.png', (tex) => {
-          tex.encoding = THREE.sRGBEncoding;
-          tex.minFilter = THREE.LinearFilter;
-          tex.generateMipmaps = false;
-          setTexture(tex);
-        });
-      }, []);
-      useFrame((state, delta) => {
-        if (groupRef.current) {
-          groupRef.current.rotation.y += delta * rotationSpeed;
-          groupRef.current.position.y = 1.5 + Math.sin(state.clock.elapsedTime * 2) * 0.1;
-        }
-      });
-      if (!texture) return null;
-      return (
-        <group ref={groupRef} position={position}>
-          <mesh>
-            <planeGeometry args={[2, 4]} />
-            <meshStandardMaterial map={texture} transparent={true} side={THREE.DoubleSide} alphaTest={0.5} />
-          </mesh>
-        </group>
-      );
-    };
-
-    // **FIX: 足跡コンポーネントを追加 (色は白っぽく)**
-    const Footprints = ({ footprints }) => {
-      return (
-        <group>
-          {footprints.map((fp) => (
-            <mesh key={fp.id} position={[fp.x, 0.02, fp.z]} rotation={[-Math.PI/2, 0, fp.rotation]}>
-              <circleGeometry args={[0.15, 16]} />
-              <meshBasicMaterial color="#888888" transparent opacity={fp.opacity} />
-            </mesh>
-          ))}
-        </group>
-      );
-    };
-
     const HumanAvatar = ({ variantIndex, isMoving, isFlying }) => {
       const colors = HUMAN_VARIANTS[variantIndex % HUMAN_VARIANTS.length];
-      const leftArm = useRef();
-      const rightArm = useRef();
-      const leftLeg = useRef();
-      const rightLeg = useRef();
-
+      const leftArm = useRef(); const rightArm = useRef(); const leftLeg = useRef(); const rightLeg = useRef();
       useFrame((state) => {
         const t = state.clock.getElapsedTime();
         const angle = isFlying ? 0.5 : (isMoving ? Math.sin(t * 12) * 0.5 : 0);
         const legAngle = isFlying ? 0.2 : (isMoving ? Math.sin(t * 12) * 0.5 : 0);
-        
         if (leftArm.current && rightArm.current && leftLeg.current && rightLeg.current) {
           leftArm.current.rotation.x = isFlying ? 0 : angle;
           leftArm.current.rotation.z = isFlying ? 0.5 : 0; 
@@ -160,26 +187,15 @@
           rightLeg.current.rotation.x = isFlying ? 0.2 : legAngle;
         }
       });
-
       return (
         <group position={[0, 0.9, 0]}>
           <mesh position={[0, 0.75, 0]} castShadow><boxGeometry args={[0.25, 0.25, 0.25]} /><meshStandardMaterial color={colors.skin} /></mesh>
           <mesh position={[0, 0.88, 0]}><boxGeometry args={[0.27, 0.05, 0.27]} /><meshStandardMaterial color="#111" /></mesh>
           <mesh position={[0, 0.35, 0]} castShadow><boxGeometry args={[0.35, 0.5, 0.2]} /><meshStandardMaterial color={colors.shirt} /></mesh>
-          <group ref={leftArm} position={[-0.24, 0.55, 0]}>
-            <mesh position={[0, -0.25, 0]}><boxGeometry args={[0.1, 0.5, 0.1]} /><meshStandardMaterial color={colors.shirt} /></mesh>
-            <mesh position={[0, -0.5, 0]}><boxGeometry args={[0.08, 0.1, 0.08]} /><meshStandardMaterial color={colors.skin} /></mesh>
-          </group>
-          <group ref={rightArm} position={[0.24, 0.55, 0]}>
-            <mesh position={[0, -0.25, 0]}><boxGeometry args={[0.1, 0.5, 0.1]} /><meshStandardMaterial color={colors.shirt} /></mesh>
-            <mesh position={[0, -0.5, 0]}><boxGeometry args={[0.08, 0.1, 0.08]} /><meshStandardMaterial color={colors.skin} /></mesh>
-          </group>
-          <group ref={leftLeg} position={[-0.1, 0.1, 0]}>
-            <mesh position={[0, -0.3, 0]}><boxGeometry args={[0.12, 0.6, 0.12]} /><meshStandardMaterial color={colors.pants} /></mesh>
-          </group>
-          <group ref={rightLeg} position={[0.1, 0.1, 0]}>
-            <mesh position={[0, -0.3, 0]}><boxGeometry args={[0.12, 0.6, 0.12]} /><meshStandardMaterial color={colors.pants} /></mesh>
-          </group>
+          <group ref={leftArm} position={[-0.24, 0.55, 0]}><mesh position={[0, -0.25, 0]}><boxGeometry args={[0.1, 0.5, 0.1]} /><meshStandardMaterial color={colors.shirt} /></mesh><mesh position={[0, -0.5, 0]}><boxGeometry args={[0.08, 0.1, 0.08]} /><meshStandardMaterial color={colors.skin} /></mesh></group>
+          <group ref={rightArm} position={[0.24, 0.55, 0]}><mesh position={[0, -0.25, 0]}><boxGeometry args={[0.1, 0.5, 0.1]} /><meshStandardMaterial color={colors.shirt} /></mesh><mesh position={[0, -0.5, 0]}><boxGeometry args={[0.08, 0.1, 0.08]} /><meshStandardMaterial color={colors.skin} /></mesh></group>
+          <group ref={leftLeg} position={[-0.1, 0.1, 0]}><mesh position={[0, -0.3, 0]}><boxGeometry args={[0.12, 0.6, 0.12]} /><meshStandardMaterial color={colors.pants} /></mesh></group>
+          <group ref={rightLeg} position={[0.1, 0.1, 0]}><mesh position={[0, -0.3, 0]}><boxGeometry args={[0.12, 0.6, 0.12]} /><meshStandardMaterial color={colors.pants} /></mesh></group>
         </group>
       );
     };
@@ -190,17 +206,10 @@
       useFrame((state) => {
         if (group.current) {
             const t = state.clock.getElapsedTime();
-            let yOffset = 0.3;
-            let zRot = 0;
-            
-            if (isBarking) {
-                yOffset = 0.3 + Math.abs(Math.sin(t * 20)) * 0.2;
-            } else if (isMoving) {
-                yOffset = 0.3 + Math.abs(Math.sin(t * 15)) * 0.05;
-                zRot = Math.sin(t * 15) * 0.05;
-            }
-            group.current.position.y = yOffset;
-            group.current.rotation.z = zRot;
+            let yOffset = 0.3; let zRot = 0;
+            if (isBarking) { yOffset = 0.3 + Math.abs(Math.sin(t * 20)) * 0.2; } 
+            else if (isMoving) { yOffset = 0.3 + Math.abs(Math.sin(t * 15)) * 0.05; zRot = Math.sin(t * 15) * 0.05; }
+            group.current.position.y = yOffset; group.current.rotation.z = zRot;
         }
       });
       return (
@@ -216,187 +225,109 @@
                 <mesh position={[-0.1, -0.2, -0.35]}><boxGeometry args={[0.08, 0.4, 0.08]} /><meshStandardMaterial color={colors.ear} /></mesh>
                 <mesh position={[0.1, -0.2, -0.35]}><boxGeometry args={[0.08, 0.4, 0.08]} /><meshStandardMaterial color={colors.ear} /></mesh>
             </group>
-            {/* **FIX: Billboardを使って文字を常にカメラに向ける** */}
-            {isBarking && (
-                <Billboard position={[0, 1.2, 0]}>
-                    <Text fontSize={0.5} color="white" outlineWidth={0.05} outlineColor="black">WAN!</Text>
-                </Billboard>
-            )}
+            {isBarking && (<Billboard position={[0, 1.2, 0]}><Text fontSize={0.5} color="white" outlineWidth={0.05} outlineColor="black">WAN!</Text></Billboard>)}
         </group>
       );
     };
 
-    const WallSign = () => {
-      return (
-        <group position={[0, 6, -ROOM_SIZE/2 + 0.2]}>
-           <Text fontSize={1.5} color="#333" anchorX="center" anchorY="middle" letterSpacing={0.2} font="https://fonts.gstatic.com/s/inter/v12/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuLyfAZ9hjp-Ek-_EeA.woff">
-             TAF DOG EXHIBITION
-           </Text>
-        </group>
-      );
-    };
-
-    const Artwork = ({ data, position, rotation, onClick }) => {
+    const ArtFrame = ({ data, onClick }) => {
       const [texture, setTexture] = useState(null);
+      const [loading, setLoading] = useState(true);
       const [error, setError] = useState(false);
       
       useEffect(() => {
-        const loader = new THREE.TextureLoader();
-        loader.setCrossOrigin('anonymous');
-        const filename = data.image;
-        loader.load(
-          filename, 
-          (tex) => { 
-            tex.encoding = THREE.sRGBEncoding; 
-            tex.minFilter = THREE.LinearFilter;
-            tex.generateMipmaps = false; 
-            setTexture(tex); 
-          }, 
-          undefined, 
-          () => {
-             loader.load(filename.replace('.png', '.PNG'), 
-               (tex2) => { 
-                 tex2.encoding = THREE.sRGBEncoding;
-                 tex2.minFilter = THREE.LinearFilter;
-                 tex2.generateMipmaps = false;
-                 setTexture(tex2); 
-               },
-               undefined,
-               () => setError(true)
-             )
+        let isMounted = true;
+        const fetchArt = async () => {
+          setLoading(true); setError(false);
+          if (data.image) {
+            const loader = new THREE.TextureLoader(); loader.setCrossOrigin('anonymous');
+            loader.load(data.image, (tex) => { if(isMounted) { tex.colorSpace = THREE.SRGBColorSpace; setTexture(tex); setLoading(false); } }, undefined, () => { if(isMounted) { setError(true); setLoading(false); } });
+            return;
           }
-        );
-      }, [data.image]);
-
-      const materialProps = (!error && texture) ? { map: texture, color: "white" } : { color: "#CCCCCC" };
+          try {
+            const url = await generateMuseumImage(data.prompt);
+            if (!isMounted) return;
+            const loader = new THREE.TextureLoader(); loader.setCrossOrigin('anonymous');
+            loader.load(url, (tex) => { if(isMounted) { tex.colorSpace = THREE.SRGBColorSpace; setTexture(tex); setLoading(false); } }, undefined, () => { if(isMounted) { setError(true); setLoading(false); } });
+          } catch (e) { if(isMounted) { setError(true); setLoading(false); } }
+        };
+        fetchArt();
+        return () => { isMounted = false; };
+      }, [data.prompt, data.image]);
 
       return (
-        <group position={position} rotation={rotation}>
+        <group position={data.position} rotation={data.rotation}>
           <Float speed={2} rotationIntensity={0.05} floatIntensity={0.2}>
-            {/* 額装 */}
-            <mesh position={[0, 0, 0.22]}>
-               <boxGeometry args={[ART_SCALE + 0.4, ART_SCALE + 0.4, 0.05]} />
-               <meshStandardMaterial color="#111" roughness={0.4} />
-            </mesh>
-            <mesh position={[0, 0, 0.26]}>
-               <boxGeometry args={[ART_SCALE + 0.2, ART_SCALE + 0.2, 0.05]} />
-               <meshStandardMaterial color="#eeeeee" roughness={0.9} />
-            </mesh>
-            <mesh 
-              position={[0, 0, 0.3]} 
-              onClick={(e) => { e.stopPropagation(); onClick({ ...data, image: error ? null : (texture ? texture.image.src : null) }); }}
-              onPointerOver={() => (document.body.style.cursor = "pointer")}
-              onPointerOut={() => (document.body.style.cursor = "auto")}
-            >
+            <mesh position={[0, 0, 0.22]}><boxGeometry args={[ART_SCALE + 0.4, ART_SCALE + 0.4, 0.05]} /><meshStandardMaterial color="#111" roughness={0.4} /></mesh>
+            <mesh position={[0, 0, 0.26]}><boxGeometry args={[ART_SCALE + 0.2, ART_SCALE + 0.2, 0.05]} /><meshStandardMaterial color="#eeeeee" roughness={0.9} /></mesh>
+            <mesh position={[0, 0, 0.3]} onClick={(e) => { e.stopPropagation(); onClick({ ...data, image: (texture && !error) ? texture.image.src : null }); }} onPointerOver={() => (document.body.style.cursor = "pointer")} onPointerOut={() => (document.body.style.cursor = "auto")}>
               <boxGeometry args={[ART_SCALE, ART_SCALE, 0.02]} />
-              <meshStandardMaterial {...materialProps} roughness={0.2} metalness={0.1} />
+              {texture && !error ? <meshStandardMaterial map={texture} color="white" roughness={0.2} /> : <meshStandardMaterial color="#e6e2d3" roughness={0.9} />}
             </mesh>
-            {/* エラー表示 */}
-            {(!texture || error) && (
-               <Text position={[0, 0, 0.4]} fontSize={0.3} color="black" maxWidth={ART_SCALE * 0.8} textAlign="center">
-                 {error ? "NO IMAGE" : "LOADING..."}
-               </Text>
-            )}
+            {(loading || error) && (<group position={[0, 0, 0.35]}><Text color="#333" fontSize={0.3} anchorX="center" anchorY="middle">{error ? "LOAD FAILED" : (data.image ? "LOADING..." : "NOW PAINTING...")}</Text></group>)}
           </Float>
           <spotLight color="#FFFAF0" position={[0, 5, 5]} angle={0.5} penumbra={0.4} intensity={5} distance={20} />
-          <Text position={[0, -ART_SCALE / 2 - 0.6, 0.2]} fontSize={0.2} color="#666" anchorX="center" anchorY="top">{data.title.toUpperCase()}</Text>
+          <Text position={[0, -ART_SCALE / 2 - 0.6, 0.2]} fontSize={0.2} color="#888" anchorX="center" anchorY="top">{data.title.toUpperCase()}</Text>
         </group>
       );
     };
 
-    const Player = ({ joystickState, controlsRef, isDogMode, humanVariant, dogVariant, isFlying, isBarking, setFootprints }) => {
+    const Player = ({ moveVector, controlsRef, isDogMode, humanVariant, dogVariant, isFlying, isBarking, setFootprints }) => {
       const { camera } = useThree();
-      const playerRef = useRef(null);
+      const playerRef = useRef();
       const position = useRef(new THREE.Vector3(0, 0, 5));
       const velocity = useRef(new THREE.Vector3());
-      const cameraForward = useMemo(() => new THREE.Vector3(), []);
-      const cameraRight = useMemo(() => new THREE.Vector3(), []);
-      const moveDirection = useMemo(() => new THREE.Vector3(), []);
       const [isMoving, setIsMoving] = useState(false);
       const lastFootprintTime = useRef(0);
-      
       useFrame((state) => {
         if (!playerRef.current) return;
-        const { forward, right } = joystickState.current;
-        const moving = Math.abs(forward) > 0.01 || Math.abs(right) > 0.01;
+        const moving = Math.abs(moveVector.y) > 0.01 || Math.abs(moveVector.x) > 0.01;
         if (moving !== isMoving) setIsMoving(moving);
-
-        camera.getWorldDirection(cameraForward);
-        cameraForward.y = 0;
-        cameraForward.normalize();
-        cameraRight.crossVectors(cameraForward, camera.up);
-
-        moveDirection.set(0, 0, 0)
-          .add(cameraForward.multiplyScalar(forward)) 
-          .add(cameraRight.multiplyScalar(right))
-          .normalize();
-
-        velocity.current.lerp(moveDirection.multiplyScalar(MOVEMENT_SPEED), LERP_FACTOR);
+        const cameraForward = new THREE.Vector3(); camera.getWorldDirection(cameraForward); cameraForward.y = 0; cameraForward.normalize();
+        const cameraRight = new THREE.Vector3(); cameraRight.crossVectors(cameraForward, camera.up);
+        const moveDirection = new THREE.Vector3(0, 0, 0).add(cameraForward.multiplyScalar(moveVector.y)).add(cameraRight.multiplyScalar(moveVector.x)).normalize();
+        velocity.current.lerp(moveDirection.multiplyScalar(0.04), 0.15);
         const nextPos = position.current.clone().add(velocity.current);
-        const limit = ROOM_SIZE / 2 - 2.0;
-        if (Math.abs(nextPos.x) < limit && Math.abs(nextPos.z) < limit) {
-            position.current.copy(nextPos);
-        }
-        
-        if (isFlying) {
-            position.current.y = THREE.MathUtils.lerp(position.current.y, 4.0, 0.05);
-        } else {
-            position.current.y = THREE.MathUtils.lerp(position.current.y, 0, 0.1);
-        }
-
+        if (Math.abs(nextPos.x) < (ROOM_SIZE/2 - 2) && Math.abs(nextPos.z) < (ROOM_SIZE/2 - 2)) position.current.copy(nextPos);
+        position.current.y = THREE.MathUtils.lerp(position.current.y, isFlying ? 4.0 : 0, isFlying ? 0.05 : 0.1);
         playerRef.current.position.copy(position.current);
         if (moveDirection.length() > 0.01) {
           const targetAngle = Math.atan2(moveDirection.x, moveDirection.z);
-          playerRef.current.quaternion.slerp(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), targetAngle), LERP_FACTOR);
+          playerRef.current.quaternion.slerp(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), targetAngle), 0.15);
         }
-        
-        // 足跡生成 (飛んでない時のみ)
         if (moving && !isFlying && state.clock.elapsedTime - lastFootprintTime.current > 0.3) {
             lastFootprintTime.current = state.clock.elapsedTime;
-            setFootprints(prev => [
-                ...prev.slice(-30), 
-                { id: Math.random(), x: position.current.x, z: position.current.z, rotation: playerRef.current.rotation.y, opacity: 0.5 }
-            ]);
+            setFootprints(prev => [...prev.slice(-30), { id: Math.random(), x: position.current.x, z: position.current.z, rotation: playerRef.current.rotation.y, opacity: 0.5 }]);
         }
-
         if (controlsRef.current) {
-          const targetY = isFlying ? 4.0 : (isDogMode ? 0.5 : 1.2);
-          controlsRef.current.target.lerp(new THREE.Vector3(position.current.x, targetY, position.current.z), LERP_FACTOR);
+          controlsRef.current.target.lerp(new THREE.Vector3(position.current.x, isFlying ? 4.0 : (isDogMode ? 0.5 : 1.2), position.current.z), 0.15);
           controlsRef.current.update();
         }
       });
-
       return (
         <group ref={playerRef}>
-          {isDogMode 
-            ? <DogAvatar variantIndex={dogVariant} isMoving={isMoving} isBarking={isBarking} /> 
-            : <HumanAvatar variantIndex={humanVariant} isMoving={isMoving} isFlying={isFlying} />}
-          {/* 影 */}
+          {isDogMode ? <DogAvatar variantIndex={dogVariant} isMoving={isMoving} isBarking={isBarking} /> : <HumanAvatar variantIndex={humanVariant} isMoving={isMoving} isFlying={isFlying} />}
           <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, isFlying ? -position.current.y + 0.02 : 0.02, 0]}><circleGeometry args={[0.4, 32]} /><meshBasicMaterial color="black" opacity={0.3} transparent /></mesh>
         </group>
       );
     };
 
     const GalleryRoom = ({ onSelectArt, footprints }) => {
-      const items = useMemo(() => {
-        let worksData = window.WORKS && window.WORKS.length > 0 ? window.WORKS : DEFAULT_WORKS;
-        const res = [];
-        const spacing = ROOM_SIZE / 6; 
-        worksData.forEach((work, index) => {
+      const positionedPaintings = useMemo(() => {
+        const spacing = ROOM_SIZE / 6;
+        return PAINTINGS.map((p, index) => {
           let pos = [0, ART_Y_POS, 0], rot = [0, 0, 0];
           if (index < 5) { pos = [(index - 2) * spacing, ART_Y_POS, -ROOM_SIZE / 2 + WALL_OFFSET]; } 
           else if (index < 10) { pos = [ROOM_SIZE / 2 - WALL_OFFSET, ART_Y_POS, (index - 7) * spacing]; rot = [0, -Math.PI / 2, 0]; } 
           else if (index < 15) { pos = [(12 - index) * spacing, ART_Y_POS, ROOM_SIZE / 2 - WALL_OFFSET]; rot = [0, Math.PI, 0]; } 
           else { pos = [-ROOM_SIZE / 2 + WALL_OFFSET, ART_Y_POS, (17 - index) * spacing]; rot = [0, Math.PI / 2, 0]; }
-          res.push(<Artwork key={work.id} data={work} position={pos} rotation={rot} onClick={onSelectArt} />);
+          return { ...p, position: pos, rotation: rot };
         });
-        return res;
-      }, [onSelectArt]);
-
+      }, []);
       return (
         <group>
           <directionalLight position={[10, 20, 5]} intensity={2.0} castShadow />
-          <hemisphereLight intensity={2.5} groundColor="#222" color="#fff" />
+          <hemisphereLight intensity={0.5} groundColor="#222" color="#fff" />
           <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow><planeGeometry args={[ROOM_SIZE, ROOM_SIZE]} /><meshStandardMaterial color="#111" roughness={0.2} metalness={0.5} /></mesh>
           <gridHelper args={[ROOM_SIZE, 10, '#444', '#222']} position={[0, 0.01, 0]} />
           <mesh position={[0, WALL_HEIGHT / 2, -ROOM_SIZE / 2]} receiveShadow><boxGeometry args={[ROOM_SIZE, WALL_HEIGHT, 1]} /><meshStandardMaterial color="#444" roughness={0.8} /></mesh>
@@ -404,62 +335,39 @@
           <mesh position={[-ROOM_SIZE / 2, WALL_HEIGHT / 2, 0]} rotation={[0, Math.PI / 2, 0]} receiveShadow><boxGeometry args={[ROOM_SIZE, WALL_HEIGHT, 1]} /><meshStandardMaterial color="#444" roughness={0.8} /></mesh>
           <mesh position={[ROOM_SIZE / 2, WALL_HEIGHT / 2, 0]} rotation={[0, Math.PI / 2, 0]} receiveShadow><boxGeometry args={[ROOM_SIZE, WALL_HEIGHT, 1]} /><meshStandardMaterial color="#444" roughness={0.8} /></mesh>
           <mesh position={[0, WALL_HEIGHT, 0]} rotation={[Math.PI / 2, 0, 0]}><planeGeometry args={[ROOM_SIZE, ROOM_SIZE]} /><meshBasicMaterial color="#000" /></mesh>
-          <WallSign />
-          <MetaverseCharacter position={[14, 0, 14]} rotationSpeed={1} />
-          <MetaverseCharacter position={[-14, 0, 14]} rotationSpeed={-1} />
-          <MetaverseCharacter position={[14, 0, -14]} rotationSpeed={1.5} />
-          <MetaverseCharacter position={[-14, 0, -14]} rotationSpeed={-1.5} />
-          
-          {/* **FIX: 足跡コンポーネントをここに追加** */}
-          <Footprints footprints={footprints} />
-          
-          {items}
+          <group position={[0, 6, -ROOM_SIZE/2 + 0.6]}><Text fontSize={1.5} color="#333" anchorX="center" anchorY="middle" letterSpacing={0.2}>TAF DOG EXHIBITION</Text></group>
+          <group>{footprints.map((fp) => (<mesh key={fp.id} position={[fp.x, 0.02, fp.z]} rotation={[-Math.PI/2, 0, fp.rotation]}><circleGeometry args={[0.15, 16]} /><meshBasicMaterial color="#888888" transparent opacity={fp.opacity} /></mesh>))}</group>
+          {positionedPaintings.map((p) => (<ArtFrame key={p.id} data={p} onClick={onSelectArt} />))}
         </group>
       );
     };
 
-    const JoystickControl = ({ onChange }) => {
+    const Joystick = ({ onMove }) => {
       const [active, setActive] = useState(false);
-      const baseRef = useRef(null);
-      const [pos, setPos] = useState({ x: 0, y: 0 });
-      const handleMove = (clientX, clientY) => {
+      const [position, setPosition] = useState({ x: 0, y: 0 });
+      const baseRef = useRef();
+      const maxDist = 40;
+      const handleMove = useCallback((clientX, clientY) => {
         if (!baseRef.current) return;
         const base = baseRef.current.getBoundingClientRect();
-        const centerX = base.left + base.width / 2;
-        const centerY = base.top + base.height / 2;
-        let dx = clientX - centerX;
-        let dy = clientY - centerY; 
-        const distance = Math.sqrt(dx*dx + dy*dy);
-        const maxDist = 40; 
+        let dx = clientX - (base.left + base.width / 2);
+        let dy = clientY - (base.top + base.height / 2);
+        const distance = Math.sqrt(dx * dx + dy * dy);
         if (distance > maxDist) { const ratio = maxDist / distance; dx *= ratio; dy *= ratio; }
-        setPos({ x: dx, y: dy });
-        onChange({ x: dx / maxDist, y: -(dy / maxDist) });
-      };
-      const handleEnd = () => { setActive(false); setPos({ x: 0, y: 0 }); onChange({ x: 0, y: 0 }); };
+        setPosition({ x: dx, y: dy });
+        onMove({ x: dx / maxDist, y: -(dy / maxDist) });
+      }, [onMove]);
       useEffect(() => {
-        const onTouchMove = (e) => { if(active) { e.preventDefault(); handleMove(e.touches[0].clientX, e.touches[0].clientY);} };
+        const onTouchMove = (e) => { if(active) { e.preventDefault(); handleMove(e.touches[0].clientX, e.touches[0].clientY); } };
         const onMouseMove = (e) => { if(active) handleMove(e.clientX, e.clientY); };
-        const onEnd = () => handleEnd();
-        if (active) {
-          window.addEventListener('touchmove', onTouchMove, { passive: false });
-          window.addEventListener('touchend', onEnd);
-          window.addEventListener('mousemove', onMouseMove);
-          window.addEventListener('mouseup', onEnd);
-        }
-        return () => {
-          window.removeEventListener('touchmove', onTouchMove);
-          window.removeEventListener('touchend', onEnd);
-          window.removeEventListener('mousemove', onMouseMove);
-          window.removeEventListener('mouseup', onEnd);
-        };
-      }, [active]);
+        const onEnd = () => { setActive(false); setPosition({ x: 0, y: 0 }); onMove({ x: 0, y: 0 }); };
+        if (active) { window.addEventListener('touchmove', onTouchMove, { passive: false }); window.addEventListener('touchend', onEnd); window.addEventListener('mousemove', onMouseMove); window.addEventListener('mouseup', onEnd); }
+        return () => { window.removeEventListener('touchmove', onTouchMove); window.removeEventListener('touchend', onEnd); window.removeEventListener('mousemove', onMouseMove); window.removeEventListener('mouseup', onEnd); };
+      }, [active, handleMove]);
       return (
         <div className="absolute bottom-12 left-1/2 -translate-x-1/2 z-20 touch-none select-none">
-          <div ref={baseRef} 
-               className="w-32 h-32 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 flex items-center justify-center cursor-pointer shadow-2xl" 
-               onMouseDown={(e) => { setActive(true); handleMove(e.clientX, e.clientY); }} 
-               onTouchStart={(e) => { setActive(true); handleMove(e.touches[0].clientX, e.touches[0].clientY); }}>
-            <div className="w-12 h-12 rounded-full bg-white shadow-[0_0_15px_rgba(255,255,255,0.5)] flex items-center justify-center text-black/50" style={{ transform: `translate(${pos.x}px, ${pos.y}px)` }}>●</div>
+          <div ref={baseRef} className="w-32 h-32 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 flex items-center justify-center cursor-pointer shadow-2xl" onMouseDown={(e) => { setActive(true); handleMove(e.clientX, e.clientY); }} onTouchStart={(e) => { setActive(true); handleMove(e.touches[0].clientX, e.touches[0].clientY); }}>
+            <div className="w-12 h-12 rounded-full bg-white shadow-[0_0_15px_rgba(255,255,255,0.5)] flex items-center justify-center text-black/50 transition-transform duration-75" style={{ transform: `translate(${position.x}px, ${position.y}px)` }}>●</div>
           </div>
           <div className="text-white/30 text-[10px] text-center mt-4 tracking-[0.2em] pointer-events-none">DRAG TO WALK</div>
         </div>
@@ -467,7 +375,6 @@
     };
 
     const App = () => {
-      const [isReady, setIsReady] = useState(false);
       const [isDogMode, setIsDogMode] = useState(false);
       const [humanVariant, setHumanVariant] = useState(0);
       const [dogVariant, setDogVariant] = useState(0);
@@ -475,45 +382,23 @@
       const [isFlying, setIsFlying] = useState(false);
       const [isBarking, setIsBarking] = useState(false);
       const [footprints, setFootprints] = useState([]);
-      const joystickState = useRef({ forward: 0, right: 0 });
-      const controlsRef = useRef(null);
-      
+      const [moveVector, setMoveVector] = useState({ x: 0, y: 0 });
+      const controlsRef = useRef();
       useEffect(() => {
-        const t = setTimeout(() => setIsReady(true), 500);
-        const fpInterval = setInterval(() => {
-            setFootprints(prev => prev.map(fp => ({...fp, opacity: fp.opacity - 0.02})).filter(fp => fp.opacity > 0));
-        }, 100);
-        return () => { clearTimeout(t); clearInterval(fpInterval); };
+        const fpInterval = setInterval(() => { setFootprints(prev => prev.map(fp => ({...fp, opacity: fp.opacity - 0.02})).filter(fp => fp.opacity > 0)); }, 100);
+        return () => clearInterval(fpInterval);
       }, []);
-
       const handleHumanClick = () => { if (!isDogMode) { setHumanVariant(v => (v + 1) % 20); } else { setIsDogMode(false); setIsFlying(false); } };
       const handleDogClick = () => { if (isDogMode) { setDogVariant(v => (v + 1) % 20); } else { setIsDogMode(true); setIsFlying(false); } };
-      
-      const handleFlyToggle = () => setIsFlying(!isFlying);
-      const handleBark = () => {
-          setIsBarking(true);
-          setTimeout(() => setIsBarking(false), 1000); 
-      };
-
-      if (!isReady) return <div className="loading-screen">NOW LOADING...</div>;
-
+      const handleBark = () => { setIsBarking(true); setTimeout(() => setIsBarking(false), 1000); };
       return (
-        <div className="relative w-full h-screen bg-black overflow-hidden font-sans select-none">
-          <Canvas shadows dpr={[1, 1.5]}>
+        <div className="relative w-full h-full bg-black overflow-hidden font-sans select-none">
+          <Canvas shadows dpr={[1, 1.5]} className="w-full h-full">
             <Suspense fallback={null}>
               <PerspectiveCamera makeDefault fov={50} position={[0, 3, 8]} />
               <OrbitControls ref={controlsRef} enablePan={false} enableZoom={true} minDistance={2} maxDistance={10} maxPolarAngle={Math.PI / 2 - 0.1} />
               <GalleryRoom onSelectArt={setSelectedArt} footprints={footprints} />
-              <Player 
-                joystickState={joystickState} 
-                controlsRef={controlsRef} 
-                isDogMode={isDogMode} 
-                humanVariant={humanVariant} 
-                dogVariant={dogVariant} 
-                isFlying={isFlying}
-                isBarking={isBarking}
-                setFootprints={setFootprints}
-              />
+              <Player moveVector={moveVector} controlsRef={controlsRef} isDogMode={isDogMode} humanVariant={humanVariant} dogVariant={dogVariant} isFlying={isFlying} isBarking={isBarking} setFootprints={setFootprints} />
             </Suspense>
           </Canvas>
           <div className="absolute top-0 left-0 right-0 z-10 p-3 flex justify-between items-center w-full pointer-events-none">
@@ -523,45 +408,18 @@
               <button onClick={handleDogClick} className={`flex items-center gap-2 px-3 py-2 rounded-full transition-all backdrop-blur-md border active:scale-95 ${isDogMode ? 'bg-white text-black border-white' : 'bg-black/40 text-white/70 border-white/20 hover:bg-white/10'}`}><span className="text-xs font-bold tracking-wider">DOG</span></button>
             </div>
           </div>
-          
           <div className="absolute bottom-32 right-6 z-20 pointer-events-auto flex flex-col gap-4">
-             {!isDogMode && (
-                 <button onClick={handleFlyToggle} className={`action-btn w-16 h-16 rounded-full border-2 flex items-center justify-center shadow-lg transition-all ${isFlying ? 'bg-blue-500 border-blue-300 text-white' : 'bg-black/50 border-white/50 text-white/80'}`}>
-                    <span className="text-xs font-bold">FLY</span>
-                 </button>
-             )}
-             {isDogMode && (
-                 <button onClick={handleBark} className="action-btn w-16 h-16 rounded-full bg-red-500/80 border-2 border-red-300 flex items-center justify-center shadow-lg text-white active:bg-red-600">
-                    <span className="text-xs font-bold">BARK</span>
-                 </button>
-             )}
+             {!isDogMode && (<button onClick={() => setIsFlying(!isFlying)} className={`w-16 h-16 rounded-full border-2 flex items-center justify-center shadow-lg transition-all active:scale-95 ${isFlying ? 'bg-blue-500 border-blue-300 text-white' : 'bg-black/50 border-white/50 text-white/80'}`}><span className="text-xs font-bold">FLY</span></button>)}
+             {isDogMode && (<button onClick={handleBark} className="w-16 h-16 rounded-full bg-red-500/80 border-2 border-red-300 flex items-center justify-center shadow-lg text-white active:bg-red-600 active:scale-95 transition-all"><span className="text-xs font-bold">BARK</span></button>)}
           </div>
-
-          <JoystickControl onChange={(data) => { joystickState.current.forward = data.y; joystickState.current.right = data.x; }} />
+          <div className="pointer-events-auto"><Joystick onMove={setMoveVector} /></div>
           {selectedArt && (
             <div className={`absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 transition-opacity duration-300`} onClick={() => setSelectedArt(null)}>
               <div className="bg-[#1a1a1a] border border-gray-800 max-w-4xl w-full max-h-[90vh] overflow-y-auto flex flex-col md:flex-row rounded-sm shadow-2xl" onClick={(e) => e.stopPropagation()}>
-                <div className="w-full md:w-1/2 bg-black flex items-center justify-center p-4 md:p-12 relative min-h-[300px]">
-                  {selectedArt.image ? (
-                    <img src={selectedArt.image} alt={selectedArt.title} className="max-w-full max-h-[60vh] shadow-[0_0_30px_rgba(0,0,0,0.5)] relative z-10" />
-                  ) : (
-                    <div className="text-white">NO IMAGE</div>
-                  )}
-                </div>
+                <div className="w-full md:w-1/2 bg-black flex items-center justify-center p-4 md:p-12 relative min-h-[300px]">{selectedArt.image ? (<img src={selectedArt.image} alt={selectedArt.title} className="max-w-full max-h-[60vh] shadow-[0_0_30px_rgba(0,0,0,0.5)] relative z-10" />) : (<div className="text-white">NO IMAGE</div>)}</div>
                 <div className="w-full md:w-1/2 p-8 md:p-12 flex flex-col justify-between">
-                  <div>
-                    <h2 className="text-4xl font-light text-white mb-2 tracking-wide">{selectedArt.title}</h2>
-                    <p className="text-gray-400 mt-4 leading-relaxed font-light text-sm">TAF DOGコレクションのユニークな作品。ローポリゴンの美学と、どこか哀愁漂う表情が特徴です。</p>
-                  </div>
-                  <div className="mt-12 flex justify-between items-end">
-                    <div><span className="block text-gray-600 text-[10px] uppercase tracking-widest mb-1">Artist</span><span className="text-white text-sm">草間縄文</span></div>
-                    <button 
-                      className="bg-white text-black px-6 py-3 text-xs font-bold tracking-wider hover:bg-gray-200 transition-colors"
-                      onClick={() => window.open('https://opensea.io/ja/collection/taf-dog', '_blank')}
-                    >
-                      OPENSEA
-                    </button>
-                  </div>
+                  <div><h2 className="text-4xl font-light text-white mb-2 tracking-wide">{selectedArt.title}</h2><p className="text-gray-400 mt-4 leading-relaxed font-light text-sm">TAF DOGコレクションのユニークな作品。Geminiによって生成されたローポリゴンの美学と、どこか哀愁漂う表情が特徴です。</p></div>
+                  <div className="mt-12 flex justify-between items-end"><div><span className="block text-gray-600 text-[10px] uppercase tracking-widest mb-1">Artist</span><span className="text-white text-sm">Gemini 2.5 & User</span></div><button className="bg-white text-black px-6 py-3 text-xs font-bold tracking-wider hover:bg-gray-200 transition-colors" onClick={() => window.open('https://opensea.io/ja/collection/taf-dog', '_blank')}>OPENSEA</button></div>
                 </div>
                 <button className="absolute top-4 right-4 text-white/50 hover:text-white p-2" onClick={() => setSelectedArt(null)}>X</button>
               </div>
@@ -570,17 +428,11 @@
         </div>
       );
     };
-    
-    window.addEventListener('load', () => {
-      const container = document.getElementById("root");
-      if (container) {
-        createRoot(container).render(
-          <ErrorBoundary>
-            <App />
-          </ErrorBoundary>
-        );
-      }
-    });
+
+    const container = document.getElementById("root");
+    if (container) {
+      createRoot(container).render(<App />);
+    }
   </script>
 </body>
 </html>

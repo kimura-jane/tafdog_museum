@@ -25,8 +25,7 @@
   <script>
     window.process = {
       env: {
-        NODE_ENV: 'production',
-        API_KEY: '' // API Key is handled internally.
+        NODE_ENV: 'production'
       }
     };
   </script>
@@ -101,28 +100,20 @@
       { id: 20, title: 'TAF DOG #20', image: 'taf_dog_20.png' }
     ];
 
-    // Calculate positions for each painting (5 per wall)
     const PAINTINGS = USER_WORKS.map((work, index) => {
-      const spacing = ROOM_SIZE / 6; // Fits 5 items comfortably
+      const spacing = ROOM_SIZE / 6; 
       let pos = [0, ART_Y_POS, 0];
       let rot = [0, 0, 0];
       
-      // 0-4: Back Wall (z = -)
       if (index < 5) { 
         pos = [(index - 2) * spacing, ART_Y_POS, -ROOM_SIZE / 2 + WALL_OFFSET]; 
-      } 
-      // 5-9: Right Wall (x = +)
-      else if (index < 10) { 
+      } else if (index < 10) { 
         pos = [ROOM_SIZE / 2 - WALL_OFFSET, ART_Y_POS, (index - 7) * spacing]; 
         rot = [0, -Math.PI / 2, 0]; 
-      } 
-      // 10-14: Front Wall (z = +)
-      else if (index < 15) { 
+      } else if (index < 15) { 
         pos = [(12 - index) * spacing, ART_Y_POS, ROOM_SIZE / 2 - WALL_OFFSET]; 
         rot = [0, Math.PI, 0]; 
-      } 
-      // 15-19: Left Wall (x = -)
-      else { 
+      } else { 
         pos = [-ROOM_SIZE / 2 + WALL_OFFSET, ART_Y_POS, (17 - index) * spacing]; 
         rot = [0, Math.PI / 2, 0]; 
       }
@@ -130,86 +121,161 @@
       return {
         ...work,
         id: String(work.id),
-        // Construct image URL for GitHub Pages
         image: BASE_IMAGE_URL + work.image,
         position: pos,
         rotation: rot
       };
     });
 
-    // --- AVATARS ---
-    const HUMAN_VARIANTS = Array.from({ length: 20 }, (_, i) => ({
-      shirt: `hsl(${(i * 137) % 360}, 60%, ${30 + (i % 3) * 10}%)`,
-      skin: `hsl(${20 + (i % 5) * 5}, ${60 - (i % 3) * 10}%, ${80 - (i % 5) * 10}%)`,
-      pants: `hsl(${(i * 50 + 180) % 360}, 20%, 20%)`
-    }));
-    const DOG_VARIANTS = Array.from({ length: 20 }, (_, i) => ({
-      body: `hsl(${(30 + i * 15) % 60}, ${70 + (j => j % 4)(i) * 10}%, ${40 + (j => j % 5)(i) * 10}%)`,
-      ear: `hsl(${(30 + i * 15) % 60}, ${80}%, ${30}%)`
-    }));
-    DOG_VARIANTS[1] = { body: "#111111", ear: "#222222" };
-    DOG_VARIANTS[2] = { body: "#eeeeee", ear: "#dddddd" };
-    DOG_VARIANTS[3] = { body: "#78716c", ear: "#57534e" };
+    // --- ANIME GIRL COMPONENT (With Link) ---
+    const TARGET_IMAGE_NAME = "B2144D9D-69B9-437B-B134-89D437C182F4.png";
+    const LINK_URL = "https://auth.financie.jp/signup?client_id=lxI8fEEV0Lhqh36V3IgbfcCbGjBbIKkj1ZfsjkCTa1o&redirect_uri=https%3A%2F%2Ffinancie.jp%2Fweb_auth%2Fcallback&scope=openid+email+profile&code_challenge=TGD5MqR0ydmcLz83ZvErSJgF4cA35uAZjF8rFKftXBM&code_challenge_method=S256&state=_1zJxeX2AnvUxOXKCSxWkQ&nonce=Qg2EqtZ-VD38QDCAQOVgpw";
 
-    const HumanAvatar = ({ variantIndex, isMoving, isFlying }) => {
-      const colors = HUMAN_VARIANTS[variantIndex % HUMAN_VARIANTS.length];
-      const leftArm = useRef(); const rightArm = useRef(); const leftLeg = useRef(); const rightLeg = useRef();
-      useFrame((state) => {
-        const t = state.clock.getElapsedTime();
-        const angle = isFlying ? 0.5 : (isMoving ? Math.sin(t * 12) * 0.5 : 0);
-        const legAngle = isFlying ? 0.2 : (isMoving ? Math.sin(t * 12) * 0.5 : 0);
-        if (leftArm.current) {
-          leftArm.current.rotation.x = isFlying ? 0 : angle; leftArm.current.rotation.z = isFlying ? 0.5 : 0; 
-          rightArm.current.rotation.x = isFlying ? 0 : -angle; rightArm.current.rotation.z = isFlying ? -0.5 : 0; 
-          leftLeg.current.rotation.x = isFlying ? 0.2 : -legAngle; rightLeg.current.rotation.x = isFlying ? 0.2 : legAngle;
+    const AnimeGirl = ({ position, rotationSpeed }) => {
+      const [texture, setTexture] = useState(null);
+      const groupRef = useRef(null);
+      const bodyRef = useRef(null);
+      const [hovered, setHovered] = useState(false);
+
+      // Generate a "Serious Mode" procedural texture as backup
+      const placeholderTexture = useMemo(() => {
+        const canvas = document.createElement('canvas');
+        const size = 1024; 
+        canvas.width = size;
+        canvas.height = size * 2;
+        const ctx = canvas.getContext('2d');
+        
+        if (ctx) {
+          const W = canvas.width;
+          const H = canvas.height;
+          const CX = W / 2;
+
+          // Fallback drawing
+          ctx.fillStyle = '#fff5f0'; // Skin
+          ctx.fillRect(0, 0, W, H);
+          
+          // Pink Hair Gradient
+          const grad = ctx.createLinearGradient(0, 0, 0, H);
+          grad.addColorStop(0, '#e0e0e0');
+          grad.addColorStop(1, '#ffb7c5');
+          ctx.fillStyle = grad;
+          ctx.beginPath(); ctx.arc(CX, H*0.3, 300, Math.PI, 0); ctx.fill(); // Head
+          ctx.fillRect(CX-300, H*0.3, 600, H*0.7); // Hair body
+
+          // Eyes
+          ctx.fillStyle = '#6a3ba0';
+          ctx.beginPath(); ctx.arc(CX-100, H*0.35, 60, 0, Math.PI*2); ctx.fill();
+          ctx.beginPath(); ctx.arc(CX+100, H*0.35, 60, 0, Math.PI*2); ctx.fill();
+
+          // Hoodie Panda
+          ctx.fillStyle = 'white';
+          ctx.beginPath(); ctx.arc(CX, H*0.7, 150, 0, Math.PI*2); ctx.fill();
+          ctx.fillStyle = 'black';
+          ctx.beginPath(); ctx.arc(CX-50, H*0.7, 30, 0, Math.PI*2); ctx.fill();
+          ctx.beginPath(); ctx.arc(CX+50, H*0.7, 30, 0, Math.PI*2); ctx.fill();
         }
+
+        const tex = new THREE.CanvasTexture(canvas);
+        tex.colorSpace = THREE.SRGBColorSpace;
+        return tex;
+      }, []);
+
+      useEffect(() => {
+        const loader = new THREE.TextureLoader();
+        loader.setCrossOrigin('anonymous');
+        
+        // Use the specific file requested
+        const url = PROXY_URL + encodeURIComponent(BASE_IMAGE_URL + TARGET_IMAGE_NAME) + `&t=${Date.now()}`;
+        
+        loader.load(
+          url, 
+          (tex) => {
+            tex.colorSpace = THREE.SRGBColorSpace;
+            tex.minFilter = THREE.LinearFilter;
+            setTexture(tex);
+          },
+          undefined,
+          () => {
+            console.warn("Failed to load " + TARGET_IMAGE_NAME + ", using fallback.");
+            setTexture(placeholderTexture);
+          }
+        );
+      }, [placeholderTexture]);
+
+      useFrame((state, delta) => {
+        if (!groupRef.current || !bodyRef.current) return;
+        
+        const t = state.clock.elapsedTime;
+
+        // Rotation
+        groupRef.current.rotation.y += delta * rotationSpeed;
+
+        // Bounce
+        const jump = Math.max(0, Math.sin(t * 8)); 
+        bodyRef.current.position.y = 1.5 + jump * 0.4;
+
+        // Tilt
+        bodyRef.current.rotation.z = Math.sin(t * 4) * 0.1;
+        
+        // Squash/Stretch
+        const squash = Math.sin(t * 16) * 0.03;
+        bodyRef.current.scale.set(1 - squash, 1 + squash, 1);
       });
+
+      const layers = useMemo(() => Array.from({ length: 5 }, (_, i) => -0.04 * i), []);
+      const activeTexture = texture || placeholderTexture;
+
+      const handleClick = (e) => {
+        e.stopPropagation();
+        window.open(LINK_URL, '_blank');
+      };
+
+      useEffect(() => {
+        document.body.style.cursor = hovered ? 'pointer' : 'auto';
+        return () => { document.body.style.cursor = 'auto'; };
+      }, [hovered]);
+
       return (
-        <group position={[0, 0.55, 0]}>
-          <mesh position={[0, 0.75, 0]} castShadow><boxGeometry args={[0.25, 0.25, 0.25]} /><meshStandardMaterial color={colors.skin} /></mesh>
-          <mesh position={[0, 0.88, 0]}><boxGeometry args={[0.27, 0.05, 0.27]} /><meshStandardMaterial color="#111" /></mesh>
-          <mesh position={[0, 0.35, 0]} castShadow><boxGeometry args={[0.35, 0.5, 0.2]} /><meshStandardMaterial color={colors.shirt} /></mesh>
-          <group ref={leftArm} position={[-0.24, 0.55, 0]}><mesh position={[0, -0.25, 0]}><boxGeometry args={[0.1, 0.5, 0.1]} /><meshStandardMaterial color={colors.shirt} /></mesh><mesh position={[0, -0.5, 0]}><boxGeometry args={[0.08, 0.1, 0.08]} /><meshStandardMaterial color={colors.skin} /></mesh></group>
-          <group ref={rightArm} position={[0.24, 0.55, 0]}><mesh position={[0, -0.25, 0]}><boxGeometry args={[0.1, 0.5, 0.1]} /><meshStandardMaterial color={colors.shirt} /></mesh><mesh position={[0, -0.5, 0]}><boxGeometry args={[0.08, 0.1, 0.08]} /><meshStandardMaterial color={colors.skin} /></mesh></group>
-          <group ref={leftLeg} position={[-0.1, 0.1, 0]}><mesh position={[0, -0.3, 0]}><boxGeometry args={[0.12, 0.6, 0.12]} /><meshStandardMaterial color={colors.pants} /></mesh></group>
-          <group ref={rightLeg} position={[0.1, 0.1, 0]}><mesh position={[0, -0.3, 0]}><boxGeometry args={[0.12, 0.6, 0.12]} /><meshStandardMaterial color={colors.pants} /></mesh></group>
+        <group 
+          ref={groupRef} 
+          position={position} 
+          onClick={handleClick}
+          onPointerOver={() => setHovered(true)}
+          onPointerOut={() => setHovered(false)}
+        >
+          <group ref={bodyRef}>
+            {/* Stacked Planes for thickness */}
+            {layers.map((zOffset, i) => (
+              <mesh key={i} position={[0, 0, zOffset]} castShadow={i === 0}>
+                 {/* Adjust aspect ratio to match the drawing (1:2) */}
+                <planeGeometry args={[3.2, 6.4]} />
+                <meshStandardMaterial 
+                  map={activeTexture} 
+                  transparent={true} 
+                  side={THREE.DoubleSide} 
+                  alphaTest={0.1} 
+                  color={i > 0 ? "#ddd" : "white"} 
+                />
+              </mesh>
+            ))}
+          </group>
+          
+          {/* Shadow */}
+          <mesh position={[0, 0.05, 0]} rotation={[-Math.PI/2, 0, 0]}>
+             <circleGeometry args={[1.2, 32]} />
+             <meshBasicMaterial color="black" transparent opacity={0.3} />
+          </mesh>
+
+          {/* Spotlight */}
+          <pointLight position={[0, 4, 2]} intensity={3} distance={8} color="#ffccff" decay={2} />
         </group>
       );
     };
 
-    const DogAvatar = ({ variantIndex, isMoving, isBarking }) => {
-      const colors = DOG_VARIANTS[variantIndex % DOG_VARIANTS.length];
-      const group = useRef();
-      useFrame((state) => {
-        if (group.current) {
-            const t = state.clock.getElapsedTime();
-            let yOffset = 0.3; let zRot = 0;
-            if (isBarking) { yOffset = 0.3 + Math.abs(Math.sin(t * 20)) * 0.2; } 
-            else if (isMoving) { yOffset = 0.3 + Math.abs(Math.sin(t * 15)) * 0.05; zRot = Math.sin(t * 15) * 0.05; }
-            group.current.position.y = yOffset; group.current.rotation.z = zRot;
-        }
-      });
-      return (
-        <group>
-            <group ref={group} position={[0, 0.3, 0]}>
-                <mesh position={[0, 0, -0.1]} castShadow rotation={[0.1, 0, 0]}><boxGeometry args={[0.3, 0.4, 0.7]} /><meshStandardMaterial color={colors.body} roughness={0.8} /></mesh>
-                <mesh position={[0, 0.35, 0.35]}><boxGeometry args={[0.35, 0.35, 0.3]} /><meshStandardMaterial color={colors.ear} roughness={0.8} /></mesh>
-                <mesh position={[0.12, 0.55, 0.3]}><coneGeometry args={[0.08, 0.2, 4]} /><meshStandardMaterial color={colors.ear} roughness={0.8} /></mesh>
-                <mesh position={[-0.12, 0.55, 0.3]}><coneGeometry args={[0.08, 0.2, 4]} /><meshStandardMaterial color={colors.ear} roughness={0.8} /></mesh>
-                <mesh position={[0, 0.2, -0.5]} rotation={[-0.5, 0, 0]}><cylinderGeometry args={[0.04, 0.02, 0.4]} /><meshStandardMaterial color={colors.body} /></mesh>
-                <mesh position={[-0.1, -0.2, 0.15]}><boxGeometry args={[0.08, 0.4, 0.08]} /><meshStandardMaterial color={colors.ear} /></mesh>
-                <mesh position={[0.1, -0.2, 0.15]}><boxGeometry args={[0.08, 0.4, 0.08]} /><meshStandardMaterial color={colors.ear} /></mesh>
-                <mesh position={[-0.1, -0.2, -0.35]}><boxGeometry args={[0.08, 0.4, 0.08]} /><meshStandardMaterial color={colors.ear} /></mesh>
-                <mesh position={[0.1, -0.2, -0.35]}><boxGeometry args={[0.08, 0.4, 0.08]} /><meshStandardMaterial color={colors.ear} /></mesh>
-            </group>
-            {isBarking && (<Billboard position={[0, 1.2, 0]}><Text fontSize={0.5} color="white" outlineWidth={0.05} outlineColor="black">WAN!</Text></Billboard>)}
-        </group>
-      );
-    };
-
+    // --- METAVERSE CHARACTER ---
     const MetaverseCharacter = ({ position, rotationSpeed }) => {
       const [texture, setTexture] = useState(null);
-      const groupRef = useRef();
+      const groupRef = useRef(null);
       useEffect(() => {
         const loader = new THREE.TextureLoader();
         loader.setCrossOrigin('anonymous');
@@ -292,7 +358,7 @@
     };
 
     const DustParticles = () => {
-      const count = 100; // REDUCED count for cleaner look
+      const count = 100; 
       const mesh = useRef();
       const dummy = useMemo(() => new THREE.Object3D(), []);
       const particles = useMemo(() => {
@@ -349,7 +415,7 @@
         let timeoutId;
         const loadWithRetry = (retryCount = 0) => {
             if (!isMounted) return;
-            // Construct PROXY URL with optimization (resize to 512, webp/png) and cache buster
+            // Construct PROXY URL with optimization
             const proxyUrl = `${PROXY_URL}${encodeURIComponent(data.image.replace(/^https?:\/\//, ''))}&w=512&output=png&q=85&t=${Date.now()}`;
             const loader = new THREE.TextureLoader();
             loader.setCrossOrigin('anonymous');
@@ -359,7 +425,6 @@
                 () => { if (retryCount < 1) setTimeout(() => loadWithRetry(retryCount + 1), 2000); else if (isMounted) { setError(true); setLoading(false); } }
             );
         };
-        // Stagger load: 600ms
         const delay = index * 600;
         timeoutId = setTimeout(() => loadWithRetry(), delay);
         return () => { isMounted = false; if(timeoutId) clearTimeout(timeoutId); };
@@ -367,7 +432,6 @@
 
       const handleClick = (e) => {
         e.stopPropagation();
-        // High res for modal
         const imageUrl = `${PROXY_URL}${encodeURIComponent(data.image.replace(/^https?:\/\//, ''))}&output=png&q=95`;
         onClick({ ...data, image: imageUrl });
       };
@@ -375,11 +439,8 @@
       return (
         <group ref={groupRef} position={data.position} rotation={data.rotation}>
           <Float speed={2} rotationIntensity={0.05} floatIntensity={0.2}>
-            {/* Frame */}
             <mesh position={[0, 0, 0.15]} castShadow receiveShadow><boxGeometry args={[ART_SCALE + 0.5, ART_SCALE + 0.5, 0.1]} /><meshStandardMaterial color="#1a1a1a" roughness={0.2} metalness={0.1} /></mesh>
-            {/* Mat */}
             <mesh position={[0, 0, 0.21]}><boxGeometry args={[ART_SCALE + 0.3, ART_SCALE + 0.3, 0.05]} /><meshStandardMaterial color="#fdfdfd" roughness={0.9} /></mesh>
-            {/* Canvas */}
             <mesh position={[0, 0, 0.26]} onClick={handleClick} onPointerOver={() => (document.body.style.cursor = "pointer")} onPointerOut={() => (document.body.style.cursor = "auto")}>
               <boxGeometry args={[ART_SCALE, ART_SCALE, 0.01]} />
               {texture && !error ? <meshBasicMaterial map={texture} toneMapped={false} /> : <meshStandardMaterial color={error ? "#222" : "#e0e0e0"} roughness={0.9} />}
@@ -388,6 +449,76 @@
           </Float>
           <pointLight ref={lightRef} color="#fff" position={[0, 2, 2]} intensity={0.5} distance={8} decay={2} />
           <Text position={[0, -ART_SCALE / 2 - 0.8, 0.2]} fontSize={0.25} color="#000000" anchorX="center" anchorY="top">{data.title.toUpperCase()}</Text>
+        </group>
+      );
+    };
+
+    // --- AVATARS ---
+    const HUMAN_VARIANTS = Array.from({ length: 20 }, (_, i) => ({
+      shirt: `hsl(${(i * 137) % 360}, 60%, ${30 + (i % 3) * 10}%)`,
+      skin: `hsl(${20 + (i % 5) * 5}, ${60 - (i % 3) * 10}%, ${80 - (i % 5) * 10}%)`,
+      pants: `hsl(${(i * 50 + 180) % 360}, 20%, 20%)`
+    }));
+    const DOG_VARIANTS = Array.from({ length: 20 }, (_, i) => ({
+      body: `hsl(${(30 + i * 15) % 60}, ${70 + (j => j % 4)(i) * 10}%, ${40 + (j => j % 5)(i) * 10}%)`,
+      ear: `hsl(${(30 + i * 15) % 60}, ${80}%, ${30}%)`
+    }));
+    DOG_VARIANTS[1] = { body: "#111111", ear: "#222222" };
+    DOG_VARIANTS[2] = { body: "#eeeeee", ear: "#dddddd" };
+    DOG_VARIANTS[3] = { body: "#78716c", ear: "#57534e" };
+
+    const HumanAvatar = ({ variantIndex, isMoving, isFlying }) => {
+      const colors = HUMAN_VARIANTS[variantIndex % HUMAN_VARIANTS.length];
+      const leftArm = useRef(); const rightArm = useRef(); const leftLeg = useRef(); const rightLeg = useRef();
+      useFrame((state) => {
+        const t = state.clock.getElapsedTime();
+        const angle = isFlying ? 0.5 : (isMoving ? Math.sin(t * 12) * 0.5 : 0);
+        const legAngle = isFlying ? 0.2 : (isMoving ? Math.sin(t * 12) * 0.5 : 0);
+        if (leftArm.current) {
+          leftArm.current.rotation.x = isFlying ? 0 : angle; leftArm.current.rotation.z = isFlying ? 0.5 : 0; 
+          rightArm.current.rotation.x = isFlying ? 0 : -angle; rightArm.current.rotation.z = isFlying ? -0.5 : 0; 
+          leftLeg.current.rotation.x = isFlying ? 0.2 : -legAngle; rightLeg.current.rotation.x = isFlying ? 0.2 : legAngle;
+        }
+      });
+      return (
+        <group position={[0, 0.55, 0]}>
+          <mesh position={[0, 0.75, 0]} castShadow><boxGeometry args={[0.25, 0.25, 0.25]} /><meshStandardMaterial color={colors.skin} /></mesh>
+          <mesh position={[0, 0.88, 0]}><boxGeometry args={[0.27, 0.05, 0.27]} /><meshStandardMaterial color="#111" /></mesh>
+          <mesh position={[0, 0.35, 0]} castShadow><boxGeometry args={[0.35, 0.5, 0.2]} /><meshStandardMaterial color={colors.shirt} /></mesh>
+          <group ref={leftArm} position={[-0.24, 0.55, 0]}><mesh position={[0, -0.25, 0]}><boxGeometry args={[0.1, 0.5, 0.1]} /><meshStandardMaterial color={colors.shirt} /></mesh><mesh position={[0, -0.5, 0]}><boxGeometry args={[0.08, 0.1, 0.08]} /><meshStandardMaterial color={colors.skin} /></mesh></group>
+          <group ref={rightArm} position={[0.24, 0.55, 0]}><mesh position={[0, -0.25, 0]}><boxGeometry args={[0.1, 0.5, 0.1]} /><meshStandardMaterial color={colors.shirt} /></mesh><mesh position={[0, -0.5, 0]}><boxGeometry args={[0.08, 0.1, 0.08]} /><meshStandardMaterial color={colors.skin} /></mesh></group>
+          <group ref={leftLeg} position={[-0.1, 0.1, 0]}><mesh position={[0, -0.3, 0]}><boxGeometry args={[0.12, 0.6, 0.12]} /><meshStandardMaterial color={colors.pants} /></mesh></group>
+          <group ref={rightLeg} position={[0.1, 0.1, 0]}><mesh position={[0, -0.3, 0]}><boxGeometry args={[0.12, 0.6, 0.12]} /><meshStandardMaterial color={colors.pants} /></mesh></group>
+        </group>
+      );
+    };
+
+    const DogAvatar = ({ variantIndex, isMoving, isBarking }) => {
+      const colors = DOG_VARIANTS[variantIndex % DOG_VARIANTS.length];
+      const group = useRef();
+      useFrame((state) => {
+        if (group.current) {
+            const t = state.clock.getElapsedTime();
+            let yOffset = 0.3; let zRot = 0;
+            if (isBarking) { yOffset = 0.3 + Math.abs(Math.sin(t * 20)) * 0.2; } 
+            else if (isMoving) { yOffset = 0.3 + Math.abs(Math.sin(t * 15)) * 0.05; zRot = Math.sin(t * 15) * 0.05; }
+            group.current.position.y = yOffset; group.current.rotation.z = zRot;
+        }
+      });
+      return (
+        <group>
+            <group ref={group} position={[0, 0.3, 0]}>
+                <mesh position={[0, 0, -0.1]} castShadow rotation={[0.1, 0, 0]}><boxGeometry args={[0.3, 0.4, 0.7]} /><meshStandardMaterial color={colors.body} roughness={0.8} /></mesh>
+                <mesh position={[0, 0.35, 0.35]}><boxGeometry args={[0.35, 0.35, 0.3]} /><meshStandardMaterial color={colors.ear} roughness={0.8} /></mesh>
+                <mesh position={[0.12, 0.55, 0.3]}><coneGeometry args={[0.08, 0.2, 4]} /><meshStandardMaterial color={colors.ear} roughness={0.8} /></mesh>
+                <mesh position={[-0.12, 0.55, 0.3]}><coneGeometry args={[0.08, 0.2, 4]} /><meshStandardMaterial color={colors.ear} roughness={0.8} /></mesh>
+                <mesh position={[0, 0.2, -0.5]} rotation={[-0.5, 0, 0]}><cylinderGeometry args={[0.04, 0.02, 0.4]} /><meshStandardMaterial color={colors.body} /></mesh>
+                <mesh position={[-0.1, -0.2, 0.15]}><boxGeometry args={[0.08, 0.4, 0.08]} /><meshStandardMaterial color={colors.ear} /></mesh>
+                <mesh position={[0.1, -0.2, 0.15]}><boxGeometry args={[0.08, 0.4, 0.08]} /><meshStandardMaterial color={colors.ear} /></mesh>
+                <mesh position={[-0.1, -0.2, -0.35]}><boxGeometry args={[0.08, 0.4, 0.08]} /><meshStandardMaterial color={colors.ear} /></mesh>
+                <mesh position={[0.1, -0.2, -0.35]}><boxGeometry args={[0.08, 0.4, 0.08]} /><meshStandardMaterial color={colors.ear} /></mesh>
+            </group>
+            {isBarking && (<Billboard position={[0, 1.2, 0]}><Text fontSize={0.5} color="white" outlineWidth={0.05} outlineColor="black">WAN!</Text></Billboard>)}
         </group>
       );
     };
@@ -426,14 +557,12 @@
                 }
             } else if (autoState.current === 'VIEWING') {
                 const pPos = new THREE.Vector3(...target.position);
-                // Rotate Player to face art
                 const dirToArt = pPos.clone().sub(position.current).normalize();
                 const targetAngle = Math.atan2(dirToArt.x, dirToArt.z);
                 playerRef.current.quaternion.slerp(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), targetAngle), 0.05);
                 
-                // Rotate Camera to face art center
                 if (controlsRef.current) {
-                   const focus = pPos.clone(); focus.y = ART_Y_POS; // Look at center of art
+                   const focus = pPos.clone(); focus.y = ART_Y_POS; 
                    controlsRef.current.target.lerp(focus, 0.05);
                 }
 
@@ -480,7 +609,6 @@
       return (
         <group ref={playerRef}>
           {isDogMode ? <DogAvatar variantIndex={dogVariant} isMoving={isMoving} isBarking={isBarking} /> : <HumanAvatar variantIndex={humanVariant} isMoving={isMoving} isFlying={isFlying} />}
-          {/* Ground shadow for character */}
           <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]}><circleGeometry args={[0.35, 32]} /><meshBasicMaterial color="#000000" opacity={0.5} transparent depthWrite={false} /></mesh>
         </group>
       );
@@ -496,7 +624,6 @@
           <ambientLight intensity={0.6} color="#ffffff" />
           <directionalLight position={[5, 10, 5]} intensity={0.8} color="#ffffff" castShadow />
           
-          {/* Floor: Light Blue Water */}
           <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
             <planeGeometry args={[ROOM_SIZE, ROOM_SIZE]} />
             <meshStandardMaterial 
@@ -508,7 +635,6 @@
             />
           </mesh>
           
-          {/* Walls: Bright Concrete */}
           <mesh position={[0, WALL_HEIGHT / 2, -ROOM_SIZE / 2]} receiveShadow><boxGeometry args={[ROOM_SIZE, WALL_HEIGHT, 1]} /><meshStandardMaterial map={concreteTexture} color="#fff" roughness={0.8} /></mesh>
           <mesh position={[0, WALL_HEIGHT / 2, ROOM_SIZE / 2]} receiveShadow><boxGeometry args={[ROOM_SIZE, WALL_HEIGHT, 1]} /><meshStandardMaterial map={concreteTexture} color="#fff" roughness={0.8} /></mesh>
           <mesh position={[-ROOM_SIZE / 2, WALL_HEIGHT / 2, 0]} rotation={[0, Math.PI / 2, 0]} receiveShadow><boxGeometry args={[ROOM_SIZE, WALL_HEIGHT, 1]} /><meshStandardMaterial map={concreteTexture} color="#fff" roughness={0.8} /></mesh>
@@ -517,7 +643,10 @@
           
           <MetaverseCharacter position={[14, 0, 14]} rotationSpeed={1} />
           <MetaverseCharacter position={[-14, 0, 14]} rotationSpeed={-1} />
-          <MetaverseCharacter position={[14, 0, -14]} rotationSpeed={1.5} />
+          
+          {/* Replaced one corner with Anime Girl */}
+          <AnimeGirl position={[14, 0, -14]} rotationSpeed={1.5} />
+          
           <MetaverseCharacter position={[-14, 0, -14]} rotationSpeed={-1.5} />
           <group>{footprints.map((fp) => (<Ripple key={fp.id} x={fp.x} z={fp.z} rotation={fp.rotation} createdAt={fp.createdAt} />))}</group>
           {PAINTINGS.map((p, index) => (<ArtFrame key={p.id} data={p} onClick={onSelectArt} index={index} />))}
@@ -593,7 +722,6 @@
             </Suspense>
           </Canvas>
           
-          {/* Footer UI - Auto & Action buttons moved to bottom */}
           <div className="absolute bottom-32 left-6 z-20 pointer-events-auto">
              <button onClick={handleAutoClick} className={`w-16 h-16 rounded-full border-2 flex items-center justify-center shadow-lg transition-all active:scale-95 ${isAutoMode ? 'bg-green-600 text-white border-green-400 shadow-[0_0_15px_rgba(34,197,94,0.6)]' : 'bg-black/40 text-white/70 border-white/20 hover:bg-white/10'}`}>
                 <span className="text-xs font-bold tracking-wider">AUTO</span>
@@ -605,7 +733,6 @@
              {isDogMode && (<button onClick={handleBark} className="w-16 h-16 rounded-full bg-red-500/80 border-2 border-red-300 flex items-center justify-center shadow-lg text-white active:bg-red-600 active:scale-95 transition-all"><span className="text-xs font-bold">BARK</span></button>)}
           </div>
 
-          {/* Header UI - Simplified */}
           <div className="absolute top-0 left-0 right-0 z-10 p-3 flex justify-between items-center w-full pointer-events-none">
             <h1 className="text-white text-lg sm:text-xl font-bold tracking-wider opacity-90 drop-shadow-lg min-w-0 truncate">TAF DOG MUSEUM</h1>
             <div className="flex gap-2 pointer-events-auto flex-shrink-0">

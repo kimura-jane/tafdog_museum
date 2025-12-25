@@ -1,5 +1,5 @@
 // ==========================================
-// app.js - メインアプリケーション
+// app.js - メインアプリケーション（修正版）
 // ==========================================
 
 import * as THREE from "three";
@@ -55,23 +55,19 @@ let clock = new THREE.Clock();
 // 初期化
 // ==========================================
 function init() {
-  // シーン
   scene = new THREE.Scene();
   scene.background = new THREE.Color(0x1a1a1a);
-  scene.fog = new THREE.Fog(0x1a1a1a, 20, 60);
+  scene.fog = new THREE.Fog(0x1a1a1a, 30, 80);
 
-  // カメラ
   camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
   camera.position.set(0, 4, 10);
 
-  // レンダラー
   renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.shadowMap.enabled = true;
   document.getElementById("root").appendChild(renderer.domElement);
 
-  // コントロール
   controls = new OrbitControls(camera, renderer.domElement);
   controls.enablePan = false;
   controls.minDistance = 3;
@@ -79,35 +75,19 @@ function init() {
   controls.maxPolarAngle = Math.PI / 2 - 0.1;
   controls.target.set(0, 1, 0);
 
-  // 照明
   setupLighting();
-
-  // 部屋
   createRoom();
-
-  // プレイヤー
   createPlayer();
-
-  // NPC犬
   createNPCDogs();
-
-  // ターゲットキャラ（4隅に配置）
   createTargets();
 
-  // パーティクル
   dustParticles = createDustParticles(100);
   scene.add(dustParticles);
 
-  // UI
   createUI();
-
-  // イベント
   setupEvents();
 
-  // ローディング非表示
   document.getElementById("loading").style.display = "none";
-
-  // アニメーション開始
   animate();
 }
 
@@ -170,91 +150,100 @@ function createRoom() {
   ceiling.userData.isRoom = true;
   scene.add(ceiling);
 
-  // 迷路風の内壁とNFT配置
   createMazeWalls();
 }
 
-// 迷路風の壁にNFTを配置
+// ==========================================
+// 迷路風の壁にNFTを配置（間隔改善版）
+// ==========================================
 function createMazeWalls() {
   const nfts = currentFloor === 1 ? allNFTs.slice(0, 80) : allNFTs.slice(80, 100);
   const wallMat = new THREE.MeshStandardMaterial({ color: 0xeeeeee, roughness: 0.9 });
 
-  // 内壁の配置（縦横に配置して回廊を作る）
+  // 【改善】間隔を5に、壁からのオフセットを0.5に
+  const NFT_SPACING = 5;
+  const WALL_OFFSET = 0.5;
+
+  // 内壁配置（美術館風に回廊を形成）
   const innerWalls = [
-    // 縦壁（左側）
-    { pos: [-15, 3, -10], size: [0.3, 6, 15], nftSide: "east" },
-    { pos: [-15, 3, 15], size: [0.3, 6, 15], nftSide: "east" },
-    // 縦壁（右側）
-    { pos: [15, 3, -10], size: [0.3, 6, 15], nftSide: "west" },
-    { pos: [15, 3, 15], size: [0.3, 6, 15], nftSide: "west" },
-    // 横壁（中央付近）
-    { pos: [-5, 3, -8], size: [15, 6, 0.3], nftSide: "south" },
-    { pos: [5, 3, 8], size: [15, 6, 0.3], nftSide: "north" },
-    // 中央の壁
-    { pos: [0, 3, 0], size: [0.3, 6, 10], nftSide: "both" }
+    { pos: [-15, 3, -8], size: [0.3, 6, 18], nftSide: "east" },
+    { pos: [-15, 3, 14], size: [0.3, 6, 14], nftSide: "east" },
+    { pos: [15, 3, -8], size: [0.3, 6, 18], nftSide: "west" },
+    { pos: [15, 3, 14], size: [0.3, 6, 14], nftSide: "west" },
+    { pos: [-5, 3, -10], size: [18, 6, 0.3], nftSide: "south" },
+    { pos: [5, 3, 10], size: [18, 6, 0.3], nftSide: "north" },
+    { pos: [0, 3, 0], size: [0.3, 6, 14], nftSide: "both" }
   ];
 
   let nftIndex = 0;
 
-  innerWalls.forEach((wallConfig, wallIdx) => {
+  innerWalls.forEach((wallConfig) => {
     const wall = new THREE.Mesh(new THREE.BoxGeometry(...wallConfig.size), wallMat);
     wall.position.set(...wallConfig.pos);
     wall.receiveShadow = true;
     wall.userData.isRoom = true;
     scene.add(wall);
 
-    // この壁にNFTを配置
     const isVertical = wallConfig.size[0] < wallConfig.size[2];
     const wallLength = isVertical ? wallConfig.size[2] : wallConfig.size[0];
-    const nftCount = Math.min(Math.floor(wallLength / 4), nfts.length - nftIndex, 4);
+    const nftCount = Math.min(Math.floor(wallLength / NFT_SPACING), nfts.length - nftIndex, 3);
 
     for (let i = 0; i < nftCount && nftIndex < nfts.length; i++) {
       const nft = nfts[nftIndex++];
-      const offset = (i - (nftCount - 1) / 2) * 3.5;
+      const offset = (i - (nftCount - 1) / 2) * NFT_SPACING;
 
       let pos, rot;
       if (isVertical) {
-        // 縦壁
-        const xOffset = wallConfig.nftSide === "east" ? 0.3 : -0.3;
+        const xOffset = wallConfig.nftSide === "east" ? WALL_OFFSET : -WALL_OFFSET;
         pos = new THREE.Vector3(wallConfig.pos[0] + xOffset, 3, wallConfig.pos[2] + offset);
         rot = new THREE.Euler(0, wallConfig.nftSide === "east" ? 0 : Math.PI, 0);
       } else {
-        // 横壁
-        const zOffset = wallConfig.nftSide === "south" ? 0.3 : -0.3;
+        const zOffset = wallConfig.nftSide === "south" ? WALL_OFFSET : -WALL_OFFSET;
         pos = new THREE.Vector3(wallConfig.pos[0] + offset, 3, wallConfig.pos[2] + zOffset);
         rot = new THREE.Euler(0, wallConfig.nftSide === "south" ? 0 : Math.PI, 0);
       }
 
       createArtFrame(nft, pos, rot);
     }
+
+    // 両側配置の壁
+    if (wallConfig.nftSide === "both" && isVertical) {
+      for (let i = 0; i < Math.min(3, nfts.length - nftIndex); i++) {
+        const nft = nfts[nftIndex++];
+        const offset = (i - 1) * NFT_SPACING;
+        const pos = new THREE.Vector3(wallConfig.pos[0] - WALL_OFFSET, 3, wallConfig.pos[2] + offset);
+        const rot = new THREE.Euler(0, Math.PI, 0);
+        createArtFrame(nft, pos, rot);
+      }
+    }
   });
 
-  // 外壁にも配置
+  // 外壁へのNFT配置（残り）
   const outerWallNFTs = nfts.slice(nftIndex);
   const perWall = Math.ceil(outerWallNFTs.length / 4);
-  
+
   outerWallNFTs.forEach((nft, idx) => {
     const wallIdx = Math.floor(idx / perWall);
     const posIdx = idx % perWall;
-    const spacing = (ROOM_SIZE - 10) / Math.max(perWall, 1);
+    const spacing = Math.max((ROOM_SIZE - 12) / Math.max(perWall, 1), NFT_SPACING);
     const offset = (posIdx - (perWall - 1) / 2) * spacing;
 
     let pos, rot;
     switch (wallIdx) {
-      case 0: // 北壁
-        pos = new THREE.Vector3(offset, 3, -ROOM_SIZE / 2 + 1);
+      case 0:
+        pos = new THREE.Vector3(offset, 3, -ROOM_SIZE / 2 + WALL_OFFSET + 0.5);
         rot = new THREE.Euler(0, 0, 0);
         break;
-      case 1: // 東壁
-        pos = new THREE.Vector3(ROOM_SIZE / 2 - 1, 3, offset);
+      case 1:
+        pos = new THREE.Vector3(ROOM_SIZE / 2 - WALL_OFFSET - 0.5, 3, offset);
         rot = new THREE.Euler(0, -Math.PI / 2, 0);
         break;
-      case 2: // 南壁
-        pos = new THREE.Vector3(-offset, 3, ROOM_SIZE / 2 - 1);
+      case 2:
+        pos = new THREE.Vector3(-offset, 3, ROOM_SIZE / 2 - WALL_OFFSET - 0.5);
         rot = new THREE.Euler(0, Math.PI, 0);
         break;
-      default: // 西壁
-        pos = new THREE.Vector3(-ROOM_SIZE / 2 + 1, 3, -offset);
+      default:
+        pos = new THREE.Vector3(-ROOM_SIZE / 2 + WALL_OFFSET + 0.5, 3, -offset);
         rot = new THREE.Euler(0, Math.PI / 2, 0);
     }
 
@@ -262,47 +251,49 @@ function createMazeWalls() {
   });
 }
 
-// NFTフレーム作成
+// ==========================================
+// NFTフレーム作成（壁刺さり防止）
+// ==========================================
 function createArtFrame(nft, position, rotation) {
   const group = new THREE.Group();
   group.position.copy(position);
   group.rotation.copy(rotation);
   group.userData.nft = nft;
 
-  // フレーム
+  // フレーム（薄く）
   const frame = new THREE.Mesh(
-    new THREE.BoxGeometry(3.2, 3.2, 0.15),
+    new THREE.BoxGeometry(3.2, 3.2, 0.08),
     new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.3 })
   );
-  frame.position.z = 0.08;
+  frame.position.z = 0.04;
   group.add(frame);
 
   // マット
   const mat = new THREE.Mesh(
-    new THREE.BoxGeometry(2.9, 2.9, 0.05),
+    new THREE.BoxGeometry(2.9, 2.9, 0.02),
     new THREE.MeshStandardMaterial({ color: 0xffffff })
   );
-  mat.position.z = 0.16;
+  mat.position.z = 0.09;
   group.add(mat);
 
   // 画像
   const loader = new THREE.TextureLoader();
   const proxyUrl = `https://wsrv.nl/?url=${encodeURIComponent(nft.imageUrl)}&w=512`;
-  
+
   loader.load(proxyUrl, (texture) => {
     texture.colorSpace = THREE.SRGBColorSpace;
     const art = new THREE.Mesh(
       new THREE.PlaneGeometry(2.5, 2.5),
       new THREE.MeshBasicMaterial({ map: texture })
     );
-    art.position.z = 0.2;
+    art.position.z = 0.11;
     group.add(art);
   }, undefined, () => {
     const art = new THREE.Mesh(
       new THREE.PlaneGeometry(2.5, 2.5),
       new THREE.MeshStandardMaterial({ color: 0x333333 })
     );
-    art.position.z = 0.2;
+    art.position.z = 0.11;
     group.add(art);
   });
 
@@ -414,33 +405,21 @@ function updateTargets(delta) {
 }
 
 // ==========================================
-// 豆投げ
+// 豆投げ（カメラ方向に投げる方式に変更）
 // ==========================================
 function throwBean() {
-  // 最も近いターゲットを探す
-  let closest = null;
-  let closestDist = Infinity;
-
-  targetCharacters.forEach(char => {
-    if (!char.visible || char.userData.isFlyingAway) return;
-    const dist = playerPosition.distanceTo(char.position);
-    if (dist < closestDist && dist < 20) {
-      closestDist = dist;
-      closest = char;
-    }
-  });
-
-  if (!closest) return;
-
   const bean = createBean();
   bean.position.copy(playerPosition);
   bean.position.y = 1.2;
 
-  bean.userData.startPos = bean.position.clone();
-  bean.userData.targetPos = closest.position.clone();
-  bean.userData.targetPos.y = 1.5;
-  bean.userData.progress = 0;
-  bean.userData.target = closest;
+  // カメラの向いている方向を取得
+  const direction = new THREE.Vector3();
+  camera.getWorldDirection(direction);
+  direction.normalize();
+
+  bean.userData.velocity = direction.clone().multiplyScalar(0.8);
+  bean.userData.gravity = -0.02;
+  bean.userData.lifetime = 0;
 
   scene.add(bean);
   beans.push(bean);
@@ -450,23 +429,26 @@ function updateBeans(delta) {
   const toRemove = [];
 
   beans.forEach((bean, idx) => {
-    bean.userData.progress += delta * 2;
-    const t = bean.userData.progress;
-    const start = bean.userData.startPos;
-    const target = bean.userData.targetPos;
-
-    // 放物線
-    bean.position.x = start.x + (target.x - start.x) * t;
-    bean.position.z = start.z + (target.z - start.z) * t;
-    bean.position.y = start.y + (target.y - start.y) * t + Math.sin(t * Math.PI) * 2;
+    // 速度更新（重力）
+    bean.userData.velocity.y += bean.userData.gravity;
+    bean.position.add(bean.userData.velocity);
 
     bean.rotation.x += 0.3;
     bean.rotation.y += 0.2;
 
-    if (t >= 1) {
-      // ヒット
-      const char = bean.userData.target;
-      if (char && !char.userData.isFlyingAway) {
+    bean.userData.lifetime += delta;
+
+    // 地面に落ちた or 3秒経過で消滅
+    if (bean.position.y < 0 || bean.userData.lifetime > 3) {
+      toRemove.push(idx);
+      return;
+    }
+
+    // ターゲットとの衝突判定（距離1以内）
+    for (const char of targetCharacters) {
+      if (!char.visible || char.userData.isFlyingAway) continue;
+      const dist = bean.position.distanceTo(char.position);
+      if (dist < 1.5) {
         char.userData.hitCount++;
 
         // 痛がるエフェクト
@@ -481,8 +463,10 @@ function updateBeans(delta) {
         if (char.userData.hitCount >= 10) {
           char.userData.isFlyingAway = true;
         }
+
+        toRemove.push(idx);
+        break;
       }
-      toRemove.push(idx);
     }
   });
 
@@ -493,7 +477,7 @@ function updateBeans(delta) {
 }
 
 // ==========================================
-// プレイヤー更新
+// プレイヤー更新（速度アップ）
 // ==========================================
 function updatePlayer(delta, time) {
   isMoving = Math.abs(moveVector.x) > 0.01 || Math.abs(moveVector.y) > 0.01;
@@ -510,7 +494,8 @@ function updatePlayer(delta, time) {
       .addScaledVector(right, moveVector.x)
       .normalize();
 
-    const speed = isDogMode ? 0.1 : 0.08;
+    // 【改善】速度を2倍以上に
+    const speed = isDogMode ? 0.25 : 0.2;
     playerVelocity.lerp(moveDir.multiplyScalar(speed), 0.15);
 
     if (moveDir.length() > 0.01) {
@@ -534,14 +519,12 @@ function updatePlayer(delta, time) {
   player.position.copy(playerPosition);
   player.rotation.y = playerRotation;
 
-  // アニメーション
   if (isDogMode) {
     animateDog(playerAvatar, time, isMoving);
   } else {
     animateHuman(playerAvatar, time, isMoving);
   }
 
-  // カメラ追従
   const camY = isDogMode ? playerPosition.y + 0.5 : playerPosition.y + 1.2;
   controls.target.lerp(new THREE.Vector3(playerPosition.x, camY, playerPosition.z), 0.1);
   controls.update();
@@ -577,7 +560,6 @@ function createUI() {
   `;
   document.body.appendChild(ui);
 
-  // イベント
   document.getElementById("btn-human").onclick = () => {
     if (isDogMode) {
       isDogMode = false;
@@ -648,7 +630,6 @@ function updateButtons() {
 }
 
 function rebuildRoom() {
-  // 部屋要素を削除
   const toRemove = [];
   scene.traverse(obj => {
     if (obj.userData.isRoom || obj.userData.nft) toRemove.push(obj);
@@ -656,7 +637,6 @@ function rebuildRoom() {
   toRemove.forEach(obj => scene.remove(obj));
   artFrames.length = 0;
 
-  // 再構築
   createRoom();
   playerPosition.set(0, 0, 5);
 }
@@ -708,7 +688,6 @@ function setupEvents() {
     renderer.setSize(window.innerWidth, window.innerHeight);
   });
 
-  // キーボード
   window.addEventListener("keydown", e => {
     switch (e.key.toLowerCase()) {
       case "w": moveVector.y = 1; break;
@@ -725,7 +704,6 @@ function setupEvents() {
     }
   });
 
-  // NFTクリック
   renderer.domElement.addEventListener("click", onCanvasClick);
 }
 

@@ -136,8 +136,8 @@ async function init() {
   await fetchOwners();
 
   scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x1a1a1a);
-  scene.fog = new THREE.Fog(0x1a1a1a, 60, 150);
+  scene.background = new THREE.Color(0x87CEEB);
+  scene.fog = new THREE.Fog(0x87CEEB, 80, 200);
 
   camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
   camera.position.set(0, 4, 10);
@@ -172,40 +172,49 @@ async function init() {
 }
 
 // ==========================================
-// 照明
+// 照明（明るく）
 // ==========================================
 function setupLighting() {
-  const lighting = getLighting();
-
-  const ambient = new THREE.AmbientLight(lighting.ambient, lighting.ambientIntensity * 0.8);
+  // 環境光（明るく）
+  const ambient = new THREE.AmbientLight(0xffffff, 0.7);
   scene.add(ambient);
 
-  const directional = new THREE.DirectionalLight(lighting.dir, lighting.dirIntensity * 0.5);
+  // メインライト
+  const directional = new THREE.DirectionalLight(0xffffff, 0.8);
   directional.position.set(10, 20, 10);
   directional.castShadow = true;
   scene.add(directional);
+
+  // 補助ライト
+  const directional2 = new THREE.DirectionalLight(0xffffff, 0.4);
+  directional2.position.set(-10, 15, -10);
+  scene.add(directional2);
+
+  // 下からの補助光（床を明るく）
+  const hemi = new THREE.HemisphereLight(0xffffff, 0x444444, 0.5);
+  scene.add(hemi);
 }
 
 // ==========================================
-// 部屋作成
+// 部屋作成（明るい美術館）
 // ==========================================
 function createRoom() {
   const isMuseum = currentFloor === 1;
-  const floorColor = isMuseum ? 0x2a2a2a : 0x3a3020;
-  const wallColor = isMuseum ? 0x3a3a3a : 0x4a4030;
+  const floorColor = isMuseum ? 0xb0b0b0 : 0xa08060;
+  const wallColor = isMuseum ? 0xf5f5f5 : 0xe0d0c0;
 
-  // 床（美術館っぽい暗めの色）
+  // 床
   const floor = new THREE.Mesh(
     new THREE.PlaneGeometry(ROOM_SIZE, ROOM_SIZE),
-    new THREE.MeshStandardMaterial({ color: floorColor, roughness: 0.9 })
+    new THREE.MeshStandardMaterial({ color: floorColor, roughness: 0.8 })
   );
   floor.rotation.x = -Math.PI / 2;
   floor.receiveShadow = true;
   floor.userData.isRoom = true;
   scene.add(floor);
 
-  // 壁
-  const wallMat = new THREE.MeshStandardMaterial({ color: wallColor, roughness: 0.95 });
+  // 壁（明るい白）
+  const wallMat = new THREE.MeshStandardMaterial({ color: wallColor, roughness: 0.9 });
   const walls = [
     { pos: [0, WALL_HEIGHT / 2, -ROOM_SIZE / 2], size: [ROOM_SIZE, WALL_HEIGHT, 0.5] },
     { pos: [0, WALL_HEIGHT / 2, ROOM_SIZE / 2], size: [ROOM_SIZE, WALL_HEIGHT, 0.5] },
@@ -220,10 +229,10 @@ function createRoom() {
     scene.add(wall);
   });
 
-  // 天井
+  // 天井（白）
   const ceiling = new THREE.Mesh(
     new THREE.PlaneGeometry(ROOM_SIZE, ROOM_SIZE),
-    new THREE.MeshStandardMaterial({ color: 0x1a1a1a })
+    new THREE.MeshStandardMaterial({ color: 0xffffff })
   );
   ceiling.rotation.x = Math.PI / 2;
   ceiling.position.y = WALL_HEIGHT;
@@ -243,7 +252,7 @@ function createSpotlightFixture(position) {
   // レール
   const rail = new THREE.Mesh(
     new THREE.BoxGeometry(0.8, 0.1, 0.1),
-    new THREE.MeshStandardMaterial({ color: 0x222222, metalness: 0.8 })
+    new THREE.MeshStandardMaterial({ color: 0x333333, metalness: 0.8 })
   );
   rail.position.y = 0;
   group.add(rail);
@@ -251,22 +260,22 @@ function createSpotlightFixture(position) {
   // アーム
   const arm = new THREE.Mesh(
     new THREE.CylinderGeometry(0.03, 0.03, 0.3, 8),
-    new THREE.MeshStandardMaterial({ color: 0x333333, metalness: 0.8 })
+    new THREE.MeshStandardMaterial({ color: 0x444444, metalness: 0.8 })
   );
   arm.position.y = -0.15;
   group.add(arm);
 
-  // ライト本体（円筒形）
+  // ライト本体
   const lightBody = new THREE.Mesh(
     new THREE.CylinderGeometry(0.1, 0.15, 0.2, 12),
-    new THREE.MeshStandardMaterial({ color: 0x111111, metalness: 0.9 })
+    new THREE.MeshStandardMaterial({ color: 0x222222, metalness: 0.9 })
   );
   lightBody.position.y = -0.4;
   lightBody.rotation.x = Math.PI;
   group.add(lightBody);
 
-  // 実際のスポットライト
-  const spotlight = new THREE.SpotLight(0xfff5e0, 2, 15, Math.PI / 6, 0.5, 1);
+  // スポットライト
+  const spotlight = new THREE.SpotLight(0xfff5e0, 3, 20, Math.PI / 5, 0.5, 1);
   spotlight.position.y = -0.4;
   spotlight.target.position.set(position.x, 0, position.z);
   group.add(spotlight);
@@ -277,73 +286,68 @@ function createSpotlightFixture(position) {
 }
 
 // ==========================================
-// NFTを4つの壁に均等配置（美術館風）
+// NFTを4つの壁に均等配置
 // ==========================================
 function placeNFTsOnWalls() {
   const nfts = currentFloor === 1 ? allNFTs.slice(0, 80) : allNFTs.slice(80, 100);
   
-  const WALL_OFFSET = 0.5;  // 壁にぴったり
-  const MARGIN = 8;  // 端からのマージン
+  const WALL_OFFSET = 0.5;
+  const MARGIN = 8;
   const usableLength = ROOM_SIZE - MARGIN * 2;
-  const NFT_SPACING = 8;  // 絵の間隔
+  const NFT_SPACING = 8;
   
-  // 各壁に配置できる枚数
   const perWall = Math.floor(usableLength / NFT_SPACING);
   
   let nftIndex = 0;
 
-  // 北壁（Z=-）- 絵は部屋の内側（Z+方向）を向く
+  // 北壁
   const northCount = Math.min(perWall, nfts.length - nftIndex);
   for (let i = 0; i < northCount; i++) {
     const nft = nfts[nftIndex++];
     const x = -usableLength / 2 + NFT_SPACING / 2 + i * NFT_SPACING;
     const pos = new THREE.Vector3(x, 4, -ROOM_SIZE / 2 + WALL_OFFSET);
-    const rot = new THREE.Euler(0, 0, 0);  // Z+方向を向く
+    const rot = new THREE.Euler(0, 0, 0);
     createArtFrame(nft, pos, rot);
     
-    // スポットライト
     const lightPos = new THREE.Vector3(x, WALL_HEIGHT - 0.5, -ROOM_SIZE / 2 + 2);
     scene.add(createSpotlightFixture(lightPos));
   }
 
-  // 南壁（Z=+）- 絵は部屋の内側（Z-方向）を向く
+  // 南壁
   const southCount = Math.min(perWall, nfts.length - nftIndex);
   for (let i = 0; i < southCount; i++) {
     const nft = nfts[nftIndex++];
     const x = usableLength / 2 - NFT_SPACING / 2 - i * NFT_SPACING;
     const pos = new THREE.Vector3(x, 4, ROOM_SIZE / 2 - WALL_OFFSET);
-    const rot = new THREE.Euler(0, Math.PI, 0);  // Z-方向を向く
+    const rot = new THREE.Euler(0, Math.PI, 0);
     createArtFrame(nft, pos, rot);
     
-    // スポットライト
     const lightPos = new THREE.Vector3(x, WALL_HEIGHT - 0.5, ROOM_SIZE / 2 - 2);
     scene.add(createSpotlightFixture(lightPos));
   }
 
-  // 東壁（X=+）- 絵は部屋の内側（X-方向）を向く
+  // 東壁
   const eastCount = Math.min(perWall, nfts.length - nftIndex);
   for (let i = 0; i < eastCount; i++) {
     const nft = nfts[nftIndex++];
     const z = -usableLength / 2 + NFT_SPACING / 2 + i * NFT_SPACING;
     const pos = new THREE.Vector3(ROOM_SIZE / 2 - WALL_OFFSET, 4, z);
-    const rot = new THREE.Euler(0, -Math.PI / 2, 0);  // X-方向を向く
+    const rot = new THREE.Euler(0, -Math.PI / 2, 0);
     createArtFrame(nft, pos, rot);
     
-    // スポットライト
     const lightPos = new THREE.Vector3(ROOM_SIZE / 2 - 2, WALL_HEIGHT - 0.5, z);
     scene.add(createSpotlightFixture(lightPos));
   }
 
-  // 西壁（X=-）- 絵は部屋の内側（X+方向）を向く
+  // 西壁
   const westCount = Math.min(perWall, nfts.length - nftIndex);
   for (let i = 0; i < westCount; i++) {
     const nft = nfts[nftIndex++];
     const z = usableLength / 2 - NFT_SPACING / 2 - i * NFT_SPACING;
     const pos = new THREE.Vector3(-ROOM_SIZE / 2 + WALL_OFFSET, 4, z);
-    const rot = new THREE.Euler(0, Math.PI / 2, 0);  // X+方向を向く
+    const rot = new THREE.Euler(0, Math.PI / 2, 0);
     createArtFrame(nft, pos, rot);
     
-    // スポットライト
     const lightPos = new THREE.Vector3(-ROOM_SIZE / 2 + 2, WALL_HEIGHT - 0.5, z);
     scene.add(createSpotlightFixture(lightPos));
   }
@@ -358,15 +362,15 @@ function createArtFrame(nft, position, rotation) {
   group.rotation.copy(rotation);
   group.userData.nft = nft;
 
-  // フレーム（黒い額縁）
+  // フレーム
   const frame = new THREE.Mesh(
     new THREE.BoxGeometry(3.5, 3.5, 0.1),
-    new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.3 })
+    new THREE.MeshStandardMaterial({ color: 0x2a2a2a, roughness: 0.3 })
   );
   frame.position.z = 0.05;
   group.add(frame);
 
-  // マット（白い縁取り）
+  // マット
   const mat = new THREE.Mesh(
     new THREE.BoxGeometry(3.2, 3.2, 0.02),
     new THREE.MeshStandardMaterial({ color: 0xffffff })
@@ -389,7 +393,7 @@ function createArtFrame(nft, position, rotation) {
   }, undefined, () => {
     const art = new THREE.Mesh(
       new THREE.PlaneGeometry(2.8, 2.8),
-      new THREE.MeshStandardMaterial({ color: 0x333333 })
+      new THREE.MeshStandardMaterial({ color: 0x666666 })
     );
     art.position.z = 0.13;
     group.add(art);
@@ -645,26 +649,26 @@ function createUI() {
   const ui = document.createElement("div");
   ui.innerHTML = `
     <div class="fixed top-0 left-0 right-0 p-4 flex justify-between items-center z-10">
-      <h1 class="text-white text-xl font-bold tracking-wider">TAF DOG MUSEUM</h1>
+      <h1 class="text-white text-xl font-bold tracking-wider drop-shadow-lg">TAF DOG MUSEUM</h1>
       <div class="flex gap-2">
-        <button id="btn-human" class="px-4 py-2 rounded-full bg-white text-black font-bold text-sm">HUMAN</button>
+        <button id="btn-human" class="px-4 py-2 rounded-full bg-white text-black font-bold text-sm shadow">HUMAN</button>
         <button id="btn-dog" class="px-4 py-2 rounded-full bg-black/50 text-white/70 border border-white/20 font-bold text-sm">DOG</button>
         <button id="btn-auto" class="px-4 py-2 rounded-full bg-black/50 text-white/70 border border-white/20 font-bold text-sm">AUTO</button>
       </div>
     </div>
     <div class="fixed top-1/2 left-4 -translate-y-1/2 flex flex-col gap-2 z-10">
       <button id="btn-floor-2" class="w-12 h-12 rounded-lg bg-black/50 text-white/70 border border-white/20 font-bold text-sm">2F</button>
-      <button id="btn-floor-1" class="w-12 h-12 rounded-lg bg-white text-black font-bold text-sm">1F</button>
+      <button id="btn-floor-1" class="w-12 h-12 rounded-lg bg-white text-black font-bold text-sm shadow">1F</button>
     </div>
     <div class="fixed bottom-32 right-4 flex flex-col gap-3 z-10">
       <button id="btn-fly" class="w-14 h-14 rounded-full bg-black/50 text-white/70 border border-white/20 font-bold text-xs">FLY</button>
-      <button id="btn-throw" class="w-14 h-14 rounded-full bg-red-500/80 text-white border border-red-300 font-bold text-xs">THROW</button>
+      <button id="btn-throw" class="w-14 h-14 rounded-full bg-red-500/80 text-white border border-red-300 font-bold text-xs shadow">THROW</button>
     </div>
     <div class="fixed bottom-12 left-1/2 -translate-x-1/2 z-20">
-      <div id="joystick-base" class="w-32 h-32 rounded-full bg-white/10 backdrop-blur border border-white/20 flex items-center justify-center cursor-pointer">
+      <div id="joystick-base" class="w-32 h-32 rounded-full bg-white/20 backdrop-blur border border-white/30 flex items-center justify-center cursor-pointer shadow-lg">
         <div id="joystick-stick" class="w-12 h-12 rounded-full bg-white shadow-lg"></div>
       </div>
-      <div class="text-white/30 text-xs text-center mt-4 tracking-widest">DRAG TO WALK</div>
+      <div class="text-white/50 text-xs text-center mt-4 tracking-widest drop-shadow">DRAG TO WALK</div>
     </div>
   `;
   document.body.appendChild(ui);
@@ -740,13 +744,13 @@ function updateButtons() {
   const floor1Btn = document.getElementById("btn-floor-1");
   const floor2Btn = document.getElementById("btn-floor-2");
 
-  humanBtn.className = `px-4 py-2 rounded-full font-bold text-sm ${!isDogMode ? "bg-white text-black" : "bg-black/50 text-white/70 border border-white/20"}`;
-  dogBtn.className = `px-4 py-2 rounded-full font-bold text-sm ${isDogMode ? "bg-white text-black" : "bg-black/50 text-white/70 border border-white/20"}`;
-  autoBtn.className = `px-4 py-2 rounded-full font-bold text-sm ${isAutoMode ? "bg-green-500 text-white" : "bg-black/50 text-white/70 border border-white/20"}`;
-  flyBtn.className = `w-14 h-14 rounded-full font-bold text-xs ${isFlying ? "bg-blue-500 text-white" : "bg-black/50 text-white/70 border border-white/20"}`;
+  humanBtn.className = `px-4 py-2 rounded-full font-bold text-sm ${!isDogMode ? "bg-white text-black shadow" : "bg-black/50 text-white/70 border border-white/20"}`;
+  dogBtn.className = `px-4 py-2 rounded-full font-bold text-sm ${isDogMode ? "bg-white text-black shadow" : "bg-black/50 text-white/70 border border-white/20"}`;
+  autoBtn.className = `px-4 py-2 rounded-full font-bold text-sm ${isAutoMode ? "bg-green-500 text-white shadow" : "bg-black/50 text-white/70 border border-white/20"}`;
+  flyBtn.className = `w-14 h-14 rounded-full font-bold text-xs ${isFlying ? "bg-blue-500 text-white shadow" : "bg-black/50 text-white/70 border border-white/20"}`;
   flyBtn.style.display = isDogMode ? "none" : "flex";
-  floor1Btn.className = `w-12 h-12 rounded-lg font-bold text-sm ${currentFloor === 1 ? "bg-white text-black" : "bg-black/50 text-white/70 border border-white/20"}`;
-  floor2Btn.className = `w-12 h-12 rounded-lg font-bold text-sm ${currentFloor === 2 ? "bg-white text-black" : "bg-black/50 text-white/70 border border-white/20"}`;
+  floor1Btn.className = `w-12 h-12 rounded-lg font-bold text-sm ${currentFloor === 1 ? "bg-white text-black shadow" : "bg-black/50 text-white/70 border border-white/20"}`;
+  floor2Btn.className = `w-12 h-12 rounded-lg font-bold text-sm ${currentFloor === 2 ? "bg-white text-black shadow" : "bg-black/50 text-white/70 border border-white/20"}`;
 }
 
 function rebuildRoom() {

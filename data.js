@@ -50,9 +50,9 @@ export function generateNFTData() {
   return nfts;
 }
 
-// 部屋サイズ
-export const ROOM_SIZE = 50;
-export const WALL_HEIGHT = 8;
+// 部屋サイズ（広くした）
+export const ROOM_SIZE = 80;
+export const WALL_HEIGHT = 10;
 
 // ターゲットキャラの画像
 export const TARGET_IMAGES = [

@@ -1,5 +1,5 @@
 // ==========================================
-// app.js - メインアプリケーション（修正版）
+// app.js - メインアプリケーション（完全版）
 // ==========================================
 
 import * as THREE from "three";
@@ -137,7 +137,7 @@ async function init() {
 
   scene = new THREE.Scene();
   scene.background = new THREE.Color(0x1a1a1a);
-  scene.fog = new THREE.Fog(0x1a1a1a, 50, 120);
+  scene.fog = new THREE.Fog(0x1a1a1a, 60, 150);
 
   camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
   camera.position.set(0, 4, 10);
@@ -151,7 +151,7 @@ async function init() {
   controls = new OrbitControls(camera, renderer.domElement);
   controls.enablePan = false;
   controls.minDistance = 2;
-  controls.maxDistance = 12;
+  controls.maxDistance = 15;
   controls.maxPolarAngle = Math.PI / 2 - 0.1;
   controls.target.set(0, 1, 0);
 
@@ -161,7 +161,7 @@ async function init() {
   createNPCDogs();
   createTargets();
 
-  dustParticles = createDustParticles(100);
+  dustParticles = createDustParticles(150);
   scene.add(dustParticles);
 
   createUI();
@@ -177,10 +177,10 @@ async function init() {
 function setupLighting() {
   const lighting = getLighting();
 
-  const ambient = new THREE.AmbientLight(lighting.ambient, lighting.ambientIntensity);
+  const ambient = new THREE.AmbientLight(lighting.ambient, lighting.ambientIntensity * 0.8);
   scene.add(ambient);
 
-  const directional = new THREE.DirectionalLight(lighting.dir, lighting.dirIntensity);
+  const directional = new THREE.DirectionalLight(lighting.dir, lighting.dirIntensity * 0.5);
   directional.position.set(10, 20, 10);
   directional.castShadow = true;
   scene.add(directional);
@@ -191,24 +191,26 @@ function setupLighting() {
 // ==========================================
 function createRoom() {
   const isMuseum = currentFloor === 1;
-  const floorColor = isMuseum ? 0xf0f0f0 : 0xdeb887;
-  const wallColor = isMuseum ? 0xfafafa : 0xe0e0e0;
+  const floorColor = isMuseum ? 0x2a2a2a : 0x3a3020;
+  const wallColor = isMuseum ? 0x3a3a3a : 0x4a4030;
 
+  // 床（美術館っぽい暗めの色）
   const floor = new THREE.Mesh(
     new THREE.PlaneGeometry(ROOM_SIZE, ROOM_SIZE),
-    new THREE.MeshStandardMaterial({ color: floorColor, roughness: 0.8 })
+    new THREE.MeshStandardMaterial({ color: floorColor, roughness: 0.9 })
   );
   floor.rotation.x = -Math.PI / 2;
   floor.receiveShadow = true;
   floor.userData.isRoom = true;
   scene.add(floor);
 
-  const wallMat = new THREE.MeshStandardMaterial({ color: wallColor, roughness: 0.9 });
+  // 壁
+  const wallMat = new THREE.MeshStandardMaterial({ color: wallColor, roughness: 0.95 });
   const walls = [
-    { pos: [0, WALL_HEIGHT / 2, -ROOM_SIZE / 2], size: [ROOM_SIZE, WALL_HEIGHT, 0.3] },
-    { pos: [0, WALL_HEIGHT / 2, ROOM_SIZE / 2], size: [ROOM_SIZE, WALL_HEIGHT, 0.3] },
-    { pos: [-ROOM_SIZE / 2, WALL_HEIGHT / 2, 0], size: [0.3, WALL_HEIGHT, ROOM_SIZE] },
-    { pos: [ROOM_SIZE / 2, WALL_HEIGHT / 2, 0], size: [0.3, WALL_HEIGHT, ROOM_SIZE] }
+    { pos: [0, WALL_HEIGHT / 2, -ROOM_SIZE / 2], size: [ROOM_SIZE, WALL_HEIGHT, 0.5] },
+    { pos: [0, WALL_HEIGHT / 2, ROOM_SIZE / 2], size: [ROOM_SIZE, WALL_HEIGHT, 0.5] },
+    { pos: [-ROOM_SIZE / 2, WALL_HEIGHT / 2, 0], size: [0.5, WALL_HEIGHT, ROOM_SIZE] },
+    { pos: [ROOM_SIZE / 2, WALL_HEIGHT / 2, 0], size: [0.5, WALL_HEIGHT, ROOM_SIZE] }
   ];
   walls.forEach(w => {
     const wall = new THREE.Mesh(new THREE.BoxGeometry(...w.size), wallMat);
@@ -218,9 +220,10 @@ function createRoom() {
     scene.add(wall);
   });
 
+  // 天井
   const ceiling = new THREE.Mesh(
     new THREE.PlaneGeometry(ROOM_SIZE, ROOM_SIZE),
-    new THREE.MeshStandardMaterial({ color: 0xffffff })
+    new THREE.MeshStandardMaterial({ color: 0x1a1a1a })
   );
   ceiling.rotation.x = Math.PI / 2;
   ceiling.position.y = WALL_HEIGHT;
@@ -231,67 +234,123 @@ function createRoom() {
 }
 
 // ==========================================
-// NFTを4つの壁に均等配置（シンプル版）
+// スポットライト照明器具を作成
+// ==========================================
+function createSpotlightFixture(position) {
+  const group = new THREE.Group();
+  group.position.copy(position);
+
+  // レール
+  const rail = new THREE.Mesh(
+    new THREE.BoxGeometry(0.8, 0.1, 0.1),
+    new THREE.MeshStandardMaterial({ color: 0x222222, metalness: 0.8 })
+  );
+  rail.position.y = 0;
+  group.add(rail);
+
+  // アーム
+  const arm = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.03, 0.03, 0.3, 8),
+    new THREE.MeshStandardMaterial({ color: 0x333333, metalness: 0.8 })
+  );
+  arm.position.y = -0.15;
+  group.add(arm);
+
+  // ライト本体（円筒形）
+  const lightBody = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.1, 0.15, 0.2, 12),
+    new THREE.MeshStandardMaterial({ color: 0x111111, metalness: 0.9 })
+  );
+  lightBody.position.y = -0.4;
+  lightBody.rotation.x = Math.PI;
+  group.add(lightBody);
+
+  // 実際のスポットライト
+  const spotlight = new THREE.SpotLight(0xfff5e0, 2, 15, Math.PI / 6, 0.5, 1);
+  spotlight.position.y = -0.4;
+  spotlight.target.position.set(position.x, 0, position.z);
+  group.add(spotlight);
+  scene.add(spotlight.target);
+
+  group.userData.isRoom = true;
+  return group;
+}
+
+// ==========================================
+// NFTを4つの壁に均等配置（美術館風）
 // ==========================================
 function placeNFTsOnWalls() {
   const nfts = currentFloor === 1 ? allNFTs.slice(0, 80) : allNFTs.slice(80, 100);
   
-  const WALL_OFFSET = 2.0;  // 壁からの距離
-  const MARGIN = 4;  // 端からのマージン
+  const WALL_OFFSET = 0.5;  // 壁にぴったり
+  const MARGIN = 8;  // 端からのマージン
   const usableLength = ROOM_SIZE - MARGIN * 2;
+  const NFT_SPACING = 8;  // 絵の間隔
   
-  // 4つの壁に分配
-  const perWall = Math.ceil(nfts.length / 4);
+  // 各壁に配置できる枚数
+  const perWall = Math.floor(usableLength / NFT_SPACING);
   
   let nftIndex = 0;
 
-  // 北壁（Z=-）
+  // 北壁（Z=-）- 絵は部屋の内側（Z+方向）を向く
   const northCount = Math.min(perWall, nfts.length - nftIndex);
   for (let i = 0; i < northCount; i++) {
     const nft = nfts[nftIndex++];
-    const spacing = usableLength / (northCount + 1);
-    const x = -usableLength / 2 + spacing * (i + 1);
-    const pos = new THREE.Vector3(x, 3, -ROOM_SIZE / 2 + WALL_OFFSET);
-    const rot = new THREE.Euler(0, 0, 0);
+    const x = -usableLength / 2 + NFT_SPACING / 2 + i * NFT_SPACING;
+    const pos = new THREE.Vector3(x, 4, -ROOM_SIZE / 2 + WALL_OFFSET);
+    const rot = new THREE.Euler(0, 0, 0);  // Z+方向を向く
     createArtFrame(nft, pos, rot);
+    
+    // スポットライト
+    const lightPos = new THREE.Vector3(x, WALL_HEIGHT - 0.5, -ROOM_SIZE / 2 + 2);
+    scene.add(createSpotlightFixture(lightPos));
   }
 
-  // 南壁（Z=+）
+  // 南壁（Z=+）- 絵は部屋の内側（Z-方向）を向く
   const southCount = Math.min(perWall, nfts.length - nftIndex);
   for (let i = 0; i < southCount; i++) {
     const nft = nfts[nftIndex++];
-    const spacing = usableLength / (southCount + 1);
-    const x = usableLength / 2 - spacing * (i + 1);
-    const pos = new THREE.Vector3(x, 3, ROOM_SIZE / 2 - WALL_OFFSET);
-    const rot = new THREE.Euler(0, Math.PI, 0);
+    const x = usableLength / 2 - NFT_SPACING / 2 - i * NFT_SPACING;
+    const pos = new THREE.Vector3(x, 4, ROOM_SIZE / 2 - WALL_OFFSET);
+    const rot = new THREE.Euler(0, Math.PI, 0);  // Z-方向を向く
     createArtFrame(nft, pos, rot);
+    
+    // スポットライト
+    const lightPos = new THREE.Vector3(x, WALL_HEIGHT - 0.5, ROOM_SIZE / 2 - 2);
+    scene.add(createSpotlightFixture(lightPos));
   }
 
-  // 東壁（X=+）
+  // 東壁（X=+）- 絵は部屋の内側（X-方向）を向く
   const eastCount = Math.min(perWall, nfts.length - nftIndex);
   for (let i = 0; i < eastCount; i++) {
     const nft = nfts[nftIndex++];
-    const spacing = usableLength / (eastCount + 1);
-    const z = -usableLength / 2 + spacing * (i + 1);
-    const pos = new THREE.Vector3(ROOM_SIZE / 2 - WALL_OFFSET, 3, z);
-    const rot = new THREE.Euler(0, -Math.PI / 2, 0);
+    const z = -usableLength / 2 + NFT_SPACING / 2 + i * NFT_SPACING;
+    const pos = new THREE.Vector3(ROOM_SIZE / 2 - WALL_OFFSET, 4, z);
+    const rot = new THREE.Euler(0, -Math.PI / 2, 0);  // X-方向を向く
     createArtFrame(nft, pos, rot);
+    
+    // スポットライト
+    const lightPos = new THREE.Vector3(ROOM_SIZE / 2 - 2, WALL_HEIGHT - 0.5, z);
+    scene.add(createSpotlightFixture(lightPos));
   }
 
-  // 西壁（X=-）
+  // 西壁（X=-）- 絵は部屋の内側（X+方向）を向く
   const westCount = Math.min(perWall, nfts.length - nftIndex);
   for (let i = 0; i < westCount; i++) {
     const nft = nfts[nftIndex++];
-    const spacing = usableLength / (westCount + 1);
-    const z = usableLength / 2 - spacing * (i + 1);
-    const pos = new THREE.Vector3(-ROOM_SIZE / 2 + WALL_OFFSET, 3, z);
-    const rot = new THREE.Euler(0, Math.PI / 2, 0);
+    const z = usableLength / 2 - NFT_SPACING / 2 - i * NFT_SPACING;
+    const pos = new THREE.Vector3(-ROOM_SIZE / 2 + WALL_OFFSET, 4, z);
+    const rot = new THREE.Euler(0, Math.PI / 2, 0);  // X+方向を向く
     createArtFrame(nft, pos, rot);
+    
+    // スポットライト
+    const lightPos = new THREE.Vector3(-ROOM_SIZE / 2 + 2, WALL_HEIGHT - 0.5, z);
+    scene.add(createSpotlightFixture(lightPos));
   }
 }
 
 // ==========================================
-// NFTフレーム作成（両面表示対応）
+// NFTフレーム作成
 // ==========================================
 function createArtFrame(nft, position, rotation) {
   const group = new THREE.Group();
@@ -299,49 +358,42 @@ function createArtFrame(nft, position, rotation) {
   group.rotation.copy(rotation);
   group.userData.nft = nft;
 
+  // フレーム（黒い額縁）
   const frame = new THREE.Mesh(
-    new THREE.BoxGeometry(3.2, 3.2, 0.05),
+    new THREE.BoxGeometry(3.5, 3.5, 0.1),
     new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.3 })
   );
-  frame.position.z = 0.03;
+  frame.position.z = 0.05;
   group.add(frame);
 
+  // マット（白い縁取り）
   const mat = new THREE.Mesh(
-    new THREE.BoxGeometry(2.9, 2.9, 0.01),
+    new THREE.BoxGeometry(3.2, 3.2, 0.02),
     new THREE.MeshStandardMaterial({ color: 0xffffff })
   );
-  mat.position.z = 0.06;
+  mat.position.z = 0.11;
   group.add(mat);
 
+  // 画像
   const loader = new THREE.TextureLoader();
   const proxyUrl = `https://wsrv.nl/?url=${encodeURIComponent(nft.imageUrl)}&w=512`;
 
   loader.load(proxyUrl, (texture) => {
     texture.colorSpace = THREE.SRGBColorSpace;
     const art = new THREE.Mesh(
-      new THREE.PlaneGeometry(2.5, 2.5),
-      new THREE.MeshBasicMaterial({ 
-        map: texture,
-        side: THREE.DoubleSide
-      })
+      new THREE.PlaneGeometry(2.8, 2.8),
+      new THREE.MeshBasicMaterial({ map: texture })
     );
-    art.position.z = 0.07;
+    art.position.z = 0.13;
     group.add(art);
   }, undefined, () => {
     const art = new THREE.Mesh(
-      new THREE.PlaneGeometry(2.5, 2.5),
-      new THREE.MeshStandardMaterial({ 
-        color: 0x333333,
-        side: THREE.DoubleSide
-      })
+      new THREE.PlaneGeometry(2.8, 2.8),
+      new THREE.MeshStandardMaterial({ color: 0x333333 })
     );
-    art.position.z = 0.07;
+    art.position.z = 0.13;
     group.add(art);
   });
-
-  const light = new THREE.PointLight(0xffffff, 0.5, 5);
-  light.position.set(0, 1.5, 1);
-  group.add(light);
 
   scene.add(group);
   artFrames.push(group);
@@ -374,7 +426,7 @@ function switchAvatar() {
 function createNPCDogs() {
   for (let i = 0; i < 5; i++) {
     const dog = createDogAvatar(DOG_COLORS[i % DOG_COLORS.length]);
-    dog.position.set((Math.random() - 0.5) * 30, 0, (Math.random() - 0.5) * 30);
+    dog.position.set((Math.random() - 0.5) * 50, 0, (Math.random() - 0.5) * 50);
     dog.userData.targetPos = dog.position.clone();
     dog.userData.waitTime = Math.random() * 3;
     scene.add(dog);
@@ -400,9 +452,9 @@ function updateNPCDogs(delta, time) {
       animateDog(dog, time, true);
     } else {
       dog.userData.targetPos = new THREE.Vector3(
-        (Math.random() - 0.5) * 30,
+        (Math.random() - 0.5) * 50,
         0,
-        (Math.random() - 0.5) * 30
+        (Math.random() - 0.5) * 50
       );
       dog.userData.waitTime = 2 + Math.random() * 4;
     }
@@ -414,10 +466,10 @@ function updateNPCDogs(delta, time) {
 // ==========================================
 function createTargets() {
   const positions = [
-    [ROOM_SIZE / 2 - 3, 0, ROOM_SIZE / 2 - 3],
-    [-ROOM_SIZE / 2 + 3, 0, ROOM_SIZE / 2 - 3],
-    [ROOM_SIZE / 2 - 3, 0, -ROOM_SIZE / 2 + 3],
-    [-ROOM_SIZE / 2 + 3, 0, -ROOM_SIZE / 2 + 3]
+    [ROOM_SIZE / 2 - 5, 0, ROOM_SIZE / 2 - 5],
+    [-ROOM_SIZE / 2 + 5, 0, ROOM_SIZE / 2 - 5],
+    [ROOM_SIZE / 2 - 5, 0, -ROOM_SIZE / 2 + 5],
+    [-ROOM_SIZE / 2 + 5, 0, -ROOM_SIZE / 2 + 5]
   ];
 
   positions.forEach((pos, i) => {
@@ -517,16 +569,15 @@ function updateBeans(delta) {
 }
 
 // ==========================================
-// プレイヤー更新（ゆっくり移動）
+// プレイヤー更新
 // ==========================================
 function updatePlayer(delta, time) {
-  // AUTO機能
   if (isAutoMode) {
     if (!autoTarget || playerPosition.distanceTo(autoTarget) < 2) {
       autoTarget = new THREE.Vector3(
-        (Math.random() - 0.5) * (ROOM_SIZE - 10),
+        (Math.random() - 0.5) * (ROOM_SIZE - 15),
         0,
-        (Math.random() - 0.5) * (ROOM_SIZE - 10)
+        (Math.random() - 0.5) * (ROOM_SIZE - 15)
       );
     }
     const dir = new THREE.Vector3().subVectors(autoTarget, playerPosition).normalize();
@@ -554,7 +605,6 @@ function updatePlayer(delta, time) {
         .normalize();
     }
 
-    // ゆっくり移動
     const speed = isDogMode ? 0.15 : 0.12;
     playerVelocity.lerp(moveDir.multiplyScalar(speed), 0.15);
 
@@ -567,11 +617,11 @@ function updatePlayer(delta, time) {
 
   playerPosition.add(playerVelocity);
 
-  const limit = ROOM_SIZE / 2 - 2;
+  const limit = ROOM_SIZE / 2 - 3;
   playerPosition.x = Math.max(-limit, Math.min(limit, playerPosition.x));
   playerPosition.z = Math.max(-limit, Math.min(limit, playerPosition.z));
 
-  const targetY = isFlying ? 5 : 0;
+  const targetY = isFlying ? 6 : 0;
   playerPosition.y = THREE.MathUtils.lerp(playerPosition.y, targetY, 0.05);
 
   player.position.copy(playerPosition);

@@ -26,6 +26,10 @@ let dustParticles;
 let moveVector = new THREE.Vector3();
 let keys = {};
 
+// カラー選択用
+let currentHumanColorIndex = 0;
+let currentDogColorIndex = 0;
+
 // 投げるアニメーション用
 let isThrowingAnimation = false;
 let throwAnimationTime = 0;
@@ -112,7 +116,6 @@ async function fetchOwners() {
         if (ownerData.tokenBalances) {
           ownerData.tokenBalances.forEach(token => {
             let tokenId = token.tokenId;
-            // 16進数の場合は10進数に変換
             if (tokenId.startsWith('0x')) {
               tokenId = parseInt(tokenId, 16).toString();
             }
@@ -122,7 +125,6 @@ async function fetchOwners() {
       });
     }
     
-    // NFTにオーナー情報を設定
     allNFTs.forEach(nft => {
       const owner = ownerMap[nft.tokenId];
       if (owner) {
@@ -146,22 +148,18 @@ async function fetchOwners() {
 // 照明設定
 // ==========================================
 function setupLighting() {
-  // 環境光
   const ambient = new THREE.AmbientLight(0xffffff, 1.0);
   scene.add(ambient);
   
-  // メイン照明
   const mainLight = new THREE.DirectionalLight(0xffffff, 1.2);
   mainLight.position.set(10, 30, 10);
   mainLight.castShadow = true;
   scene.add(mainLight);
   
-  // 補助照明
   const subLight = new THREE.DirectionalLight(0xffffff, 0.8);
   subLight.position.set(-10, 25, -10);
   scene.add(subLight);
   
-  // 床からの反射光
   const fillLight = new THREE.DirectionalLight(0xffffff, 0.4);
   fillLight.position.set(0, -10, 0);
   scene.add(fillLight);
@@ -171,7 +169,6 @@ function setupLighting() {
 // 部屋作成
 // ==========================================
 function createRoom() {
-  // 既存の部屋要素を削除
   const toRemove = [];
   scene.traverse(child => {
     if (child.userData.isRoom || child.userData.isNFT || child.userData.isSpotlight) {
@@ -197,7 +194,6 @@ function createRoom() {
   // 壁
   const wallMat = new THREE.MeshStandardMaterial({ color: wallColor, roughness: 0.7 });
   
-  // 北壁
   const northWallGeo = new THREE.BoxGeometry(ROOM_SIZE, WALL_HEIGHT, 0.3);
   const northWall = new THREE.Mesh(northWallGeo, wallMat);
   northWall.position.set(0, WALL_HEIGHT / 2, -ROOM_SIZE / 2);
@@ -205,14 +201,12 @@ function createRoom() {
   northWall.userData.isRoom = true;
   scene.add(northWall);
   
-  // 南壁
   const southWall = new THREE.Mesh(northWallGeo, wallMat);
   southWall.position.set(0, WALL_HEIGHT / 2, ROOM_SIZE / 2);
   southWall.receiveShadow = true;
   southWall.userData.isRoom = true;
   scene.add(southWall);
   
-  // 東壁
   const eastWallGeo = new THREE.BoxGeometry(0.3, WALL_HEIGHT, ROOM_SIZE);
   const eastWall = new THREE.Mesh(eastWallGeo, wallMat);
   eastWall.position.set(ROOM_SIZE / 2, WALL_HEIGHT / 2, 0);
@@ -220,7 +214,6 @@ function createRoom() {
   eastWall.userData.isRoom = true;
   scene.add(eastWall);
   
-  // 西壁
   const westWall = new THREE.Mesh(eastWallGeo, wallMat);
   westWall.position.set(-ROOM_SIZE / 2, WALL_HEIGHT / 2, 0);
   westWall.receiveShadow = true;
@@ -236,7 +229,6 @@ function createRoom() {
   ceiling.userData.isRoom = true;
   scene.add(ceiling);
   
-  // NFTを壁に配置
   placeNFTsOnWalls();
 }
 
@@ -255,7 +247,7 @@ function placeNFTsOnWalls() {
   
   let nftIndex = 0;
   
-  // 北壁（内側向き = +Z方向）
+  // 北壁
   for (let i = 0; i < nftsPerWall && nftIndex < nftsToShow.length; i++) {
     const x = -wallLength / 2 + i * SPACING + SPACING / 2;
     const position = new THREE.Vector3(x, START_HEIGHT, -ROOM_SIZE / 2 + WALL_OFFSET);
@@ -264,7 +256,7 @@ function placeNFTsOnWalls() {
     nftIndex++;
   }
   
-  // 南壁（内側向き = -Z方向）
+  // 南壁
   for (let i = 0; i < nftsPerWall && nftIndex < nftsToShow.length; i++) {
     const x = wallLength / 2 - i * SPACING - SPACING / 2;
     const position = new THREE.Vector3(x, START_HEIGHT, ROOM_SIZE / 2 - WALL_OFFSET);
@@ -273,7 +265,7 @@ function placeNFTsOnWalls() {
     nftIndex++;
   }
   
-  // 東壁（内側向き = -X方向）
+  // 東壁
   for (let i = 0; i < nftsPerWall && nftIndex < nftsToShow.length; i++) {
     const z = -wallLength / 2 + i * SPACING + SPACING / 2;
     const position = new THREE.Vector3(ROOM_SIZE / 2 - WALL_OFFSET, START_HEIGHT, z);
@@ -282,7 +274,7 @@ function placeNFTsOnWalls() {
     nftIndex++;
   }
   
-  // 西壁（内側向き = +X方向）
+  // 西壁
   for (let i = 0; i < nftsPerWall && nftIndex < nftsToShow.length; i++) {
     const z = wallLength / 2 - i * SPACING - SPACING / 2;
     const position = new THREE.Vector3(-ROOM_SIZE / 2 + WALL_OFFSET, START_HEIGHT, z);
@@ -305,7 +297,7 @@ function createArtFrame(nft, position, rotation) {
   frame.castShadow = true;
   group.add(frame);
   
-  // マット（白い縁）
+  // マット
   const matGeo = new THREE.BoxGeometry(2.8, 2.8, 0.05);
   const matMat = new THREE.MeshStandardMaterial({ color: 0xffffff });
   const mat = new THREE.Mesh(matGeo, matMat);
@@ -342,27 +334,21 @@ function createArtFrame(nft, position, rotation) {
   );
   
   // スポットライト器具
-  const spotlightGroup = new THREE.Group();
-  
-  // レール
   const railGeo = new THREE.BoxGeometry(0.8, 0.05, 0.05);
   const railMat = new THREE.MeshStandardMaterial({ color: 0x222222 });
   const rail = new THREE.Mesh(railGeo, railMat);
   rail.position.set(0, 2.0, 0.3);
-  spotlightGroup.add(rail);
+  rail.userData.isSpotlight = true;
+  group.add(rail);
   
-  // ライト本体
   const lightGeo = new THREE.CylinderGeometry(0.08, 0.12, 0.15, 8);
   const lightMat = new THREE.MeshStandardMaterial({ color: 0x111111 });
   const lightBody = new THREE.Mesh(lightGeo, lightMat);
   lightBody.position.set(0, 1.85, 0.3);
   lightBody.rotation.x = Math.PI / 6;
-  spotlightGroup.add(lightBody);
+  lightBody.userData.isSpotlight = true;
+  group.add(lightBody);
   
-  group.add(spotlightGroup);
-  spotlightGroup.userData.isSpotlight = true;
-  
-  // 位置と回転を設定
   group.position.copy(position);
   group.rotation.copy(rotation);
   group.userData.isNFT = true;
@@ -379,9 +365,9 @@ function createPlayer() {
   player = new THREE.Group();
   
   if (isDogMode) {
-    playerAvatar = createDogAvatar(DOG_COLORS);
+    playerAvatar = createDogAvatar(DOG_COLORS[currentDogColorIndex]);
   } else {
-    playerAvatar = createHumanAvatar(HUMAN_COLORS);
+    playerAvatar = createHumanAvatar(HUMAN_COLORS[currentHumanColorIndex]);
   }
   
   player.add(playerAvatar);
@@ -398,9 +384,9 @@ function switchAvatar() {
   player.remove(playerAvatar);
   
   if (isDogMode) {
-    playerAvatar = createDogAvatar(DOG_COLORS);
+    playerAvatar = createDogAvatar(DOG_COLORS[currentDogColorIndex]);
   } else {
-    playerAvatar = createHumanAvatar(HUMAN_COLORS);
+    playerAvatar = createHumanAvatar(HUMAN_COLORS[currentHumanColorIndex]);
     isFlyMode = false;
   }
   
@@ -409,17 +395,28 @@ function switchAvatar() {
 }
 
 // ==========================================
+// アバターカラー変更
+// ==========================================
+function changeAvatarColor() {
+  player.remove(playerAvatar);
+  
+  if (isDogMode) {
+    currentDogColorIndex = (currentDogColorIndex + 1) % DOG_COLORS.length;
+    playerAvatar = createDogAvatar(DOG_COLORS[currentDogColorIndex]);
+  } else {
+    currentHumanColorIndex = (currentHumanColorIndex + 1) % HUMAN_COLORS.length;
+    playerAvatar = createHumanAvatar(HUMAN_COLORS[currentHumanColorIndex]);
+  }
+  
+  player.add(playerAvatar);
+}
+
+// ==========================================
 // NPC犬作成
 // ==========================================
 function createNPCDogs() {
-  const colors = [
-    { body: 0xffffff, spots: 0x333333 },
-    { body: 0xd4a574, spots: 0x8b4513 },
-    { body: 0x333333, spots: 0x666666 }
-  ];
-  
   for (let i = 0; i < 3; i++) {
-    const dog = createDogAvatar(colors[i % colors.length]);
+    const dog = createDogAvatar(DOG_COLORS[i % DOG_COLORS.length]);
     dog.position.set(
       (Math.random() - 0.5) * (ROOM_SIZE - 10),
       0,
@@ -445,7 +442,7 @@ function createTargets() {
     const radius = ROOM_SIZE / 3;
     target.position.set(
       Math.cos(angle) * radius,
-      1.5,
+      0,
       Math.sin(angle) * radius
     );
     scene.add(target);
@@ -457,11 +454,29 @@ function createTargets() {
 // UI作成
 // ==========================================
 function createUI() {
-  // ヘッダー
+  // タイトル
+  const title = document.createElement('div');
+  title.id = 'museum-title';
+  title.textContent = 'TAF DOG MUSEUM';
+  title.style.cssText = `
+    position: fixed;
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 20px;
+    font-weight: bold;
+    color: white;
+    text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+    z-index: 1000;
+    pointer-events: none;
+  `;
+  document.body.appendChild(title);
+  
+  // ヘッダーボタン
   const header = document.createElement('div');
   header.style.cssText = `
     position: fixed;
-    top: 10px;
+    top: 40px;
     left: 10px;
     z-index: 1000;
     display: flex;
@@ -521,6 +536,22 @@ function createUI() {
   };
   header.appendChild(autoBtn);
   
+  // COLORボタン
+  const colorBtn = document.createElement('button');
+  colorBtn.id = 'btn-color';
+  colorBtn.textContent = 'COLOR';
+  colorBtn.style.cssText = `
+    padding: 10px 15px;
+    background: #e67e22;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    font-weight: bold;
+    cursor: pointer;
+  `;
+  colorBtn.onclick = changeAvatarColor;
+  header.appendChild(colorBtn);
+  
   // 階層ボタン
   const floorDiv = document.createElement('div');
   floorDiv.style.cssText = `
@@ -577,15 +608,14 @@ function createUI() {
   };
   floorDiv.appendChild(floor1Btn);
   
-  // FLYボタン（位置固定）
+  // FLYボタン
   const flyBtn = document.createElement('button');
   flyBtn.id = 'btn-fly';
   flyBtn.textContent = 'FLY';
   flyBtn.style.cssText = `
     position: fixed;
     right: 20px;
-    top: 50%;
-    transform: translateY(-50%);
+    top: calc(50% - 40px);
     width: 60px;
     height: 60px;
     border-radius: 50%;
@@ -596,7 +626,7 @@ function createUI() {
     font-weight: bold;
     cursor: pointer;
     z-index: 1000;
-    touch-action: manipulation;
+    display: none;
   `;
   flyBtn.onclick = () => {
     if (isDogMode) {
@@ -613,7 +643,7 @@ function createUI() {
   throwBtn.style.cssText = `
     position: fixed;
     right: 20px;
-    top: calc(50% + 80px);
+    top: calc(50% + 40px);
     width: 60px;
     height: 60px;
     border-radius: 50%;
@@ -624,7 +654,6 @@ function createUI() {
     font-weight: bold;
     cursor: pointer;
     z-index: 1000;
-    touch-action: manipulation;
   `;
   throwBtn.onclick = throwBean;
   document.body.appendChild(throwBtn);
@@ -676,7 +705,6 @@ function createUI() {
   `;
   joystickContainer.appendChild(joystickLabel);
   
-  // ジョイスティック操作
   setupJoystick(joystick, joystickKnob);
   
   updateButtons();
@@ -691,7 +719,16 @@ function setupJoystick(joystick, knob) {
   const centerY = 60;
   const maxDistance = 40;
   
+  function handleStart(e) {
+    e.preventDefault();
+    isDragging = true;
+    const point = e.touches ? e.touches[0] : e;
+    handleMove(point.clientX, point.clientY);
+  }
+  
   function handleMove(clientX, clientY) {
+    if (!isDragging) return;
+    
     const joystickRect = joystick.getBoundingClientRect();
     let x = clientX - joystickRect.left - centerX;
     let y = clientY - joystickRect.top - centerY;
@@ -719,23 +756,18 @@ function setupJoystick(joystick, knob) {
     moveVector.z = 0;
   }
   
-  joystick.addEventListener('mousedown', (e) => {
-    isDragging = true;
-    handleMove(e.clientX, e.clientY);
-  });
-  
-  joystick.addEventListener('touchstart', (e) => {
-    isDragging = true;
-    handleMove(e.touches[0].clientX, e.touches[0].clientY);
-  });
+  joystick.addEventListener('mousedown', handleStart);
+  joystick.addEventListener('touchstart', handleStart, { passive: false });
   
   window.addEventListener('mousemove', (e) => {
     if (isDragging) handleMove(e.clientX, e.clientY);
   });
-  
   window.addEventListener('touchmove', (e) => {
-    if (isDragging) handleMove(e.touches[0].clientX, e.touches[0].clientY);
-  });
+    if (isDragging && e.touches[0]) {
+      e.preventDefault();
+      handleMove(e.touches[0].clientX, e.touches[0].clientY);
+    }
+  }, { passive: false });
   
   window.addEventListener('mouseup', handleEnd);
   window.addEventListener('touchend', handleEnd);
@@ -770,19 +802,15 @@ function updateButtons() {
 }
 
 // ==========================================
-// 豆を投げる（アニメーション付き）
+// 豆を投げる
 // ==========================================
 function throwBean() {
-  // アニメーション中は投げない
   if (isThrowingAnimation) return;
   
-  // 投げるアニメーション開始
   isThrowingAnimation = true;
   throwAnimationTime = 0;
   
-  // 0.3秒後に実際に豆を発射
   setTimeout(() => {
-    // 豆のサイズを大きく
     const beanGeo = new THREE.SphereGeometry(0.4, 16, 16);
     const beanMat = new THREE.MeshStandardMaterial({ 
       color: 0xd4a574,
@@ -791,18 +819,15 @@ function throwBean() {
     });
     const bean = new THREE.Mesh(beanGeo, beanMat);
     
-    // 投げる位置（手の位置から）
     const throwPos = player.position.clone();
     throwPos.y += 2.0;
     
-    // プレイヤーの向きの前方に
     const forward = new THREE.Vector3(0, 0, -1);
     forward.applyQuaternion(player.quaternion);
     throwPos.add(forward.multiplyScalar(0.5));
     
     bean.position.copy(throwPos);
     
-    // カメラの向きに投げる
     const direction = new THREE.Vector3();
     camera.getWorldDirection(direction);
     
@@ -815,7 +840,6 @@ function throwBean() {
     beans.push(bean);
   }, 300);
   
-  // 0.6秒後にアニメーション終了
   setTimeout(() => {
     isThrowingAnimation = false;
   }, 600);
@@ -830,35 +854,25 @@ function applyThrowAnimation(avatar, isHuman) {
   throwAnimationTime += 0.15;
   
   if (isHuman) {
-    // 人間の右腕を上げて投げる動作
     const rightArm = avatar.getObjectByName('rightArm');
     if (rightArm) {
       if (throwAnimationTime < 3) {
-        // 振りかぶり
         rightArm.rotation.x = -Math.PI * 0.8 * (throwAnimationTime / 3);
         rightArm.rotation.z = -0.3;
       } else if (throwAnimationTime < 6) {
-        // 投げる
         const t = (throwAnimationTime - 3) / 3;
         rightArm.rotation.x = -Math.PI * 0.8 + Math.PI * 1.2 * t;
         rightArm.rotation.z = -0.3 + 0.3 * t;
       } else {
-        // 元に戻す
         rightArm.rotation.x = 0;
         rightArm.rotation.z = 0;
       }
     }
   } else {
-    // 犬の場合は頭を上げる
-    const head = avatar.getObjectByName('head');
-    if (head) {
-      if (throwAnimationTime < 3) {
-        head.rotation.x = -0.3 * (throwAnimationTime / 3);
-      } else if (throwAnimationTime < 6) {
-        const t = (throwAnimationTime - 3) / 3;
-        head.rotation.x = -0.3 + 0.5 * t;
-      } else {
-        head.rotation.x = 0;
+    const tail = avatar.getObjectByName('tail');
+    if (tail) {
+      if (throwAnimationTime < 6) {
+        tail.rotation.z = Math.sin(throwAnimationTime * 3) * 0.8;
       }
     }
   }
@@ -880,10 +894,8 @@ function showSpeechBubble(position, text, duration = 2000) {
     box-shadow: 0 2px 10px rgba(0,0,0,0.3);
     z-index: 2000;
     pointer-events: none;
-    animation: bubblePop 0.3s ease-out;
   `;
   
-  // 3D座標を2D画面座標に変換
   const vector = position.clone();
   vector.project(camera);
   
@@ -901,22 +913,10 @@ function showSpeechBubble(position, text, duration = 2000) {
   }, duration);
 }
 
-// CSSアニメーション追加
-const style = document.createElement('style');
-style.textContent = `
-  @keyframes bubblePop {
-    0% { transform: translateX(-50%) scale(0); opacity: 0; }
-    50% { transform: translateX(-50%) scale(1.2); }
-    100% { transform: translateX(-50%) scale(1); opacity: 1; }
-  }
-`;
-document.head.appendChild(style);
-
 // ==========================================
 // イベントリスナー設定
 // ==========================================
 function setupEventListeners() {
-  // キーボード
   window.addEventListener('keydown', (e) => {
     keys[e.code] = true;
   });
@@ -925,35 +925,20 @@ function setupEventListeners() {
     keys[e.code] = false;
   });
   
-  // リサイズ
   window.addEventListener('resize', () => {
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
   });
   
-  // NFTクリック（マウス）
+  // NFTクリック
   renderer.domElement.addEventListener('click', onCanvasClick);
-  
-  // NFTタップ（タッチ）
-  renderer.domElement.addEventListener('touchend', (e) => {
-    if (e.changedTouches.length > 0) {
-      const touch = e.changedTouches[0];
-      onCanvasClick({
-        clientX: touch.clientX,
-        clientY: touch.clientY,
-        preventDefault: () => {}
-      });
-    }
-  });
 }
 
 // ==========================================
 // キャンバスクリック処理
 // ==========================================
 function onCanvasClick(event) {
-  event.preventDefault && event.preventDefault();
-  
   const mouse = new THREE.Vector2();
   mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
   mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
@@ -961,13 +946,11 @@ function onCanvasClick(event) {
   const raycaster = new THREE.Raycaster();
   raycaster.setFromCamera(mouse, camera);
   
-  // シーン全体との交差判定
   const intersects = raycaster.intersectObjects(scene.children, true);
   
   for (const intersect of intersects) {
     let obj = intersect.object;
     
-    // 親をたどってNFTデータを探す
     while (obj) {
       if (obj.userData && obj.userData.nftData) {
         showNFTModal(obj.userData.nftData);
@@ -982,7 +965,6 @@ function onCanvasClick(event) {
 // NFTモーダル表示
 // ==========================================
 function showNFTModal(nft) {
-  // 既存のモーダルを削除
   const existingModal = document.getElementById('nft-modal');
   if (existingModal) existingModal.remove();
   
@@ -1007,15 +989,18 @@ function showNFTModal(nft) {
     padding: 20px;
     border-radius: 10px;
     max-width: 400px;
+    max-height: 90vh;
+    overflow-y: auto;
     text-align: center;
   `;
   
   const changeRule = CHANGE_RULES[nft.tokenId];
-  const changeRuleHtml = changeRule ? `<p style="color: #e74c3c; margin: 10px 0;"><strong>Change Rule:</strong> ${changeRule}</p>` : '';
+  const changeRuleHtml = changeRule ? `<p style="color: #e74c3c; margin: 10px 0;"><strong>変化条件:</strong> ${changeRule}</p>` : '';
   
   content.innerHTML = `
-    <img src="${nft.imageUrl}" style="max-width: 100%; max-height: 300px; border-radius: 5px;">
-    <h3 style="margin: 15px 0 10px;">${nft.name}</h3>
+    <img src="${nft.imageUrl}" style="max-width: 100%; max-height: 250px; border-radius: 5px;">
+    <h3 style="margin: 15px 0 10px;">TAF DOG #${nft.tokenId}</h3>
+    <p style="color: #888; margin: 5px 0;"><strong>Token ID:</strong> ${nft.tokenId}</p>
     <p style="color: #666; margin: 5px 0;"><strong>Owner:</strong> ${nft.ownerShort || 'Unknown'}</p>
     ${changeRuleHtml}
     <a href="https://opensea.io/ja/assets/matic/${NFT_CONFIG.contractAddress}/${nft.tokenId}" 
@@ -1023,8 +1008,7 @@ function showNFTModal(nft) {
        style="display: inline-block; margin-top: 15px; padding: 10px 20px; background: #2081e2; color: white; text-decoration: none; border-radius: 5px;">
       OpenSeaで見る
     </a>
-    <button onclick="this.parentElement.parentElement.remove()" 
-            style="display: block; margin: 15px auto 0; padding: 10px 30px; background: #666; color: white; border: none; border-radius: 5px; cursor: pointer;">
+    <button id="modal-close-btn" style="display: block; margin: 15px auto 0; padding: 10px 30px; background: #666; color: white; border: none; border-radius: 5px; cursor: pointer;">
       閉じる
     </button>
   `;
@@ -1034,6 +1018,8 @@ function showNFTModal(nft) {
     if (e.target === modal) modal.remove();
   };
   document.body.appendChild(modal);
+  
+  document.getElementById('modal-close-btn').onclick = () => modal.remove();
 }
 
 // ==========================================
@@ -1042,16 +1028,13 @@ function showNFTModal(nft) {
 function updatePlayer() {
   const speed = isDogMode ? 0.15 : 0.12;
   
-  // キーボード入力をリセット
   let keyMove = new THREE.Vector3();
   
-  // キーボード入力
   if (keys['KeyW'] || keys['ArrowUp']) keyMove.z = -1;
   if (keys['KeyS'] || keys['ArrowDown']) keyMove.z = 1;
   if (keys['KeyA'] || keys['ArrowLeft']) keyMove.x = -1;
   if (keys['KeyD'] || keys['ArrowRight']) keyMove.x = 1;
   
-  // ジョイスティックまたはキーボードの入力を使用
   let finalMove = new THREE.Vector3();
   if (keyMove.length() > 0) {
     finalMove.copy(keyMove);
@@ -1059,7 +1042,6 @@ function updatePlayer() {
     finalMove.copy(moveVector);
   }
   
-  // AUTOモード
   if (isAutoMode) {
     if (!autoTarget || player.position.distanceTo(autoTarget) < 2) {
       autoTarget = new THREE.Vector3(
@@ -1074,11 +1056,9 @@ function updatePlayer() {
     finalMove.z = direction.z;
   }
   
-  // 移動
   if (finalMove.length() > 0) {
     const movement = finalMove.clone().normalize().multiplyScalar(speed);
     
-    // カメラの向きに合わせて移動
     const cameraDirection = new THREE.Vector3();
     camera.getWorldDirection(cameraDirection);
     cameraDirection.y = 0;
@@ -1093,18 +1073,15 @@ function updatePlayer() {
     player.position.x += moveX;
     player.position.z += moveZ;
     
-    // 境界制限
     const limit = ROOM_SIZE / 2 - 2;
     player.position.x = Math.max(-limit, Math.min(limit, player.position.x));
     player.position.z = Math.max(-limit, Math.min(limit, player.position.z));
     
-    // 向きを変更
     if (moveX !== 0 || moveZ !== 0) {
       player.rotation.y = Math.atan2(moveX, moveZ);
     }
   }
   
-  // FLYモード
   if (isFlyMode && isDogMode) {
     if (keys['Space']) {
       player.position.y += 0.1;
@@ -1115,7 +1092,6 @@ function updatePlayer() {
     player.position.y = 0;
   }
   
-  // カメラ追従
   const cameraOffset = new THREE.Vector3(0, 5, 10);
   camera.position.lerp(player.position.clone().add(cameraOffset), 0.05);
   controls.target.lerp(player.position, 0.05);
@@ -1128,21 +1104,18 @@ function updateBeans() {
   for (let i = beans.length - 1; i >= 0; i--) {
     const bean = beans[i];
     
-    // 物理演算
     bean.userData.velocity.y += bean.userData.gravity;
     bean.position.add(bean.userData.velocity);
     bean.userData.life--;
     
-    // ターゲットとの衝突判定
     for (const target of targets) {
       if (target.userData.isFlyingAway) continue;
       
       const distance = bean.position.distanceTo(target.position);
-      if (distance < 1.5) {
+      if (distance < 2.0) {
         target.userData.hitCount = (target.userData.hitCount || 0) + 1;
         
-        // 吹き出し表示
-        showSpeechBubble(target.position.clone(), '痛いっ！');
+        showSpeechBubble(target.position.clone().add(new THREE.Vector3(0, 2, 0)), '痛いっ！');
         
         if (target.userData.hitCount >= 3) {
           target.userData.isFlyingAway = true;
@@ -1151,17 +1124,15 @@ function updateBeans() {
             0.2,
             (Math.random() - 0.5) * 0.3
           );
-          showSpeechBubble(target.position.clone(), 'あーれー！', 3000);
+          showSpeechBubble(target.position.clone().add(new THREE.Vector3(0, 2, 0)), 'あーれー！', 3000);
         }
         
-        // 豆を削除
         scene.remove(bean);
         beans.splice(i, 1);
         break;
       }
     }
     
-    // 寿命切れまたは床に落ちた
     if (bean.userData.life <= 0 || bean.position.y < -1) {
       scene.remove(bean);
       beans.splice(i, 1);
@@ -1185,8 +1156,7 @@ function updateTargets() {
         if (index > -1) targets.splice(index, 1);
       }
     } else {
-      // プレイヤーの方を向く
-      target.lookAt(player.position);
+      target.lookAt(player.position.x, target.position.y, player.position.z);
     }
   });
 }
@@ -1198,10 +1168,8 @@ function updateNPCDogs() {
   const time = Date.now() * 0.001;
   
   npcDogs.forEach(dog => {
-    // 移動
     dog.position.add(dog.userData.velocity);
     
-    // 境界で反転
     const limit = ROOM_SIZE / 2 - 3;
     if (Math.abs(dog.position.x) > limit) {
       dog.userData.velocity.x *= -1;
@@ -1210,15 +1178,12 @@ function updateNPCDogs() {
       dog.userData.velocity.z *= -1;
     }
     
-    // 向きを変更
     if (dog.userData.velocity.length() > 0) {
       dog.rotation.y = Math.atan2(dog.userData.velocity.x, dog.userData.velocity.z);
     }
     
-    // アニメーション
     animateDog(dog, time, true);
     
-    // ランダムに方向転換
     if (Math.random() < 0.01) {
       dog.userData.velocity.set(
         (Math.random() - 0.5) * 0.05,
@@ -1237,10 +1202,8 @@ function animate() {
   
   const time = Date.now() * 0.001;
   
-  // プレイヤー更新
   updatePlayer();
   
-  // アバターアニメーション
   const isMoving = moveVector.length() > 0 || Object.values(keys).some(k => k);
   if (isDogMode) {
     animateDog(playerAvatar, time, isMoving);
@@ -1250,24 +1213,15 @@ function animate() {
     applyThrowAnimation(playerAvatar, true);
   }
   
-  // 豆更新
   updateBeans();
-  
-  // ターゲット更新
   updateTargets();
-  
-  // NPC犬更新
   updateNPCDogs();
   
-  // ダストパーティクル
   if (dustParticles) {
     dustParticles.rotation.y += 0.0005;
   }
   
-  // コントロール更新
   controls.update();
-  
-  // レンダリング
   renderer.render(scene, camera);
 }
 

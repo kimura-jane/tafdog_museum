@@ -3,767 +3,240 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>TAF DOGミュージアム</title>
+  <title>TAF DOG Museum</title>
   
   <!-- OGP Settings -->
-  <meta property="og:title" content="TAF DOGミュージアム">
-  <meta property="og:description" content="A 3D virtual art gallery where you can explore as a human or a dog.">
+  <meta property="og:title" content="TAF DOG Museum">
+  <meta property="og:description" content="TAF DOGコレクションの3Dバーチャル美術館。ローポリゴンの犬たちに会いに来てね。">
   <meta property="og:type" content="website">
-  <meta property="og:url" content="https://kimura-jane.github.io/tafdog_museum/">
-  <meta property="og:image" content="https://kimura-jane.github.io/tafdog_museum/taf_dog_01.png">
+  <meta property="og:url" content="https://tafdog-museum.pages.dev/">
+  <meta property="og:image" content="https://tafdog-museum.pages.dev/ogp.png">
   
   <!-- Twitter Card Settings -->
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="TAF DOGミュージアム">
-  <meta name="twitter:description" content="A 3D virtual art gallery where you can explore as a human or a dog.">
-  <meta name="twitter:image" content="https://kimura-jane.github.io/tafdog_museum/taf_dog_01.png">
+  <meta name="twitter:title" content="TAF DOG Museum">
+  <meta name="twitter:description" content="TAF DOGコレクションの3Dバーチャル美術館。ローポリゴンの犬たちに会いに来てね。">
+  <meta name="twitter:image" content="https://tafdog-museum.pages.dev/ogp.png">
 
-  <!-- Styles & Scripts -->
+  <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
-  
-  <!-- Environment Shim -->
-  <script>
-    window.process = {
-      env: {
-        NODE_ENV: 'production'
-      }
-    };
-  </script>
 
   <style>
-    body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background-color: #000; touch-action: none; font-family: sans-serif; user-select: none; -webkit-user-select: none; }
-    #root { width: 100%; height: 100%; }
-    ::-webkit-scrollbar { display: none; }
-    .loading-screen { color: white; display: flex; align-items: center; justify-content: center; height: 100%; font-size: 1.2rem; flex-direction: column; gap: 1rem; }
-    .action-btn:active { transform: scale(0.95); }
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background-color: #000;
+      touch-action: none;
+      font-family: 'Helvetica Neue', Arial, sans-serif;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    
+    #root {
+      width: 100%;
+      height: 100%;
+    }
+    
+    ::-webkit-scrollbar {
+      display: none;
+    }
+    
+    /* ローディング画面 */
+    .loading-screen {
+      position: fixed;
+      inset: 0;
+      background: #000;
+      color: white;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 1rem;
+      z-index: 9999;
+    }
+    
+    .loading-spinner {
+      width: 48px;
+      height: 48px;
+      border: 3px solid #333;
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+    
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    
+    .loading-text {
+      font-size: 14px;
+      letter-spacing: 0.2em;
+      color: #888;
+    }
+    
+    /* UIボタン共通 */
+    .ui-btn {
+      padding: 12px 20px;
+      border-radius: 9999px;
+      font-size: 12px;
+      font-weight: bold;
+      letter-spacing: 0.1em;
+      transition: all 0.2s;
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(255,255,255,0.2);
+    }
+    
+    .ui-btn:active {
+      transform: scale(0.95);
+    }
+    
+    .ui-btn-primary {
+      background: rgba(255,255,255,1);
+      color: #000;
+    }
+    
+    .ui-btn-secondary {
+      background: rgba(0,0,0,0.4);
+      color: rgba(255,255,255,0.7);
+    }
+    
+    .ui-btn-secondary:hover {
+      background: rgba(255,255,255,0.1);
+    }
+    
+    .ui-btn-active {
+      background: rgba(255,255,255,1);
+      color: #000;
+      box-shadow: 0 0 20px rgba(255,255,255,0.3);
+    }
+    
+    /* フロア表示 */
+    .floor-indicator {
+      position: fixed;
+      top: 50%;
+      left: 20px;
+      transform: translateY(-50%);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      z-index: 20;
+    }
+    
+    .floor-btn {
+      width: 48px;
+      height: 48px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      font-size: 14px;
+      transition: all 0.2s;
+    }
+    
+    /* モーダル */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.85);
+      backdrop-filter: blur(8px);
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s;
+    }
+    
+    .modal-overlay.active {
+      opacity: 1;
+      pointer-events: auto;
+    }
+    
+    .modal-content {
+      background: #1a1a1a;
+      border: 1px solid #333;
+      border-radius: 4px;
+      max-width: 900px;
+      width: 100%;
+      max-height: 90vh;
+      overflow-y: auto;
+    }
+    
+    /* ジョイスティック */
+    .joystick-container {
+      position: fixed;
+      bottom: 48px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 20;
+      touch-action: none;
+    }
+    
+    .joystick-base {
+      width: 128px;
+      height: 128px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.1);
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(255,255,255,0.2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+    }
+    
+    .joystick-stick {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      background: white;
+      box-shadow: 0 0 15px rgba(255,255,255,0.5);
+      transition: transform 0.05s;
+    }
+    
+    .joystick-label {
+      text-align: center;
+      margin-top: 16px;
+      font-size: 10px;
+      color: rgba(255,255,255,0.3);
+      letter-spacing: 0.2em;
+    }
   </style>
-  
-  <!-- Import Map: Using reliable ESM CDN for React 18 and Three.js -->
+
+  <!-- Import Map -->
   <script type="importmap">
-{
-  "imports": {
-    "react": "https://esm.sh/react@18.2.0",
-    "react/jsx-runtime": "https://esm.sh/react@18.2.0/jsx-runtime",
-    "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
-    "three": "https://esm.sh/three@0.160.0",
-    "@react-three/fiber": "https://esm.sh/@react-three/fiber@8.15.16?external=react,react-dom,three",
-    "@react-three/drei": "https://esm.sh/@react-three/drei@9.99.0?external=react,react-dom,three,@react-three/fiber"
+  {
+    "imports": {
+      "react": "https://esm.sh/react@18.2.0",
+      "react/jsx-runtime": "https://esm.sh/react@18.2.0/jsx-runtime",
+      "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
+      "three": "https://esm.sh/three@0.160.0",
+      "three/addons/": "https://esm.sh/three@0.160.0/examples/jsm/",
+      "@react-three/fiber": "https://esm.sh/@react-three/fiber@8.15.16?external=react,react-dom,three",
+      "@react-three/drei": "https://esm.sh/@react-three/drei@9.99.0?external=react,react-dom,three,@react-three/fiber"
+    }
   }
-}
-</script>
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  </script>
 </head>
 <body>
   <div id="root">
-    <div class="loading-screen">
-      <div>NOW LOADING...</div>
+    <div class="loading-screen" id="loading">
+      <div class="loading-spinner"></div>
+      <div class="loading-text">LOADING MUSEUM...</div>
     </div>
   </div>
 
-  <script type="text/babel" data-type="module">
-    import React, { useState, useRef, useEffect, useMemo, Suspense, useCallback } from "react";
-    import { createRoot } from "react-dom/client";
-    import { Canvas, useFrame, useThree } from "@react-three/fiber";
-    import { Text, PerspectiveCamera, Float, OrbitControls, Billboard } from "@react-three/drei";
-    import * as THREE from "three";
-
-    // --- CONSTANTS ---
-    const ROOM_SIZE = 32;
-    const WALL_HEIGHT = 10;
-    const ART_Y_POS = 3.5;
-    const ART_SCALE = 4.0;
-    const WALL_OFFSET = 1.5;
-    const BASE_IMAGE_URL = "https://kimura-jane.github.io/tafdog_museum/";
-    const PROXY_URL = "https://wsrv.nl/?url=";
-
-    // Data for all 20 paintings
-    const USER_WORKS = [
-      { id: 1,  title: 'TAF DOG #01', image: 'taf_dog_01.png' },
-      { id: 2,  title: 'TAF DOG #02', image: 'taf_dog_02.png' },
-      { id: 3,  title: 'TAF DOG #03', image: 'taf_dog_03.png' },
-      { id: 4,  title: 'TAF DOG #04', image: 'taf_dog_04.png' },
-      { id: 5,  title: 'TAF DOG #05', image: 'taf_dog_05.png' },
-      { id: 6,  title: 'TAF DOG #06', image: 'taf_dog_06.png' },
-      { id: 7,  title: 'TAF DOG #07', image: 'taf_dog_07.png' },
-      { id: 8,  title: 'TAF DOG #08', image: 'taf_dog_08.png' },
-      { id: 9,  title: 'TAF DOG #09', image: 'taf_dog_09.png' },
-      { id: 10, title: 'TAF DOG #10', image: 'taf_dog_10.png' },
-      { id: 11, title: 'TAF DOG #11', image: 'taf_dog_11.png' },
-      { id: 12, title: 'TAF DOG #12', image: 'taf_dog_12.png' },
-      { id: 13, title: 'TAF DOG #13', image: 'taf_dog_13.png' },
-      { id: 14, title: 'TAF DOG #14', image: 'taf_dog_14.png' },
-      { id: 15, title: 'TAF DOG #15', image: 'taf_dog_15.png' },
-      { id: 16, title: 'TAF DOG #16', image: 'taf_dog_16.png' },
-      { id: 17, title: 'TAF DOG #17', image: 'taf_dog_17.png' },
-      { id: 18, title: 'TAF DOG #18', image: 'taf_dog_18.png' },
-      { id: 19, title: 'TAF DOG #19', image: 'taf_dog_19.png' },
-      { id: 20, title: 'TAF DOG #20', image: 'taf_dog_20.png' }
-    ];
-
-    const PAINTINGS = USER_WORKS.map((work, index) => {
-      const spacing = ROOM_SIZE / 6; 
-      let pos = [0, ART_Y_POS, 0];
-      let rot = [0, 0, 0];
-      
-      if (index < 5) { 
-        pos = [(index - 2) * spacing, ART_Y_POS, -ROOM_SIZE / 2 + WALL_OFFSET]; 
-      } else if (index < 10) { 
-        pos = [ROOM_SIZE / 2 - WALL_OFFSET, ART_Y_POS, (index - 7) * spacing]; 
-        rot = [0, -Math.PI / 2, 0]; 
-      } else if (index < 15) { 
-        pos = [(12 - index) * spacing, ART_Y_POS, ROOM_SIZE / 2 - WALL_OFFSET]; 
-        rot = [0, Math.PI, 0]; 
-      } else { 
-        pos = [-ROOM_SIZE / 2 + WALL_OFFSET, ART_Y_POS, (17 - index) * spacing]; 
-        rot = [0, Math.PI / 2, 0]; 
-      }
-
-      return {
-        ...work,
-        id: String(work.id),
-        image: BASE_IMAGE_URL + work.image,
-        position: pos,
-        rotation: rot
-      };
-    });
-
-    // --- ANIME GIRL COMPONENT (With Link) ---
-    const TARGET_IMAGE_NAME = "IMG_1889.png";
-    const LINK_URL = "https://auth.financie.jp/signup?client_id=lxI8fEEV0Lhqh36V3IgbfcCbGjBbIKkj1ZfsjkCTa1o&redirect_uri=https%3A%2F%2Ffinancie.jp%2Fweb_auth%2Fcallback&scope=openid+email+profile&code_challenge=TGD5MqR0ydmcLz83ZvErSJgF4cA35uAZjF8rFKftXBM&code_challenge_method=S256&state=_1zJxeX2AnvUxOXKCSxWkQ&nonce=Qg2EqtZ-VD38QDCAQOVgpw";
-
-    const AnimeGirl = ({ position, rotationSpeed }) => {
-      const [texture, setTexture] = useState(null);
-      const groupRef = useRef(null);
-      const bodyRef = useRef(null);
-      const [hovered, setHovered] = useState(false);
-
-      // Generate a "Serious Mode" procedural texture as backup
-      const placeholderTexture = useMemo(() => {
-        const canvas = document.createElement('canvas');
-        const size = 1024; 
-        canvas.width = size;
-        canvas.height = size * 2;
-        const ctx = canvas.getContext('2d');
-        
-        if (ctx) {
-          const W = canvas.width;
-          const H = canvas.height;
-          const CX = W / 2;
-
-          // Fallback drawing
-          ctx.fillStyle = '#fff5f0'; // Skin
-          ctx.fillRect(0, 0, W, H);
-          
-          // Pink Hair Gradient
-          const grad = ctx.createLinearGradient(0, 0, 0, H);
-          grad.addColorStop(0, '#e0e0e0');
-          grad.addColorStop(1, '#ffb7c5');
-          ctx.fillStyle = grad;
-          ctx.beginPath(); ctx.arc(CX, H*0.3, 300, Math.PI, 0); ctx.fill(); // Head
-          ctx.fillRect(CX-300, H*0.3, 600, H*0.7); // Hair body
-
-          // Eyes
-          ctx.fillStyle = '#6a3ba0';
-          ctx.beginPath(); ctx.arc(CX-100, H*0.35, 60, 0, Math.PI*2); ctx.fill();
-          ctx.beginPath(); ctx.arc(CX+100, H*0.35, 60, 0, Math.PI*2); ctx.fill();
-
-          // Hoodie Panda
-          ctx.fillStyle = 'white';
-          ctx.beginPath(); ctx.arc(CX, H*0.7, 150, 0, Math.PI*2); ctx.fill();
-          ctx.fillStyle = 'black';
-          ctx.beginPath(); ctx.arc(CX-50, H*0.7, 30, 0, Math.PI*2); ctx.fill();
-          ctx.beginPath(); ctx.arc(CX+50, H*0.7, 30, 0, Math.PI*2); ctx.fill();
-        }
-
-        const tex = new THREE.CanvasTexture(canvas);
-        tex.colorSpace = THREE.SRGBColorSpace;
-        return tex;
-      }, []);
-
-      useEffect(() => {
-        const loader = new THREE.TextureLoader();
-        loader.setCrossOrigin('anonymous');
-        
-        // Use the specific file requested
-        const url = PROXY_URL + encodeURIComponent(BASE_IMAGE_URL + TARGET_IMAGE_NAME) + `&t=${Date.now()}`;
-        
-        loader.load(
-          url, 
-          (tex) => {
-            tex.colorSpace = THREE.SRGBColorSpace;
-            tex.minFilter = THREE.LinearFilter;
-            setTexture(tex);
-          },
-          undefined,
-          () => {
-            console.warn("Failed to load " + TARGET_IMAGE_NAME + ", using fallback.");
-            setTexture(placeholderTexture);
-          }
-        );
-      }, [placeholderTexture]);
-
-      useFrame((state, delta) => {
-        if (!groupRef.current || !bodyRef.current) return;
-        
-        const t = state.clock.elapsedTime;
-
-        // Rotation
-        groupRef.current.rotation.y += delta * rotationSpeed;
-
-        // Bounce
-        const jump = Math.max(0, Math.sin(t * 8)); 
-        bodyRef.current.position.y = 1.5 + jump * 0.4;
-
-        // Tilt
-        bodyRef.current.rotation.z = Math.sin(t * 4) * 0.1;
-        
-        // Squash/Stretch
-        const squash = Math.sin(t * 16) * 0.03;
-        bodyRef.current.scale.set(1 - squash, 1 + squash, 1);
-      });
-
-      const layers = useMemo(() => Array.from({ length: 5 }, (_, i) => -0.04 * i), []);
-      const activeTexture = texture || placeholderTexture;
-
-      const handleClick = (e) => {
-        e.stopPropagation();
-        window.open(LINK_URL, '_blank');
-      };
-
-      useEffect(() => {
-        document.body.style.cursor = hovered ? 'pointer' : 'auto';
-        return () => { document.body.style.cursor = 'auto'; };
-      }, [hovered]);
-
-      return (
-        <group 
-          ref={groupRef} 
-          position={position} 
-          onClick={handleClick}
-          onPointerOver={() => setHovered(true)}
-          onPointerOut={() => setHovered(false)}
-        >
-          <group ref={bodyRef}>
-            {/* Stacked Planes for thickness */}
-            {layers.map((zOffset, i) => (
-              <mesh key={i} position={[0, 0, zOffset]} castShadow={i === 0}>
-                 {/* Adjust aspect ratio to match the drawing (1:2) */}
-                <planeGeometry args={[3.2, 6.4]} />
-                <meshStandardMaterial 
-                  map={activeTexture} 
-                  transparent={true} 
-                  side={THREE.DoubleSide} 
-                  alphaTest={0.1} 
-                  color={i > 0 ? "#ddd" : "white"} 
-                />
-              </mesh>
-            ))}
-          </group>
-          
-          {/* Shadow */}
-          <mesh position={[0, 0.05, 0]} rotation={[-Math.PI/2, 0, 0]}>
-             <circleGeometry args={[1.2, 32]} />
-             <meshBasicMaterial color="black" transparent opacity={0.3} />
-          </mesh>
-
-          {/* Spotlight */}
-          <pointLight position={[0, 4, 2]} intensity={3} distance={8} color="#ffccff" decay={2} />
-        </group>
-      );
-    };
-
-    // --- METAVERSE CHARACTER ---
-    const MetaverseCharacter = ({ position, rotationSpeed }) => {
-      const [texture, setTexture] = useState(null);
-      const groupRef = useRef(null);
-      useEffect(() => {
-        const loader = new THREE.TextureLoader();
-        loader.setCrossOrigin('anonymous');
-        const url = PROXY_URL + encodeURIComponent(BASE_IMAGE_URL + 'IMG_1822.png');
-        loader.load(url, (tex) => { tex.colorSpace = THREE.SRGBColorSpace; setTexture(tex); }, undefined, () => {});
-      }, []);
-      useFrame((state, delta) => {
-        if (groupRef.current) {
-          groupRef.current.rotation.y += delta * rotationSpeed;
-          groupRef.current.position.y = 1.5 + Math.sin(state.clock.elapsedTime * 2) * 0.1;
-        }
-      });
-      if (!texture) return null;
-      return (
-        <group ref={groupRef} position={position}>
-          <mesh>
-            <planeGeometry args={[2, 4]} />
-            <meshStandardMaterial map={texture} transparent={true} side={THREE.DoubleSide} alphaTest={0.5} />
-          </mesh>
-        </group>
-      );
-    };
-
-    // --- SCENE ELEMENTS ---
-    const useConcreteTexture = () => {
-      return useMemo(() => {
-        const canvas = document.createElement('canvas');
-        canvas.width = 1024; canvas.height = 1024;
-        const ctx = canvas.getContext('2d');
-        if (ctx) {
-          // Base: Bright pale grey
-          ctx.fillStyle = '#e0e0e0'; 
-          ctx.fillRect(0, 0, 1024, 1024);
-          // Heavy Noise
-          for (let i = 0; i < 400000; i++) {
-            const x = Math.random() * 1024; const y = Math.random() * 1024;
-            ctx.fillStyle = Math.random() > 0.5 ? 'rgba(255, 255, 255, 0.3)' : 'rgba(0, 0, 0, 0.05)';
-            ctx.fillRect(x, y, 2, 2);
-          }
-          // Formwork Lines
-          ctx.strokeStyle = 'rgba(100,100,100,0.15)'; ctx.lineWidth = 2;
-          const pw = 512; const ph = 256;
-          ctx.beginPath();
-          for (let y = 0; y <= 1024; y += ph) { ctx.moveTo(0, y); ctx.lineTo(1024, y); }
-          for (let x = 0; x <= 1024; x += pw) { ctx.moveTo(x, 0); ctx.lineTo(x, 1024); }
-          ctx.stroke();
-          // Tie Holes
-          for (let y = ph/2; y < 1024; y += ph) {
-            for (let x = pw/4; x < 1024; x += pw/2) {
-                 ctx.fillStyle = 'rgba(50,50,50,0.4)'; ctx.beginPath(); ctx.arc(x, y, 6, 0, Math.PI * 2); ctx.fill();
-                 ctx.fillStyle = 'rgba(255,255,255,0.5)'; ctx.beginPath(); ctx.arc(x, y+2, 6, 0, Math.PI * 2); ctx.fill();
-            }
-          }
-        }
-        const tex = new THREE.CanvasTexture(canvas);
-        tex.wrapS = THREE.RepeatWrapping; tex.wrapT = THREE.RepeatWrapping;
-        tex.repeat.set(2, 1);
-        return tex;
-      }, []);
-    };
-
-    const useWaterNormalMap = () => {
-        return useMemo(() => {
-            const canvas = document.createElement('canvas');
-            canvas.width = 512; canvas.height = 512;
-            const ctx = canvas.getContext('2d');
-            if (ctx) {
-                ctx.fillStyle = '#8080ff'; ctx.fillRect(0, 0, 512, 512);
-                for(let i=0; i<1000; i++) {
-                    const x = Math.random() * 512; const y = Math.random() * 512; const r = Math.random() * 50 + 20;
-                    const grad = ctx.createRadialGradient(x, y, 0, x, y, r);
-                    grad.addColorStop(0, 'rgba(200, 150, 255, 0.1)'); grad.addColorStop(1, 'rgba(128, 128, 255, 0)');
-                    ctx.fillStyle = grad; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
-                }
-            }
-            const tex = new THREE.CanvasTexture(canvas);
-            tex.wrapS = THREE.RepeatWrapping; tex.wrapT = THREE.RepeatWrapping; tex.repeat.set(8, 8);
-            return tex;
-        }, []);
-    };
-
-    const DustParticles = () => {
-      const count = 100; 
-      const mesh = useRef();
-      const dummy = useMemo(() => new THREE.Object3D(), []);
-      const particles = useMemo(() => {
-        const temp = [];
-        for (let i = 0; i < count; i++) temp.push({ x: (Math.random()-0.5)*ROOM_SIZE, y: Math.random()*WALL_HEIGHT, z: (Math.random()-0.5)*ROOM_SIZE, speed: 0.1+Math.random()*0.3, offset: Math.random()*100 });
-        return temp;
-      }, []);
-      useFrame((state) => {
-        if (!mesh.current) return;
-        const time = state.clock.getElapsedTime();
-        particles.forEach((p, i) => {
-          const y = p.y + Math.sin(time * p.speed + p.offset) * 0.5;
-          const wrappedY = (y + 2) % (WALL_HEIGHT + 2) - 2;
-          dummy.position.set(p.x + Math.sin(time * 0.1 + p.offset) * 0.2, Math.abs(wrappedY), p.z + Math.cos(time * 0.1 + p.offset) * 0.2);
-          const s = (Math.sin(time * 2 + p.offset) + 2) * 0.015;
-          dummy.scale.set(s, s, s); dummy.updateMatrix();
-          mesh.current.setMatrixAt(i, dummy.matrix);
-        });
-        mesh.current.instanceMatrix.needsUpdate = true;
-      });
-      return (<instancedMesh ref={mesh} args={[undefined, undefined, count]}><sphereGeometry args={[1, 8, 8]} /><meshBasicMaterial color="#ffffff" transparent opacity={0.3} blending={THREE.AdditiveBlending} /></instancedMesh>);
-    };
-
-    const Ripple = ({ x, z, rotation, createdAt }) => {
-      const meshRef = useRef();
-      const materialRef = useRef();
-      useFrame(() => {
-        if (meshRef.current && materialRef.current) {
-          const age = (Date.now() - createdAt) / 1000;
-          if (age > 3.0) { meshRef.current.visible = false; return; }
-          const scale = 1 + age * 1.5;
-          meshRef.current.scale.set(scale, scale, 1);
-          materialRef.current.opacity = Math.max(0, 1 - (age / 3.0)) * 0.4;
-        }
-      });
-      return (<mesh ref={meshRef} position={[x, 0.05, z]} rotation={[-Math.PI / 2, 0, rotation]}><ringGeometry args={[0.15, 0.2, 32]} /><meshBasicMaterial ref={materialRef} color="#aaddff" transparent opacity={0.4} blending={THREE.AdditiveBlending} /></mesh>);
-    };
-
-    const ArtFrame = ({ data, onClick, index }) => {
-      const [texture, setTexture] = useState(null);
-      const [loading, setLoading] = useState(true);
-      const [error, setError] = useState(false);
-      const lightRef = useRef();
-      const groupRef = useRef();
-
-      useFrame((state) => {
-        if (!groupRef.current || !lightRef.current) return;
-        const dist = state.camera.position.distanceTo(groupRef.current.position);
-        lightRef.current.intensity = THREE.MathUtils.lerp(lightRef.current.intensity, dist < 8 ? 2.5 : 0.5, 0.05);
-      });
-
-      useEffect(() => {
-        let isMounted = true;
-        let timeoutId;
-        const loadWithRetry = (retryCount = 0) => {
-            if (!isMounted) return;
-            // Construct PROXY URL with optimization
-            const proxyUrl = `${PROXY_URL}${encodeURIComponent(data.image.replace(/^https?:\/\//, ''))}&w=512&output=png&q=85&t=${Date.now()}`;
-            const loader = new THREE.TextureLoader();
-            loader.setCrossOrigin('anonymous');
-            loader.load(proxyUrl, 
-                (tex) => { if (isMounted) { tex.colorSpace = THREE.SRGBColorSpace; tex.minFilter = THREE.LinearFilter; setTexture(tex); setLoading(false); setError(false); } },
-                undefined,
-                () => { if (retryCount < 1) setTimeout(() => loadWithRetry(retryCount + 1), 2000); else if (isMounted) { setError(true); setLoading(false); } }
-            );
-        };
-        const delay = index * 600;
-        timeoutId = setTimeout(() => loadWithRetry(), delay);
-        return () => { isMounted = false; if(timeoutId) clearTimeout(timeoutId); };
-      }, [data.image, index]);
-
-      const handleClick = (e) => {
-        e.stopPropagation();
-        const imageUrl = `${PROXY_URL}${encodeURIComponent(data.image.replace(/^https?:\/\//, ''))}&output=png&q=95`;
-        onClick({ ...data, image: imageUrl });
-      };
-
-      return (
-        <group ref={groupRef} position={data.position} rotation={data.rotation}>
-          <Float speed={2} rotationIntensity={0.05} floatIntensity={0.2}>
-            <mesh position={[0, 0, 0.15]} castShadow receiveShadow><boxGeometry args={[ART_SCALE + 0.5, ART_SCALE + 0.5, 0.1]} /><meshStandardMaterial color="#1a1a1a" roughness={0.2} metalness={0.1} /></mesh>
-            <mesh position={[0, 0, 0.21]}><boxGeometry args={[ART_SCALE + 0.3, ART_SCALE + 0.3, 0.05]} /><meshStandardMaterial color="#fdfdfd" roughness={0.9} /></mesh>
-            <mesh position={[0, 0, 0.26]} onClick={handleClick} onPointerOver={() => (document.body.style.cursor = "pointer")} onPointerOut={() => (document.body.style.cursor = "auto")}>
-              <boxGeometry args={[ART_SCALE, ART_SCALE, 0.01]} />
-              {texture && !error ? <meshBasicMaterial map={texture} toneMapped={false} /> : <meshStandardMaterial color={error ? "#222" : "#e0e0e0"} roughness={0.9} />}
-            </mesh>
-            {(loading || error) && (<group position={[0, 0, 0.3]}><Text color="#666" fontSize={0.3} anchorX="center" anchorY="middle">{error ? "LOAD FAILED" : "LOADING..."}</Text></group>)}
-          </Float>
-          <pointLight ref={lightRef} color="#fff" position={[0, 2, 2]} intensity={0.5} distance={8} decay={2} />
-          <Text position={[0, -ART_SCALE / 2 - 0.8, 0.2]} fontSize={0.25} color="#000000" anchorX="center" anchorY="top">{data.title.toUpperCase()}</Text>
-        </group>
-      );
-    };
-
-    // --- AVATARS ---
-    const HUMAN_VARIANTS = Array.from({ length: 20 }, (_, i) => ({
-      shirt: `hsl(${(i * 137) % 360}, 60%, ${30 + (i % 3) * 10}%)`,
-      skin: `hsl(${20 + (i % 5) * 5}, ${60 - (i % 3) * 10}%, ${80 - (i % 5) * 10}%)`,
-      pants: `hsl(${(i * 50 + 180) % 360}, 20%, 20%)`
-    }));
-    const DOG_VARIANTS = Array.from({ length: 20 }, (_, i) => ({
-      body: `hsl(${(30 + i * 15) % 60}, ${70 + (j => j % 4)(i) * 10}%, ${40 + (j => j % 5)(i) * 10}%)`,
-      ear: `hsl(${(30 + i * 15) % 60}, ${80}%, ${30}%)`
-    }));
-    DOG_VARIANTS[1] = { body: "#111111", ear: "#222222" };
-    DOG_VARIANTS[2] = { body: "#eeeeee", ear: "#dddddd" };
-    DOG_VARIANTS[3] = { body: "#78716c", ear: "#57534e" };
-
-    const HumanAvatar = ({ variantIndex, isMoving, isFlying }) => {
-      const colors = HUMAN_VARIANTS[variantIndex % HUMAN_VARIANTS.length];
-      const leftArm = useRef(); const rightArm = useRef(); const leftLeg = useRef(); const rightLeg = useRef();
-      useFrame((state) => {
-        const t = state.clock.getElapsedTime();
-        const angle = isFlying ? 0.5 : (isMoving ? Math.sin(t * 12) * 0.5 : 0);
-        const legAngle = isFlying ? 0.2 : (isMoving ? Math.sin(t * 12) * 0.5 : 0);
-        if (leftArm.current) {
-          leftArm.current.rotation.x = isFlying ? 0 : angle; leftArm.current.rotation.z = isFlying ? 0.5 : 0; 
-          rightArm.current.rotation.x = isFlying ? 0 : -angle; rightArm.current.rotation.z = isFlying ? -0.5 : 0; 
-          leftLeg.current.rotation.x = isFlying ? 0.2 : -legAngle; rightLeg.current.rotation.x = isFlying ? 0.2 : legAngle;
-        }
-      });
-      return (
-        <group position={[0, 0.55, 0]}>
-          <mesh position={[0, 0.75, 0]} castShadow><boxGeometry args={[0.25, 0.25, 0.25]} /><meshStandardMaterial color={colors.skin} /></mesh>
-          <mesh position={[0, 0.88, 0]}><boxGeometry args={[0.27, 0.05, 0.27]} /><meshStandardMaterial color="#111" /></mesh>
-          <mesh position={[0, 0.35, 0]} castShadow><boxGeometry args={[0.35, 0.5, 0.2]} /><meshStandardMaterial color={colors.shirt} /></mesh>
-          <group ref={leftArm} position={[-0.24, 0.55, 0]}><mesh position={[0, -0.25, 0]}><boxGeometry args={[0.1, 0.5, 0.1]} /><meshStandardMaterial color={colors.shirt} /></mesh><mesh position={[0, -0.5, 0]}><boxGeometry args={[0.08, 0.1, 0.08]} /><meshStandardMaterial color={colors.skin} /></mesh></group>
-          <group ref={rightArm} position={[0.24, 0.55, 0]}><mesh position={[0, -0.25, 0]}><boxGeometry args={[0.1, 0.5, 0.1]} /><meshStandardMaterial color={colors.shirt} /></mesh><mesh position={[0, -0.5, 0]}><boxGeometry args={[0.08, 0.1, 0.08]} /><meshStandardMaterial color={colors.skin} /></mesh></group>
-          <group ref={leftLeg} position={[-0.1, 0.1, 0]}><mesh position={[0, -0.3, 0]}><boxGeometry args={[0.12, 0.6, 0.12]} /><meshStandardMaterial color={colors.pants} /></mesh></group>
-          <group ref={rightLeg} position={[0.1, 0.1, 0]}><mesh position={[0, -0.3, 0]}><boxGeometry args={[0.12, 0.6, 0.12]} /><meshStandardMaterial color={colors.pants} /></mesh></group>
-        </group>
-      );
-    };
-
-    const DogAvatar = ({ variantIndex, isMoving, isBarking }) => {
-      const colors = DOG_VARIANTS[variantIndex % DOG_VARIANTS.length];
-      const group = useRef();
-      useFrame((state) => {
-        if (group.current) {
-            const t = state.clock.getElapsedTime();
-            let yOffset = 0.3; let zRot = 0;
-            if (isBarking) { yOffset = 0.3 + Math.abs(Math.sin(t * 20)) * 0.2; } 
-            else if (isMoving) { yOffset = 0.3 + Math.abs(Math.sin(t * 15)) * 0.05; zRot = Math.sin(t * 15) * 0.05; }
-            group.current.position.y = yOffset; group.current.rotation.z = zRot;
-        }
-      });
-      return (
-        <group>
-            <group ref={group} position={[0, 0.3, 0]}>
-                <mesh position={[0, 0, -0.1]} castShadow rotation={[0.1, 0, 0]}><boxGeometry args={[0.3, 0.4, 0.7]} /><meshStandardMaterial color={colors.body} roughness={0.8} /></mesh>
-                <mesh position={[0, 0.35, 0.35]}><boxGeometry args={[0.35, 0.35, 0.3]} /><meshStandardMaterial color={colors.ear} roughness={0.8} /></mesh>
-                <mesh position={[0.12, 0.55, 0.3]}><coneGeometry args={[0.08, 0.2, 4]} /><meshStandardMaterial color={colors.ear} roughness={0.8} /></mesh>
-                <mesh position={[-0.12, 0.55, 0.3]}><coneGeometry args={[0.08, 0.2, 4]} /><meshStandardMaterial color={colors.ear} roughness={0.8} /></mesh>
-                <mesh position={[0, 0.2, -0.5]} rotation={[-0.5, 0, 0]}><cylinderGeometry args={[0.04, 0.02, 0.4]} /><meshStandardMaterial color={colors.body} /></mesh>
-                <mesh position={[-0.1, -0.2, 0.15]}><boxGeometry args={[0.08, 0.4, 0.08]} /><meshStandardMaterial color={colors.ear} /></mesh>
-                <mesh position={[0.1, -0.2, 0.15]}><boxGeometry args={[0.08, 0.4, 0.08]} /><meshStandardMaterial color={colors.ear} /></mesh>
-                <mesh position={[-0.1, -0.2, -0.35]}><boxGeometry args={[0.08, 0.4, 0.08]} /><meshStandardMaterial color={colors.ear} /></mesh>
-                <mesh position={[0.1, -0.2, -0.35]}><boxGeometry args={[0.08, 0.4, 0.08]} /><meshStandardMaterial color={colors.ear} /></mesh>
-            </group>
-            {isBarking && (<Billboard position={[0, 1.2, 0]}><Text fontSize={0.5} color="white" outlineWidth={0.05} outlineColor="black">WAN!</Text></Billboard>)}
-        </group>
-      );
-    };
-
-    const Player = ({ moveVector, controlsRef, isDogMode, humanVariant, dogVariant, isFlying, isBarking, isAutoMode, setFootprints }) => {
-      const { camera } = useThree();
-      const playerRef = useRef();
-      const position = useRef(new THREE.Vector3(0, 0, 5));
-      const velocity = useRef(new THREE.Vector3());
-      const [isMoving, setIsMoving] = useState(false);
-      const lastFootprintTime = useRef(0);
-      const autoTargetIndex = useRef(0);
-      const autoState = useRef('MOVING');
-      const viewStartTime = useRef(0);
-
-      useFrame((state) => {
-        if (!playerRef.current) return;
-        let moving = false;
-        const moveDirection = new THREE.Vector3();
-
-        if (isAutoMode) {
-            const target = PAINTINGS[autoTargetIndex.current];
-            const tPos = new THREE.Vector3(...target.position);
-            const offset = new THREE.Vector3(0, 0, 4.5).applyEuler(new THREE.Euler(...target.rotation));
-            const standPos = tPos.clone().add(offset); standPos.y = 0;
-            const dist = position.current.distanceTo(standPos);
-
-            if (autoState.current === 'MOVING') {
-                if (dist > 0.5) {
-                    moveDirection.copy(standPos.clone().sub(position.current).normalize());
-                    moving = true;
-                } else {
-                    autoState.current = 'VIEWING';
-                    viewStartTime.current = state.clock.elapsedTime;
-                    moving = false;
-                }
-            } else if (autoState.current === 'VIEWING') {
-                const pPos = new THREE.Vector3(...target.position);
-                const dirToArt = pPos.clone().sub(position.current).normalize();
-                const targetAngle = Math.atan2(dirToArt.x, dirToArt.z);
-                playerRef.current.quaternion.slerp(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), targetAngle), 0.05);
-                
-                if (controlsRef.current) {
-                   const focus = pPos.clone(); focus.y = ART_Y_POS; 
-                   controlsRef.current.target.lerp(focus, 0.05);
-                }
-
-                if (state.clock.elapsedTime - viewStartTime.current > 4.0) {
-                    autoTargetIndex.current = (autoTargetIndex.current + 1) % PAINTINGS.length;
-                    autoState.current = 'MOVING';
-                }
-            }
-        } else {
-            moving = Math.abs(moveVector.y) > 0.01 || Math.abs(moveVector.x) > 0.01;
-            const fwd = new THREE.Vector3(); camera.getWorldDirection(fwd); fwd.y = 0; fwd.normalize();
-            const right = new THREE.Vector3().crossVectors(fwd, camera.up);
-            moveDirection.set(0, 0, 0).add(fwd.multiplyScalar(moveVector.y)).add(right.multiplyScalar(moveVector.x)).normalize();
-        }
-
-        if (moving !== isMoving) setIsMoving(moving);
-        const speed = isAutoMode ? 0.03 : 0.04;
-        velocity.current.lerp(moving ? moveDirection.multiplyScalar(speed) : new THREE.Vector3(0,0,0), 0.15);
-        const nextPos = position.current.clone().add(velocity.current);
-        if (Math.abs(nextPos.x) < (ROOM_SIZE/2 - 1.5) && Math.abs(nextPos.z) < (ROOM_SIZE/2 - 1.5)) position.current.copy(nextPos);
-        position.current.y = THREE.MathUtils.lerp(position.current.y, isFlying ? 4.0 : 0, isFlying ? 0.05 : 0.1);
-        playerRef.current.position.copy(position.current);
-
-        if (!isAutoMode && moving && moveDirection.length() > 0.01) {
-          const targetAngle = Math.atan2(moveDirection.x, moveDirection.z);
-          playerRef.current.quaternion.slerp(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), targetAngle), 0.15);
-        } else if (isAutoMode && autoState.current === 'MOVING' && moving) {
-          const targetAngle = Math.atan2(moveDirection.x, moveDirection.z);
-          playerRef.current.quaternion.slerp(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), targetAngle), 0.05);
-        }
-
-        if (moving && !isFlying && state.clock.elapsedTime - lastFootprintTime.current > 0.3) {
-            lastFootprintTime.current = state.clock.elapsedTime;
-            setFootprints(prev => [...prev.slice(-30), { id: Math.random(), x: position.current.x, z: position.current.z, rotation: playerRef.current.rotation.y, createdAt: Date.now() }]);
-        }
-
-        if (controlsRef.current && (!isAutoMode || autoState.current === 'MOVING')) {
-          const targetY = isFlying ? 4.0 : (isDogMode ? 0.5 : 1.2);
-          controlsRef.current.target.lerp(new THREE.Vector3(position.current.x, targetY, position.current.z), isAutoMode ? 0.03 : 0.15);
-          controlsRef.current.update();
-        }
-      });
-
-      return (
-        <group ref={playerRef}>
-          {isDogMode ? <DogAvatar variantIndex={dogVariant} isMoving={isMoving} isBarking={isBarking} /> : <HumanAvatar variantIndex={humanVariant} isMoving={isMoving} isFlying={isFlying} />}
-          <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]}><circleGeometry args={[0.35, 32]} /><meshBasicMaterial color="#000000" opacity={0.5} transparent depthWrite={false} /></mesh>
-        </group>
-      );
-    };
-
-    const GalleryRoom = ({ onSelectArt, footprints }) => {
-      const concreteTexture = useConcreteTexture();
-      const waterNormal = useWaterNormalMap();
-      return (
-        <group>
-          <fog attach="fog" args={['#222', 5, 30]} />
-          <DustParticles />
-          <ambientLight intensity={0.6} color="#ffffff" />
-          <directionalLight position={[5, 10, 5]} intensity={0.8} color="#ffffff" castShadow />
-          
-          <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-            <planeGeometry args={[ROOM_SIZE, ROOM_SIZE]} />
-            <meshStandardMaterial 
-              color="#88ccff" 
-              roughness={0.1} 
-              metalness={0.8} 
-              normalMap={waterNormal} 
-              normalScale={new THREE.Vector2(0.15, 0.15)} 
-            />
-          </mesh>
-          
-          <mesh position={[0, WALL_HEIGHT / 2, -ROOM_SIZE / 2]} receiveShadow><boxGeometry args={[ROOM_SIZE, WALL_HEIGHT, 1]} /><meshStandardMaterial map={concreteTexture} color="#fff" roughness={0.8} /></mesh>
-          <mesh position={[0, WALL_HEIGHT / 2, ROOM_SIZE / 2]} receiveShadow><boxGeometry args={[ROOM_SIZE, WALL_HEIGHT, 1]} /><meshStandardMaterial map={concreteTexture} color="#fff" roughness={0.8} /></mesh>
-          <mesh position={[-ROOM_SIZE / 2, WALL_HEIGHT / 2, 0]} rotation={[0, Math.PI / 2, 0]} receiveShadow><boxGeometry args={[ROOM_SIZE, WALL_HEIGHT, 1]} /><meshStandardMaterial map={concreteTexture} color="#fff" roughness={0.8} /></mesh>
-          <mesh position={[ROOM_SIZE / 2, WALL_HEIGHT / 2, 0]} rotation={[0, Math.PI / 2, 0]} receiveShadow><boxGeometry args={[ROOM_SIZE, WALL_HEIGHT, 1]} /><meshStandardMaterial map={concreteTexture} color="#fff" roughness={0.8} /></mesh>
-          <mesh position={[0, WALL_HEIGHT, 0]} rotation={[Math.PI / 2, 0, 0]}><planeGeometry args={[ROOM_SIZE, ROOM_SIZE]} /><meshBasicMaterial color="#000" /></mesh>
-          
-          <MetaverseCharacter position={[14, 0, 14]} rotationSpeed={1} />
-          <MetaverseCharacter position={[-14, 0, 14]} rotationSpeed={-1} />
-          
-          {/* Replaced one corner with Anime Girl */}
-          <AnimeGirl position={[14, 0, -14]} rotationSpeed={1.5} />
-          
-          <MetaverseCharacter position={[-14, 0, -14]} rotationSpeed={-1.5} />
-          <group>{footprints.map((fp) => (<Ripple key={fp.id} x={fp.x} z={fp.z} rotation={fp.rotation} createdAt={fp.createdAt} />))}</group>
-          {PAINTINGS.map((p, index) => (<ArtFrame key={p.id} data={p} onClick={onSelectArt} index={index} />))}
-        </group>
-      );
-    };
-
-    const Joystick = ({ onMove }) => {
-      const [active, setActive] = useState(false);
-      const [position, setPosition] = useState({ x: 0, y: 0 });
-      const baseRef = useRef();
-      const maxDist = 40;
-      const handleMove = useCallback((clientX, clientY) => {
-        if (!baseRef.current) return;
-        const base = baseRef.current.getBoundingClientRect();
-        let dx = clientX - (base.left + base.width / 2);
-        let dy = clientY - (base.top + base.height / 2);
-        const distance = Math.sqrt(dx * dx + dy * dy);
-        if (distance > maxDist) { const ratio = maxDist / distance; dx *= ratio; dy *= ratio; }
-        setPosition({ x: dx, y: dy });
-        onMove({ x: dx / maxDist, y: -(dy / maxDist) });
-      }, [onMove]);
-      useEffect(() => {
-        const onTouchMove = (e) => { if(active) { e.preventDefault(); handleMove(e.touches[0].clientX, e.touches[0].clientY); } };
-        const onMouseMove = (e) => { if(active) handleMove(e.clientX, e.clientY); };
-        const onEnd = () => { setActive(false); setPosition({ x: 0, y: 0 }); onMove({ x: 0, y: 0 }); };
-        if (active) { window.addEventListener('touchmove', onTouchMove, { passive: false }); window.addEventListener('touchend', onEnd); window.addEventListener('mousemove', onMouseMove); window.addEventListener('mouseup', onEnd); }
-        return () => { window.removeEventListener('touchmove', onTouchMove); window.removeEventListener('touchend', onEnd); window.removeEventListener('mousemove', onMouseMove); window.removeEventListener('mouseup', onEnd); };
-      }, [active, handleMove]);
-      return (
-        <div className="absolute bottom-12 left-1/2 -translate-x-1/2 z-20 touch-none select-none">
-          <div ref={baseRef} className="w-32 h-32 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 flex items-center justify-center cursor-pointer shadow-2xl" onMouseDown={(e) => { setActive(true); handleMove(e.clientX, e.clientY); }} onTouchStart={(e) => { setActive(true); handleMove(e.touches[0].clientX, e.touches[0].clientY); }}>
-            <div className="w-12 h-12 rounded-full bg-white shadow-[0_0_15px_rgba(255,255,255,0.5)] flex items-center justify-center text-black/50 transition-transform duration-75" style={{ transform: `translate(${position.x}px, ${position.y}px)` }}>●</div>
-          </div>
-          <div className="text-white/30 text-[10px] text-center mt-4 tracking-[0.2em] pointer-events-none">DRAG TO WALK</div>
-        </div>
-      );
-    };
-
-    const App = () => {
-      const [isDogMode, setIsDogMode] = useState(false);
-      const [humanVariant, setHumanVariant] = useState(0);
-      const [dogVariant, setDogVariant] = useState(0);
-      const [selectedArt, setSelectedArt] = useState(null);
-      const [isFlying, setIsFlying] = useState(false);
-      const [isBarking, setIsBarking] = useState(false);
-      const [isAutoMode, setIsAutoMode] = useState(false);
-      const [footprints, setFootprints] = useState([]);
-      const [moveVector, setMoveVector] = useState({ x: 0, y: 0 });
-      const controlsRef = useRef();
-
-      useEffect(() => {
-        const fpInterval = setInterval(() => { const now = Date.now(); setFootprints(prev => prev.filter(fp => (now - fp.createdAt) < 2500)); }, 500);
-        return () => clearInterval(fpInterval);
-      }, []);
-
-      useEffect(() => { if ((Math.abs(moveVector.x) > 0 || Math.abs(moveVector.y) > 0) && isAutoMode) setIsAutoMode(false); }, [moveVector, isAutoMode]);
-
-      const handleHumanClick = () => { if (!isDogMode) setHumanVariant(v => (v + 1) % 20); else { setIsDogMode(false); setIsFlying(false); } };
-      const handleDogClick = () => { if (isDogMode) setDogVariant(v => (v + 1) % 20); else { setIsDogMode(true); setIsFlying(false); } };
-      const handleAutoClick = () => { setIsAutoMode(!isAutoMode); if (!isAutoMode) setIsFlying(false); };
-      const handleFlyToggle = () => setIsFlying(!isFlying);
-      const handleBark = () => { setIsBarking(true); setTimeout(() => setIsBarking(false), 1000); };
-
-      return (
-        <div className="relative w-full h-full bg-black overflow-hidden font-sans select-none">
-          <Canvas shadows dpr={[1, 1.5]} className="w-full h-full">
-            <Suspense fallback={null}>
-              <PerspectiveCamera makeDefault fov={50} position={[0, 3, 8]} />
-              <OrbitControls ref={controlsRef} enablePan={false} enableZoom={true} minDistance={2} maxDistance={10} maxPolarAngle={Math.PI / 2 - 0.1} />
-              <GalleryRoom onSelectArt={setSelectedArt} footprints={footprints} />
-              <Player moveVector={moveVector} controlsRef={controlsRef} isDogMode={isDogMode} humanVariant={humanVariant} dogVariant={dogVariant} isFlying={isFlying} isBarking={isBarking} isAutoMode={isAutoMode} setFootprints={setFootprints} />
-            </Suspense>
-          </Canvas>
-          
-          <div className="absolute bottom-32 left-6 z-20 pointer-events-auto">
-             <button onClick={handleAutoClick} className={`w-16 h-16 rounded-full border-2 flex items-center justify-center shadow-lg transition-all active:scale-95 ${isAutoMode ? 'bg-green-600 text-white border-green-400 shadow-[0_0_15px_rgba(34,197,94,0.6)]' : 'bg-black/40 text-white/70 border-white/20 hover:bg-white/10'}`}>
-                <span className="text-xs font-bold tracking-wider">AUTO</span>
-             </button>
-          </div>
-
-          <div className="absolute bottom-32 right-6 z-20 pointer-events-auto flex flex-col gap-4">
-             {!isDogMode && (<button onClick={handleFlyToggle} className={`w-16 h-16 rounded-full border-2 flex items-center justify-center shadow-lg transition-all active:scale-95 ${isFlying ? 'bg-blue-500 border-blue-300 text-white' : 'bg-black/50 border-white/50 text-white/80'}`}><span className="text-xs font-bold">FLY</span></button>)}
-             {isDogMode && (<button onClick={handleBark} className="w-16 h-16 rounded-full bg-red-500/80 border-2 border-red-300 flex items-center justify-center shadow-lg text-white active:bg-red-600 active:scale-95 transition-all"><span className="text-xs font-bold">BARK</span></button>)}
-          </div>
-
-          <div className="absolute top-0 left-0 right-0 z-10 p-3 flex justify-between items-center w-full pointer-events-none">
-            <h1 className="text-white text-lg sm:text-xl font-bold tracking-wider opacity-90 drop-shadow-lg min-w-0 truncate">TAF DOG MUSEUM</h1>
-            <div className="flex gap-2 pointer-events-auto flex-shrink-0">
-              <button onClick={handleHumanClick} className={`flex items-center gap-2 px-3 py-2 rounded-full transition-all backdrop-blur-md border active:scale-95 ${!isDogMode ? 'bg-white text-black border-white' : 'bg-black/40 text-white/70 border-white/20 hover:bg-white/10'}`}><span className="text-xs font-bold tracking-wider">HUMAN</span></button>
-              <button onClick={handleDogClick} className={`flex items-center gap-2 px-3 py-2 rounded-full transition-all backdrop-blur-md border active:scale-95 ${isDogMode ? 'bg-white text-black border-white' : 'bg-black/40 text-white/70 border-white/20 hover:bg-white/10'}`}><span className="text-xs font-bold tracking-wider">DOG</span></button>
-            </div>
-          </div>
-
-          <div className="pointer-events-auto"><Joystick onMove={setMoveVector} /></div>
-          {selectedArt && (
-            <div className={`absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 transition-opacity duration-300`} onClick={() => setSelectedArt(null)}>
-              <div className="bg-[#1a1a1a] border border-gray-800 max-w-4xl w-full max-h-[90vh] overflow-y-auto flex flex-col md:flex-row rounded-sm shadow-2xl" onClick={(e) => e.stopPropagation()}>
-                <div className="w-full md:w-1/2 bg-black flex items-center justify-center p-4 md:p-12 relative min-h-[300px]">
-                  {selectedArt.image ? (<img src={selectedArt.image} alt={selectedArt.title} className="max-w-full max-h-[60vh] shadow-[0_0_30px_rgba(0,0,0,0.5)] relative z-10" />) : (<div className="text-white">NO IMAGE</div>)}
-                </div>
-                <div className="w-full md:w-1/2 p-8 md:p-12 flex flex-col justify-between">
-                  <div><h2 className="text-4xl font-light text-white mb-2 tracking-wide">{selectedArt.title}</h2><p className="text-gray-400 mt-4 leading-relaxed font-light text-sm">TAF DOGコレクションのユニークな作品。ローポリゴンの美学と、どこか哀愁漂う表情が特徴です。</p></div>
-                  <div className="mt-12 flex justify-between items-end"><div><span className="block text-gray-600 text-[10px] uppercase tracking-widest mb-1">Artist</span><span className="text-white text-sm">草間縄文</span></div><button className="bg-white text-black px-6 py-3 text-xs font-bold tracking-wider hover:bg-gray-200 transition-colors" onClick={() => window.open('https://opensea.io/ja/collection/taf-dog', '_blank')}>OPENSEA</button></div>
-                </div>
-                <button className="absolute top-4 right-4 text-white/50 hover:text-white p-2" onClick={() => setSelectedArt(null)}>X</button>
-              </div>
-            </div>
-          )}
-        </div>
-      );
-    };
-
-    const container = document.getElementById("root");
-    if (container) {
-      createRoot(container).render(<App />);
-    }
-  </script>
+  <!-- メインアプリ -->
+  <script type="module" src="./app.js"></script>
 </body>
 </html>

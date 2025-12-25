@@ -63,6 +63,7 @@ async function init() {
   controls.minDistance = 2;
   controls.maxDistance = 50;
   controls.maxPolarAngle = Math.PI / 2.1;
+  controls.enablePan = false;
   
   setupLighting();
   createRoom();
@@ -162,7 +163,6 @@ function createRoom() {
   const floorColor = isMuseum ? 0xb0b0b0 : 0xa08060;
   const wallColor = isMuseum ? 0xe8e8e8 : 0xd0c0a0;
   
-  // 床
   const floorGeo = new THREE.PlaneGeometry(ROOM_SIZE, ROOM_SIZE);
   const floorMat = new THREE.MeshStandardMaterial({ color: floorColor, roughness: 0.6 });
   const floor = new THREE.Mesh(floorGeo, floorMat);
@@ -171,36 +171,30 @@ function createRoom() {
   floor.userData.isRoom = true;
   scene.add(floor);
   
-  // 壁
   const wallMat = new THREE.MeshStandardMaterial({ color: wallColor, roughness: 0.7 });
   
   const northWallGeo = new THREE.BoxGeometry(ROOM_SIZE, WALL_HEIGHT, 0.3);
   const northWall = new THREE.Mesh(northWallGeo, wallMat);
   northWall.position.set(0, WALL_HEIGHT / 2, -ROOM_SIZE / 2);
-  northWall.receiveShadow = true;
   northWall.userData.isRoom = true;
   scene.add(northWall);
   
   const southWall = new THREE.Mesh(northWallGeo, wallMat);
   southWall.position.set(0, WALL_HEIGHT / 2, ROOM_SIZE / 2);
-  southWall.receiveShadow = true;
   southWall.userData.isRoom = true;
   scene.add(southWall);
   
   const eastWallGeo = new THREE.BoxGeometry(0.3, WALL_HEIGHT, ROOM_SIZE);
   const eastWall = new THREE.Mesh(eastWallGeo, wallMat);
   eastWall.position.set(ROOM_SIZE / 2, WALL_HEIGHT / 2, 0);
-  eastWall.receiveShadow = true;
   eastWall.userData.isRoom = true;
   scene.add(eastWall);
   
   const westWall = new THREE.Mesh(eastWallGeo, wallMat);
   westWall.position.set(-ROOM_SIZE / 2, WALL_HEIGHT / 2, 0);
-  westWall.receiveShadow = true;
   westWall.userData.isRoom = true;
   scene.add(westWall);
   
-  // 天井
   const ceilingGeo = new THREE.PlaneGeometry(ROOM_SIZE, ROOM_SIZE);
   const ceilingMat = new THREE.MeshStandardMaterial({ color: 0x606060 });
   const ceiling = new THREE.Mesh(ceilingGeo, ceilingMat);
@@ -227,7 +221,6 @@ function placeNFTsOnWalls() {
   
   let nftIndex = 0;
   
-  // 北壁
   for (let i = 0; i < nftsPerWall && nftIndex < nftsToShow.length; i++) {
     const x = -wallLength / 2 + i * SPACING + SPACING / 2;
     const position = new THREE.Vector3(x, START_HEIGHT, -ROOM_SIZE / 2 + WALL_OFFSET);
@@ -236,7 +229,6 @@ function placeNFTsOnWalls() {
     nftIndex++;
   }
   
-  // 南壁
   for (let i = 0; i < nftsPerWall && nftIndex < nftsToShow.length; i++) {
     const x = wallLength / 2 - i * SPACING - SPACING / 2;
     const position = new THREE.Vector3(x, START_HEIGHT, ROOM_SIZE / 2 - WALL_OFFSET);
@@ -245,7 +237,6 @@ function placeNFTsOnWalls() {
     nftIndex++;
   }
   
-  // 東壁
   for (let i = 0; i < nftsPerWall && nftIndex < nftsToShow.length; i++) {
     const z = -wallLength / 2 + i * SPACING + SPACING / 2;
     const position = new THREE.Vector3(ROOM_SIZE / 2 - WALL_OFFSET, START_HEIGHT, z);
@@ -254,7 +245,6 @@ function placeNFTsOnWalls() {
     nftIndex++;
   }
   
-  // 西壁
   for (let i = 0; i < nftsPerWall && nftIndex < nftsToShow.length; i++) {
     const z = wallLength / 2 - i * SPACING - SPACING / 2;
     const position = new THREE.Vector3(-ROOM_SIZE / 2 + WALL_OFFSET, START_HEIGHT, z);
@@ -310,12 +300,10 @@ function createArtFrame(nft, position, rotation) {
     }
   );
   
-  // スポットライト器具
   const railGeo = new THREE.BoxGeometry(0.8, 0.05, 0.05);
   const railMat = new THREE.MeshStandardMaterial({ color: 0x222222 });
   const rail = new THREE.Mesh(railGeo, railMat);
   rail.position.set(0, 2.0, 0.3);
-  rail.userData.isSpotlight = true;
   group.add(rail);
   
   const lightGeo = new THREE.CylinderGeometry(0.08, 0.12, 0.15, 8);
@@ -323,7 +311,6 @@ function createArtFrame(nft, position, rotation) {
   const lightBody = new THREE.Mesh(lightGeo, lightMat);
   lightBody.position.set(0, 1.85, 0.3);
   lightBody.rotation.x = Math.PI / 6;
-  lightBody.userData.isSpotlight = true;
   group.add(lightBody);
   
   group.position.copy(position);
@@ -353,7 +340,7 @@ function createPlayer() {
 }
 
 // ==========================================
-// アバター再作成（モード切替・色変更）
+// アバター再作成
 // ==========================================
 function recreateAvatar() {
   player.remove(playerAvatar);
@@ -392,35 +379,47 @@ function createNPCDogs() {
 // ターゲット作成（端のキャラ）
 // ==========================================
 function createTargets() {
-  // 既存のターゲットを削除
   targets.forEach(t => scene.remove(t));
   targets = [];
   
-  // ターゲット画像のフルパス（GitHub Pages用）
-  const targetUrls = [
-    "https://kimura-jane.github.io/tafdog_museum/IMG_1822.png",
-    "https://kimura-jane.github.io/tafdog_museum/IMG_1889.png"
-  ];
+  const baseUrl = "https://raw.githubusercontent.com/kimura-jane/tafdog_museum/main/";
+  const targetFiles = ["IMG_1822.png", "IMG_1889.png"];
   
-  targetUrls.forEach((url, index) => {
+  targetFiles.forEach((file, index) => {
     const group = new THREE.Group();
     
     const loader = new THREE.TextureLoader();
-    loader.load(url, (texture) => {
-      texture.colorSpace = THREE.SRGBColorSpace;
-      const geo = new THREE.PlaneGeometry(2, 3);
-      const mat = new THREE.MeshBasicMaterial({ 
-        map: texture, 
-        transparent: true, 
-        side: THREE.DoubleSide 
-      });
-      const mesh = new THREE.Mesh(geo, mat);
-      mesh.position.y = 1.5;
-      group.add(mesh);
-    });
+    const url = baseUrl + file;
     
-    // 部屋の端に配置
-    const angle = (index / targetUrls.length) * Math.PI * 2;
+    loader.load(
+      url,
+      (texture) => {
+        texture.colorSpace = THREE.SRGBColorSpace;
+        const geo = new THREE.PlaneGeometry(2.5, 3.5);
+        const mat = new THREE.MeshBasicMaterial({ 
+          map: texture, 
+          transparent: true, 
+          side: THREE.DoubleSide 
+        });
+        const mesh = new THREE.Mesh(geo, mat);
+        mesh.position.y = 1.75;
+        group.add(mesh);
+      },
+      undefined,
+      (err) => {
+        console.warn('Target image load failed:', url, err);
+        const geo = new THREE.PlaneGeometry(2.5, 3.5);
+        const mat = new THREE.MeshBasicMaterial({ 
+          color: 0xff0000, 
+          side: THREE.DoubleSide 
+        });
+        const mesh = new THREE.Mesh(geo, mat);
+        mesh.position.y = 1.75;
+        group.add(mesh);
+      }
+    );
+    
+    const angle = (index / targetFiles.length) * Math.PI * 2 + Math.PI / 4;
     const radius = ROOM_SIZE / 2.5;
     group.position.set(
       Math.cos(angle) * radius,
@@ -434,6 +433,8 @@ function createTargets() {
     scene.add(group);
     targets.push(group);
   });
+  
+  console.log('Targets created:', targets.length);
 }
 
 // ==========================================
@@ -446,10 +447,10 @@ function createUI() {
   title.textContent = 'TAF DOG MUSEUM';
   title.style.cssText = `
     position: fixed;
-    top: 10px;
+    top: 8px;
     left: 50%;
     transform: translateX(-50%);
-    font-size: 18px;
+    font-size: 16px;
     font-weight: bold;
     color: white;
     text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
@@ -458,32 +459,30 @@ function createUI() {
   `;
   document.body.appendChild(title);
   
-  // 上部ボタンエリア
+  // 上部ボタン
   const header = document.createElement('div');
   header.style.cssText = `
     position: fixed;
-    top: 40px;
-    left: 10px;
+    top: 32px;
+    left: 8px;
     z-index: 1000;
     display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
-    max-width: 300px;
+    gap: 6px;
   `;
   document.body.appendChild(header);
   
-  // HUMANボタン（押すたびに色も変わる）
+  // HUMANボタン
   const humanBtn = document.createElement('button');
   humanBtn.id = 'btn-human';
   humanBtn.textContent = 'HUMAN';
   humanBtn.style.cssText = `
-    padding: 8px 12px;
+    padding: 8px 10px;
     background: #4a90d9;
     color: white;
     border: none;
     border-radius: 5px;
     font-weight: bold;
-    font-size: 12px;
+    font-size: 11px;
     cursor: pointer;
   `;
   humanBtn.onclick = () => {
@@ -491,7 +490,6 @@ function createUI() {
       isDogMode = false;
       isFlyMode = false;
     } else {
-      // 既にHUMANモードなら色変更
       currentHumanColorIndex = (currentHumanColorIndex + 1) % HUMAN_COLORS.length;
     }
     recreateAvatar();
@@ -499,25 +497,24 @@ function createUI() {
   };
   header.appendChild(humanBtn);
   
-  // DOGボタン（押すたびに色も変わる）
+  // DOGボタン
   const dogBtn = document.createElement('button');
   dogBtn.id = 'btn-dog';
   dogBtn.textContent = 'DOG';
   dogBtn.style.cssText = `
-    padding: 8px 12px;
+    padding: 8px 10px;
     background: #666;
     color: white;
     border: none;
     border-radius: 5px;
     font-weight: bold;
-    font-size: 12px;
+    font-size: 11px;
     cursor: pointer;
   `;
   dogBtn.onclick = () => {
     if (!isDogMode) {
       isDogMode = true;
     } else {
-      // 既にDOGモードなら色変更
       currentDogColorIndex = (currentDogColorIndex + 1) % DOG_COLORS.length;
     }
     recreateAvatar();
@@ -530,13 +527,13 @@ function createUI() {
   autoBtn.id = 'btn-auto';
   autoBtn.textContent = 'AUTO';
   autoBtn.style.cssText = `
-    padding: 8px 12px;
+    padding: 8px 10px;
     background: #666;
     color: white;
     border: none;
     border-radius: 5px;
     font-weight: bold;
-    font-size: 12px;
+    font-size: 11px;
     cursor: pointer;
   `;
   autoBtn.onclick = () => {
@@ -546,11 +543,11 @@ function createUI() {
   };
   header.appendChild(autoBtn);
   
-  // 階層ボタン（左側）
+  // 左側ボタン（階層）
   const floorDiv = document.createElement('div');
   floorDiv.style.cssText = `
     position: fixed;
-    left: 10px;
+    left: 8px;
     top: 50%;
     transform: translateY(-50%);
     display: flex;
@@ -564,13 +561,13 @@ function createUI() {
   floor2Btn.id = 'btn-2f';
   floor2Btn.textContent = '2F';
   floor2Btn.style.cssText = `
-    padding: 12px 16px;
+    padding: 10px 14px;
     background: #666;
     color: white;
     border: none;
     border-radius: 5px;
     font-weight: bold;
-    font-size: 14px;
+    font-size: 12px;
     cursor: pointer;
   `;
   floor2Btn.onclick = () => {
@@ -586,13 +583,13 @@ function createUI() {
   floor1Btn.id = 'btn-1f';
   floor1Btn.textContent = '1F';
   floor1Btn.style.cssText = `
-    padding: 12px 16px;
+    padding: 10px 14px;
     background: #fff;
     color: black;
     border: none;
     border-radius: 5px;
     font-weight: bold;
-    font-size: 14px;
+    font-size: 12px;
     cursor: pointer;
   `;
   floor1Btn.onclick = () => {
@@ -604,11 +601,12 @@ function createUI() {
   };
   floorDiv.appendChild(floor1Btn);
   
-  // 右側ボタンエリア
-  const rightButtons = document.createElement('div');
-  rightButtons.style.cssText = `
+  // 右側ボタン
+  const rightDiv = document.createElement('div');
+  rightDiv.id = 'right-buttons';
+  rightDiv.style.cssText = `
     position: fixed;
-    right: 15px;
+    right: 12px;
     top: 50%;
     transform: translateY(-50%);
     display: flex;
@@ -616,20 +614,20 @@ function createUI() {
     gap: 10px;
     z-index: 1000;
   `;
-  document.body.appendChild(rightButtons);
+  document.body.appendChild(rightDiv);
   
-  // FLYボタン
+  // FLYボタン（常に作成、DOGモード時のみ表示）
   const flyBtn = document.createElement('button');
   flyBtn.id = 'btn-fly';
   flyBtn.textContent = 'FLY';
   flyBtn.style.cssText = `
-    width: 55px;
-    height: 55px;
+    width: 50px;
+    height: 50px;
     border-radius: 50%;
     background: #333;
     color: white;
-    border: 2px solid #666;
-    font-size: 12px;
+    border: 2px solid #555;
+    font-size: 11px;
     font-weight: bold;
     cursor: pointer;
     display: none;
@@ -640,57 +638,59 @@ function createUI() {
       updateButtons();
     }
   };
-  rightButtons.appendChild(flyBtn);
+  rightDiv.appendChild(flyBtn);
   
   // THROWボタン
   const throwBtn = document.createElement('button');
   throwBtn.id = 'btn-throw';
   throwBtn.textContent = 'THROW';
   throwBtn.style.cssText = `
-    width: 55px;
-    height: 55px;
+    width: 50px;
+    height: 50px;
     border-radius: 50%;
     background: #d9534f;
     color: white;
     border: none;
-    font-size: 10px;
+    font-size: 9px;
     font-weight: bold;
     cursor: pointer;
   `;
   throwBtn.onclick = throwBean;
-  rightButtons.appendChild(throwBtn);
+  rightDiv.appendChild(throwBtn);
   
   // ジョイスティック
   const joystickContainer = document.createElement('div');
   joystickContainer.id = 'joystick-container';
   joystickContainer.style.cssText = `
     position: fixed;
-    bottom: 30px;
+    bottom: 25px;
     left: 50%;
     transform: translateX(-50%);
-    z-index: 1000;
+    z-index: 1001;
     text-align: center;
+    touch-action: none;
   `;
   document.body.appendChild(joystickContainer);
   
   const joystick = document.createElement('div');
   joystick.id = 'joystick';
   joystick.style.cssText = `
-    width: 100px;
-    height: 100px;
-    background: rgba(255,255,255,0.3);
+    width: 90px;
+    height: 90px;
+    background: rgba(255,255,255,0.25);
     border-radius: 50%;
     position: relative;
     touch-action: none;
+    border: 2px solid rgba(255,255,255,0.3);
   `;
   joystickContainer.appendChild(joystick);
   
   const joystickKnob = document.createElement('div');
   joystickKnob.id = 'joystick-knob';
   joystickKnob.style.cssText = `
-    width: 40px;
-    height: 40px;
-    background: rgba(255,255,255,0.8);
+    width: 36px;
+    height: 36px;
+    background: rgba(255,255,255,0.7);
     border-radius: 50%;
     position: absolute;
     top: 50%;
@@ -703,91 +703,90 @@ function createUI() {
   const joystickLabel = document.createElement('div');
   joystickLabel.textContent = 'DRAG TO WALK';
   joystickLabel.style.cssText = `
-    color: rgba(255,255,255,0.6);
-    font-size: 11px;
-    margin-top: 8px;
+    color: rgba(255,255,255,0.5);
+    font-size: 10px;
+    margin-top: 6px;
   `;
   joystickContainer.appendChild(joystickLabel);
   
   setupJoystick(joystick, joystickKnob);
-  
   updateButtons();
 }
 
 // ==========================================
-// ジョイスティック設定（スワイプ修正版）
+// ジョイスティック設定
 // ==========================================
 function setupJoystick(joystick, knob) {
-  const centerX = 50;
-  const centerY = 50;
-  const maxDistance = 35;
+  const size = 90;
+  const center = size / 2;
+  const maxDist = 30;
   
-  function handleStart(e) {
+  function getPos(e) {
+    const rect = joystick.getBoundingClientRect();
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    return {
+      x: clientX - rect.left - center,
+      y: clientY - rect.top - center
+    };
+  }
+  
+  function onStart(e) {
     e.preventDefault();
     e.stopPropagation();
     joystickActive = true;
-    controls.enabled = false; // OrbitControls無効化
-    
-    const point = e.touches ? e.touches[0] : e;
-    handleMove(point.clientX, point.clientY);
+    controls.enabled = false;
+    onMove(e);
   }
   
-  function handleMove(clientX, clientY) {
+  function onMove(e) {
     if (!joystickActive) return;
+    e.preventDefault();
     
-    const rect = joystick.getBoundingClientRect();
-    let x = clientX - rect.left - centerX;
-    let y = clientY - rect.top - centerY;
+    const pos = getPos(e);
+    let x = pos.x;
+    let y = pos.y;
     
-    const distance = Math.sqrt(x * x + y * y);
-    if (distance > maxDistance) {
-      x = (x / distance) * maxDistance;
-      y = (y / distance) * maxDistance;
+    const dist = Math.sqrt(x * x + y * y);
+    if (dist > maxDist) {
+      x = (x / dist) * maxDist;
+      y = (y / dist) * maxDist;
     }
     
-    knob.style.left = (centerX + x) + 'px';
-    knob.style.top = (centerY + y) + 'px';
+    knob.style.left = (center + x) + 'px';
+    knob.style.top = (center + y) + 'px';
     knob.style.transform = 'translate(-50%, -50%)';
     
-    moveVector.x = x / maxDistance;
-    moveVector.z = y / maxDistance;
+    moveVector.x = x / maxDist;
+    moveVector.z = y / maxDist;
   }
   
-  function handleEnd(e) {
+  function onEnd(e) {
     if (!joystickActive) return;
-    
     e.preventDefault();
+    
     joystickActive = false;
-    controls.enabled = true; // OrbitControls有効化
+    controls.enabled = true;
     
     knob.style.left = '50%';
     knob.style.top = '50%';
-    knob.style.transform = 'translate(-50%, -50%)';
-    
     moveVector.x = 0;
     moveVector.z = 0;
   }
   
-  joystick.addEventListener('mousedown', handleStart);
-  joystick.addEventListener('touchstart', handleStart, { passive: false });
+  joystick.addEventListener('mousedown', onStart);
+  joystick.addEventListener('touchstart', onStart, { passive: false });
   
-  document.addEventListener('mousemove', (e) => {
-    if (joystickActive) {
-      e.preventDefault();
-      handleMove(e.clientX, e.clientY);
-    }
+  window.addEventListener('mousemove', (e) => {
+    if (joystickActive) onMove(e);
   });
-  
-  document.addEventListener('touchmove', (e) => {
-    if (joystickActive && e.touches[0]) {
-      e.preventDefault();
-      handleMove(e.touches[0].clientX, e.touches[0].clientY);
-    }
+  window.addEventListener('touchmove', (e) => {
+    if (joystickActive) onMove(e);
   }, { passive: false });
   
-  document.addEventListener('mouseup', handleEnd);
-  document.addEventListener('touchend', handleEnd);
-  document.addEventListener('touchcancel', handleEnd);
+  window.addEventListener('mouseup', onEnd);
+  window.addEventListener('touchend', onEnd);
+  window.addEventListener('touchcancel', onEnd);
 }
 
 // ==========================================
@@ -806,8 +805,12 @@ function updateButtons() {
   if (autoBtn) autoBtn.style.background = isAutoMode ? '#4a90d9' : '#666';
   
   if (flyBtn) {
-    flyBtn.style.display = isDogMode ? 'block' : 'none';
-    flyBtn.style.background = isFlyMode ? '#4a90d9' : '#333';
+    if (isDogMode) {
+      flyBtn.style.display = 'block';
+      flyBtn.style.background = isFlyMode ? '#4a90d9' : '#333';
+    } else {
+      flyBtn.style.display = 'none';
+    }
   }
   
   if (floor1Btn) {
@@ -865,7 +868,7 @@ function throwBean() {
 }
 
 // ==========================================
-// 投げるアニメーション適用
+// 投げるアニメーション
 // ==========================================
 function applyThrowAnimation(avatar, isHuman) {
   if (!isThrowingAnimation) return;
@@ -877,20 +880,12 @@ function applyThrowAnimation(avatar, isHuman) {
     if (rightArm) {
       if (throwAnimationTime < 3) {
         rightArm.rotation.x = -Math.PI * 0.8 * (throwAnimationTime / 3);
-        rightArm.rotation.z = -0.3;
       } else if (throwAnimationTime < 6) {
         const t = (throwAnimationTime - 3) / 3;
         rightArm.rotation.x = -Math.PI * 0.8 + Math.PI * 1.2 * t;
-        rightArm.rotation.z = -0.3 + 0.3 * t;
       } else {
         rightArm.rotation.x = 0;
-        rightArm.rotation.z = 0;
       }
-    }
-  } else {
-    const tail = avatar.getObjectByName('tail');
-    if (tail) {
-      tail.rotation.z = Math.sin(throwAnimationTime * 3) * 0.8;
     }
   }
 }
@@ -924,12 +919,11 @@ function showSpeechBubble(position, text, duration = 2000) {
   bubble.style.transform = 'translateX(-50%)';
   
   document.body.appendChild(bubble);
-  
   setTimeout(() => bubble.remove(), duration);
 }
 
 // ==========================================
-// イベントリスナー設定
+// イベントリスナー
 // ==========================================
 function setupEventListeners() {
   window.addEventListener('keydown', (e) => keys[e.code] = true);
@@ -945,7 +939,7 @@ function setupEventListeners() {
 }
 
 // ==========================================
-// キャンバスクリック処理
+// クリック処理
 // ==========================================
 function onCanvasClick(event) {
   if (joystickActive) return;
@@ -972,7 +966,7 @@ function onCanvasClick(event) {
 }
 
 // ==========================================
-// NFTモーダル表示
+// NFTモーダル表示（変化前後の画像表示対応）
 // ==========================================
 function showNFTModal(nft) {
   const existingModal = document.getElementById('nft-modal');
@@ -996,34 +990,56 @@ function showNFTModal(nft) {
   const content = document.createElement('div');
   content.style.cssText = `
     background: white;
-    padding: 20px;
+    padding: 16px;
     border-radius: 12px;
-    max-width: 350px;
-    width: 90%;
-    max-height: 85vh;
+    max-width: 380px;
+    width: 92%;
+    max-height: 88vh;
     overflow-y: auto;
     text-align: center;
   `;
   
+  // 変化条件があれば前後画像を並べて表示
   const changeRule = CHANGE_RULES[nft.tokenId];
+  let imagesHtml = '';
+  
+  if (changeRule && nft.stateImageUrl) {
+    imagesHtml = `
+      <div style="display: flex; gap: 8px; justify-content: center; margin-bottom: 10px;">
+        <div style="flex: 1;">
+          <img src="${nft.imageUrl}" style="width: 100%; border-radius: 6px;">
+          <div style="font-size: 10px; color: #888; margin-top: 4px;">通常</div>
+        </div>
+        <div style="flex: 1;">
+          <img src="${nft.stateImageUrl}" style="width: 100%; border-radius: 6px;">
+          <div style="font-size: 10px; color: #888; margin-top: 4px;">変化後</div>
+        </div>
+      </div>
+    `;
+  } else {
+    imagesHtml = `
+      <img src="${nft.imageUrl}" style="max-width: 100%; max-height: 200px; border-radius: 8px; margin-bottom: 10px;">
+    `;
+  }
+  
   const changeRuleHtml = changeRule ? `
-    <p style="color: #e74c3c; margin: 10px 0; font-size: 13px;">
+    <p style="color: #e74c3c; margin: 8px 0; font-size: 12px; background: #fff5f5; padding: 8px; border-radius: 6px;">
       <strong>変化条件:</strong><br>${changeRule}
     </p>
   ` : '';
   
   content.innerHTML = `
-    <img src="${nft.imageUrl}" style="max-width: 100%; max-height: 200px; border-radius: 8px; margin-bottom: 10px;">
-    <h3 style="margin: 10px 0 8px; font-size: 18px;">TAF DOG #${nft.tokenId}</h3>
-    <p style="color: #888; margin: 5px 0; font-size: 12px;"><strong>Token ID:</strong> ${nft.tokenId}</p>
-    <p style="color: #666; margin: 5px 0; font-size: 12px;"><strong>Owner:</strong> ${nft.ownerShort || 'Unknown'}</p>
+    ${imagesHtml}
+    <h3 style="margin: 8px 0 6px; font-size: 16px;">TAF DOG #${nft.tokenId}</h3>
+    <p style="color: #888; margin: 4px 0; font-size: 11px;"><strong>Token ID:</strong> ${nft.tokenId}</p>
+    <p style="color: #666; margin: 4px 0; font-size: 11px;"><strong>Owner:</strong> ${nft.ownerShort || 'Unknown'}</p>
     ${changeRuleHtml}
     <a href="https://opensea.io/ja/assets/matic/${NFT_CONFIG.contractAddress}/${nft.tokenId}" 
        target="_blank" 
-       style="display: inline-block; margin-top: 12px; padding: 10px 20px; background: #2081e2; color: white; text-decoration: none; border-radius: 8px; font-size: 14px;">
+       style="display: inline-block; margin-top: 10px; padding: 10px 18px; background: #2081e2; color: white; text-decoration: none; border-radius: 8px; font-size: 13px;">
       OpenSeaで見る
     </a>
-    <button id="modal-close-btn" style="display: block; margin: 12px auto 0; padding: 10px 25px; background: #666; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 14px;">
+    <button id="modal-close-btn" style="display: block; margin: 10px auto 0; padding: 10px 22px; background: #666; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 13px;">
       閉じる
     </button>
   `;
@@ -1050,7 +1066,7 @@ function updatePlayer() {
   let finalMove = new THREE.Vector3();
   if (keyMove.length() > 0) {
     finalMove.copy(keyMove);
-  } else if (moveVector.length() > 0.1) {
+  } else if (moveVector.length() > 0.05) {
     finalMove.copy(moveVector);
   }
   
@@ -1058,38 +1074,38 @@ function updatePlayer() {
     if (!autoTarget || player.position.distanceTo(autoTarget) < 2) {
       autoTarget = new THREE.Vector3(
         (Math.random() - 0.5) * (ROOM_SIZE - 10),
-        player.position.y,
+        0,
         (Math.random() - 0.5) * (ROOM_SIZE - 10)
       );
     }
-    const direction = autoTarget.clone().sub(player.position).normalize();
-    finalMove.x = direction.x;
-    finalMove.z = direction.z;
+    const dir = autoTarget.clone().sub(player.position).normalize();
+    finalMove.x = dir.x;
+    finalMove.z = dir.z;
   }
   
   if (finalMove.length() > 0) {
     const movement = finalMove.clone().normalize().multiplyScalar(speed);
     
-    const cameraDirection = new THREE.Vector3();
-    camera.getWorldDirection(cameraDirection);
-    cameraDirection.y = 0;
-    cameraDirection.normalize();
+    const camDir = new THREE.Vector3();
+    camera.getWorldDirection(camDir);
+    camDir.y = 0;
+    camDir.normalize();
     
     const right = new THREE.Vector3();
-    right.crossVectors(cameraDirection, new THREE.Vector3(0, 1, 0));
+    right.crossVectors(camDir, new THREE.Vector3(0, 1, 0));
     
-    const moveX = right.x * movement.x + cameraDirection.x * -movement.z;
-    const moveZ = right.z * movement.x + cameraDirection.z * -movement.z;
+    const mx = right.x * movement.x + camDir.x * -movement.z;
+    const mz = right.z * movement.x + camDir.z * -movement.z;
     
-    player.position.x += moveX;
-    player.position.z += moveZ;
+    player.position.x += mx;
+    player.position.z += mz;
     
     const limit = ROOM_SIZE / 2 - 2;
     player.position.x = Math.max(-limit, Math.min(limit, player.position.x));
     player.position.z = Math.max(-limit, Math.min(limit, player.position.z));
     
-    if (moveX !== 0 || moveZ !== 0) {
-      player.rotation.y = Math.atan2(moveX, moveZ);
+    if (mx !== 0 || mz !== 0) {
+      player.rotation.y = Math.atan2(mx, mz);
     }
   }
   
@@ -1103,8 +1119,8 @@ function updatePlayer() {
     player.position.y = 0;
   }
   
-  const cameraOffset = new THREE.Vector3(0, 5, 10);
-  camera.position.lerp(player.position.clone().add(cameraOffset), 0.05);
+  const offset = new THREE.Vector3(0, 5, 10);
+  camera.position.lerp(player.position.clone().add(offset), 0.05);
   controls.target.lerp(player.position, 0.05);
 }
 
@@ -1122,10 +1138,9 @@ function updateBeans() {
     for (const target of targets) {
       if (target.userData.isFlyingAway) continue;
       
-      const distance = bean.position.distanceTo(target.position);
-      if (distance < 2.0) {
-        target.userData.hitCount = (target.userData.hitCount || 0) + 1;
-        
+      const dist = bean.position.distanceTo(target.position);
+      if (dist < 2.0) {
+        target.userData.hitCount++;
         showSpeechBubble(target.position.clone().add(new THREE.Vector3(0, 3, 0)), '痛いっ！');
         
         if (target.userData.hitCount >= 3) {
@@ -1163,8 +1178,7 @@ function updateTargets() {
       
       if (target.position.y < -10) {
         scene.remove(target);
-        const index = targets.indexOf(target);
-        if (index > -1) targets.splice(index, 1);
+        targets.splice(targets.indexOf(target), 1);
       }
     } else {
       target.lookAt(player.position.x, target.position.y, player.position.z);
@@ -1185,10 +1199,7 @@ function updateNPCDogs() {
     if (Math.abs(dog.position.x) > limit) dog.userData.velocity.x *= -1;
     if (Math.abs(dog.position.z) > limit) dog.userData.velocity.z *= -1;
     
-    if (dog.userData.velocity.length() > 0) {
-      dog.rotation.y = Math.atan2(dog.userData.velocity.x, dog.userData.velocity.z);
-    }
-    
+    dog.rotation.y = Math.atan2(dog.userData.velocity.x, dog.userData.velocity.z);
     animateDog(dog, time, true);
     
     if (Math.random() < 0.01) {
@@ -1211,10 +1222,9 @@ function animate() {
   
   updatePlayer();
   
-  const isMoving = moveVector.length() > 0.1 || Object.values(keys).some(k => k);
+  const isMoving = moveVector.length() > 0.05 || Object.values(keys).some(k => k);
   if (isDogMode) {
     animateDog(playerAvatar, time, isMoving);
-    applyThrowAnimation(playerAvatar, false);
   } else {
     animateHuman(playerAvatar, time, isMoving);
     applyThrowAnimation(playerAvatar, true);
@@ -1224,9 +1234,7 @@ function animate() {
   updateTargets();
   updateNPCDogs();
   
-  if (dustParticles) {
-    dustParticles.rotation.y += 0.0005;
-  }
+  if (dustParticles) dustParticles.rotation.y += 0.0005;
   
   controls.update();
   renderer.render(scene, camera);

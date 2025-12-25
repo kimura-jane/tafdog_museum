@@ -25,6 +25,7 @@ let npcDogs = [];
 let dustParticles;
 let moveVector = new THREE.Vector3();
 let keys = {};
+let joystickActive = false;
 
 // カラー選択用
 let currentHumanColorIndex = 0;
@@ -40,28 +41,22 @@ const ALCHEMY_API_KEY = "NzzY5_VyMSoXXD0XqZpDL";
 // 初期化
 // ==========================================
 async function init() {
-  // NFTデータ生成
   allNFTs = generateNFTData();
   
-  // オーナー情報取得
   await fetchOwners();
   
-  // シーン作成
   scene = new THREE.Scene();
   scene.background = new THREE.Color(0x1a1a2e);
   
-  // カメラ
   camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
   camera.position.set(0, 5, 10);
   
-  // レンダラー
   renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   document.getElementById('root').appendChild(renderer.domElement);
   
-  // コントロール
   controls = new OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true;
   controls.dampingFactor = 0.05;
@@ -69,35 +64,20 @@ async function init() {
   controls.maxDistance = 50;
   controls.maxPolarAngle = Math.PI / 2.1;
   
-  // 照明
   setupLighting();
-  
-  // 部屋作成
   createRoom();
-  
-  // プレイヤー作成
   createPlayer();
-  
-  // NPC犬作成
   createNPCDogs();
-  
-  // ターゲット作成
   createTargets();
   
-  // ダストパーティクル
   dustParticles = createDustParticles(100);
   scene.add(dustParticles);
   
-  // UI作成
   createUI();
-  
-  // イベントリスナー
   setupEventListeners();
   
-  // ローディング非表示
   document.getElementById('loading').style.display = 'none';
   
-  // アニメーション開始
   animate();
 }
 
@@ -290,21 +270,18 @@ function placeNFTsOnWalls() {
 function createArtFrame(nft, position, rotation) {
   const group = new THREE.Group();
   
-  // フレーム
   const frameGeo = new THREE.BoxGeometry(3.2, 3.2, 0.1);
   const frameMat = new THREE.MeshStandardMaterial({ color: 0x8b4513, roughness: 0.3 });
   const frame = new THREE.Mesh(frameGeo, frameMat);
   frame.castShadow = true;
   group.add(frame);
   
-  // マット
   const matGeo = new THREE.BoxGeometry(2.8, 2.8, 0.05);
   const matMat = new THREE.MeshStandardMaterial({ color: 0xffffff });
   const mat = new THREE.Mesh(matGeo, matMat);
   mat.position.z = 0.05;
   group.add(mat);
   
-  // 画像
   const imgGeo = new THREE.PlaneGeometry(2.5, 2.5);
   const proxyUrl = `https://wsrv.nl/?url=${encodeURIComponent(nft.imageUrl)}&w=512`;
   
@@ -376,35 +353,14 @@ function createPlayer() {
 }
 
 // ==========================================
-// アバター切り替え
+// アバター再作成（モード切替・色変更）
 // ==========================================
-function switchAvatar() {
-  isDogMode = !isDogMode;
-  
+function recreateAvatar() {
   player.remove(playerAvatar);
   
   if (isDogMode) {
     playerAvatar = createDogAvatar(DOG_COLORS[currentDogColorIndex]);
   } else {
-    playerAvatar = createHumanAvatar(HUMAN_COLORS[currentHumanColorIndex]);
-    isFlyMode = false;
-  }
-  
-  player.add(playerAvatar);
-  updateButtons();
-}
-
-// ==========================================
-// アバターカラー変更
-// ==========================================
-function changeAvatarColor() {
-  player.remove(playerAvatar);
-  
-  if (isDogMode) {
-    currentDogColorIndex = (currentDogColorIndex + 1) % DOG_COLORS.length;
-    playerAvatar = createDogAvatar(DOG_COLORS[currentDogColorIndex]);
-  } else {
-    currentHumanColorIndex = (currentHumanColorIndex + 1) % HUMAN_COLORS.length;
     playerAvatar = createHumanAvatar(HUMAN_COLORS[currentHumanColorIndex]);
   }
   
@@ -433,20 +389,50 @@ function createNPCDogs() {
 }
 
 // ==========================================
-// ターゲット作成
+// ターゲット作成（端のキャラ）
 // ==========================================
 function createTargets() {
-  TARGET_IMAGES.forEach((url, index) => {
-    const target = createTargetCharacter(url);
-    const angle = (index / TARGET_IMAGES.length) * Math.PI * 2;
-    const radius = ROOM_SIZE / 3;
-    target.position.set(
+  // 既存のターゲットを削除
+  targets.forEach(t => scene.remove(t));
+  targets = [];
+  
+  // ターゲット画像のフルパス（GitHub Pages用）
+  const targetUrls = [
+    "https://kimura-jane.github.io/tafdog_museum/IMG_1822.png",
+    "https://kimura-jane.github.io/tafdog_museum/IMG_1889.png"
+  ];
+  
+  targetUrls.forEach((url, index) => {
+    const group = new THREE.Group();
+    
+    const loader = new THREE.TextureLoader();
+    loader.load(url, (texture) => {
+      texture.colorSpace = THREE.SRGBColorSpace;
+      const geo = new THREE.PlaneGeometry(2, 3);
+      const mat = new THREE.MeshBasicMaterial({ 
+        map: texture, 
+        transparent: true, 
+        side: THREE.DoubleSide 
+      });
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.position.y = 1.5;
+      group.add(mesh);
+    });
+    
+    // 部屋の端に配置
+    const angle = (index / targetUrls.length) * Math.PI * 2;
+    const radius = ROOM_SIZE / 2.5;
+    group.position.set(
       Math.cos(angle) * radius,
       0,
       Math.sin(angle) * radius
     );
-    scene.add(target);
-    targets.push(target);
+    
+    group.userData.hitCount = 0;
+    group.userData.isFlyingAway = false;
+    
+    scene.add(group);
+    targets.push(group);
   });
 }
 
@@ -463,7 +449,7 @@ function createUI() {
     top: 10px;
     left: 50%;
     transform: translateX(-50%);
-    font-size: 20px;
+    font-size: 18px;
     font-weight: bold;
     color: white;
     text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
@@ -472,7 +458,7 @@ function createUI() {
   `;
   document.body.appendChild(title);
   
-  // ヘッダーボタン
+  // 上部ボタンエリア
   const header = document.createElement('div');
   header.style.cssText = `
     position: fixed;
@@ -480,40 +466,63 @@ function createUI() {
     left: 10px;
     z-index: 1000;
     display: flex;
-    gap: 10px;
+    gap: 8px;
+    flex-wrap: wrap;
+    max-width: 300px;
   `;
   document.body.appendChild(header);
   
-  // HUMANボタン
+  // HUMANボタン（押すたびに色も変わる）
   const humanBtn = document.createElement('button');
   humanBtn.id = 'btn-human';
   humanBtn.textContent = 'HUMAN';
   humanBtn.style.cssText = `
-    padding: 10px 15px;
+    padding: 8px 12px;
     background: #4a90d9;
     color: white;
     border: none;
     border-radius: 5px;
     font-weight: bold;
+    font-size: 12px;
     cursor: pointer;
   `;
-  humanBtn.onclick = () => { if (isDogMode) switchAvatar(); };
+  humanBtn.onclick = () => {
+    if (isDogMode) {
+      isDogMode = false;
+      isFlyMode = false;
+    } else {
+      // 既にHUMANモードなら色変更
+      currentHumanColorIndex = (currentHumanColorIndex + 1) % HUMAN_COLORS.length;
+    }
+    recreateAvatar();
+    updateButtons();
+  };
   header.appendChild(humanBtn);
   
-  // DOGボタン
+  // DOGボタン（押すたびに色も変わる）
   const dogBtn = document.createElement('button');
   dogBtn.id = 'btn-dog';
   dogBtn.textContent = 'DOG';
   dogBtn.style.cssText = `
-    padding: 10px 15px;
+    padding: 8px 12px;
     background: #666;
     color: white;
     border: none;
     border-radius: 5px;
     font-weight: bold;
+    font-size: 12px;
     cursor: pointer;
   `;
-  dogBtn.onclick = () => { if (!isDogMode) switchAvatar(); };
+  dogBtn.onclick = () => {
+    if (!isDogMode) {
+      isDogMode = true;
+    } else {
+      // 既にDOGモードなら色変更
+      currentDogColorIndex = (currentDogColorIndex + 1) % DOG_COLORS.length;
+    }
+    recreateAvatar();
+    updateButtons();
+  };
   header.appendChild(dogBtn);
   
   // AUTOボタン
@@ -521,12 +530,13 @@ function createUI() {
   autoBtn.id = 'btn-auto';
   autoBtn.textContent = 'AUTO';
   autoBtn.style.cssText = `
-    padding: 10px 15px;
+    padding: 8px 12px;
     background: #666;
     color: white;
     border: none;
     border-radius: 5px;
     font-weight: bold;
+    font-size: 12px;
     cursor: pointer;
   `;
   autoBtn.onclick = () => {
@@ -536,23 +546,7 @@ function createUI() {
   };
   header.appendChild(autoBtn);
   
-  // COLORボタン
-  const colorBtn = document.createElement('button');
-  colorBtn.id = 'btn-color';
-  colorBtn.textContent = 'COLOR';
-  colorBtn.style.cssText = `
-    padding: 10px 15px;
-    background: #e67e22;
-    color: white;
-    border: none;
-    border-radius: 5px;
-    font-weight: bold;
-    cursor: pointer;
-  `;
-  colorBtn.onclick = changeAvatarColor;
-  header.appendChild(colorBtn);
-  
-  // 階層ボタン
+  // 階層ボタン（左側）
   const floorDiv = document.createElement('div');
   floorDiv.style.cssText = `
     position: fixed;
@@ -570,12 +564,13 @@ function createUI() {
   floor2Btn.id = 'btn-2f';
   floor2Btn.textContent = '2F';
   floor2Btn.style.cssText = `
-    padding: 15px 20px;
+    padding: 12px 16px;
     background: #666;
     color: white;
     border: none;
     border-radius: 5px;
     font-weight: bold;
+    font-size: 14px;
     cursor: pointer;
   `;
   floor2Btn.onclick = () => {
@@ -591,12 +586,13 @@ function createUI() {
   floor1Btn.id = 'btn-1f';
   floor1Btn.textContent = '1F';
   floor1Btn.style.cssText = `
-    padding: 15px 20px;
+    padding: 12px 16px;
     background: #fff;
     color: black;
     border: none;
     border-radius: 5px;
     font-weight: bold;
+    font-size: 14px;
     cursor: pointer;
   `;
   floor1Btn.onclick = () => {
@@ -608,24 +604,34 @@ function createUI() {
   };
   floorDiv.appendChild(floor1Btn);
   
+  // 右側ボタンエリア
+  const rightButtons = document.createElement('div');
+  rightButtons.style.cssText = `
+    position: fixed;
+    right: 15px;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    z-index: 1000;
+  `;
+  document.body.appendChild(rightButtons);
+  
   // FLYボタン
   const flyBtn = document.createElement('button');
   flyBtn.id = 'btn-fly';
   flyBtn.textContent = 'FLY';
   flyBtn.style.cssText = `
-    position: fixed;
-    right: 20px;
-    top: calc(50% - 40px);
-    width: 60px;
-    height: 60px;
+    width: 55px;
+    height: 55px;
     border-radius: 50%;
     background: #333;
     color: white;
     border: 2px solid #666;
-    font-size: 14px;
+    font-size: 12px;
     font-weight: bold;
     cursor: pointer;
-    z-index: 1000;
     display: none;
   `;
   flyBtn.onclick = () => {
@@ -634,32 +640,29 @@ function createUI() {
       updateButtons();
     }
   };
-  document.body.appendChild(flyBtn);
+  rightButtons.appendChild(flyBtn);
   
   // THROWボタン
   const throwBtn = document.createElement('button');
   throwBtn.id = 'btn-throw';
   throwBtn.textContent = 'THROW';
   throwBtn.style.cssText = `
-    position: fixed;
-    right: 20px;
-    top: calc(50% + 40px);
-    width: 60px;
-    height: 60px;
+    width: 55px;
+    height: 55px;
     border-radius: 50%;
     background: #d9534f;
     color: white;
     border: none;
-    font-size: 11px;
+    font-size: 10px;
     font-weight: bold;
     cursor: pointer;
-    z-index: 1000;
   `;
   throwBtn.onclick = throwBean;
-  document.body.appendChild(throwBtn);
+  rightButtons.appendChild(throwBtn);
   
   // ジョイスティック
   const joystickContainer = document.createElement('div');
+  joystickContainer.id = 'joystick-container';
   joystickContainer.style.cssText = `
     position: fixed;
     bottom: 30px;
@@ -673,8 +676,8 @@ function createUI() {
   const joystick = document.createElement('div');
   joystick.id = 'joystick';
   joystick.style.cssText = `
-    width: 120px;
-    height: 120px;
+    width: 100px;
+    height: 100px;
     background: rgba(255,255,255,0.3);
     border-radius: 50%;
     position: relative;
@@ -685,14 +688,15 @@ function createUI() {
   const joystickKnob = document.createElement('div');
   joystickKnob.id = 'joystick-knob';
   joystickKnob.style.cssText = `
-    width: 50px;
-    height: 50px;
+    width: 40px;
+    height: 40px;
     background: rgba(255,255,255,0.8);
     border-radius: 50%;
     position: absolute;
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
+    pointer-events: none;
   `;
   joystick.appendChild(joystickKnob);
   
@@ -700,8 +704,8 @@ function createUI() {
   joystickLabel.textContent = 'DRAG TO WALK';
   joystickLabel.style.cssText = `
     color: rgba(255,255,255,0.6);
-    font-size: 12px;
-    margin-top: 10px;
+    font-size: 11px;
+    margin-top: 8px;
   `;
   joystickContainer.appendChild(joystickLabel);
   
@@ -711,27 +715,29 @@ function createUI() {
 }
 
 // ==========================================
-// ジョイスティック設定
+// ジョイスティック設定（スワイプ修正版）
 // ==========================================
 function setupJoystick(joystick, knob) {
-  let isDragging = false;
-  const centerX = 60;
-  const centerY = 60;
-  const maxDistance = 40;
+  const centerX = 50;
+  const centerY = 50;
+  const maxDistance = 35;
   
   function handleStart(e) {
     e.preventDefault();
-    isDragging = true;
+    e.stopPropagation();
+    joystickActive = true;
+    controls.enabled = false; // OrbitControls無効化
+    
     const point = e.touches ? e.touches[0] : e;
     handleMove(point.clientX, point.clientY);
   }
   
   function handleMove(clientX, clientY) {
-    if (!isDragging) return;
+    if (!joystickActive) return;
     
-    const joystickRect = joystick.getBoundingClientRect();
-    let x = clientX - joystickRect.left - centerX;
-    let y = clientY - joystickRect.top - centerY;
+    const rect = joystick.getBoundingClientRect();
+    let x = clientX - rect.left - centerX;
+    let y = clientY - rect.top - centerY;
     
     const distance = Math.sqrt(x * x + y * y);
     if (distance > maxDistance) {
@@ -747,11 +753,17 @@ function setupJoystick(joystick, knob) {
     moveVector.z = y / maxDistance;
   }
   
-  function handleEnd() {
-    isDragging = false;
+  function handleEnd(e) {
+    if (!joystickActive) return;
+    
+    e.preventDefault();
+    joystickActive = false;
+    controls.enabled = true; // OrbitControls有効化
+    
     knob.style.left = '50%';
     knob.style.top = '50%';
     knob.style.transform = 'translate(-50%, -50%)';
+    
     moveVector.x = 0;
     moveVector.z = 0;
   }
@@ -759,18 +771,23 @@ function setupJoystick(joystick, knob) {
   joystick.addEventListener('mousedown', handleStart);
   joystick.addEventListener('touchstart', handleStart, { passive: false });
   
-  window.addEventListener('mousemove', (e) => {
-    if (isDragging) handleMove(e.clientX, e.clientY);
+  document.addEventListener('mousemove', (e) => {
+    if (joystickActive) {
+      e.preventDefault();
+      handleMove(e.clientX, e.clientY);
+    }
   });
-  window.addEventListener('touchmove', (e) => {
-    if (isDragging && e.touches[0]) {
+  
+  document.addEventListener('touchmove', (e) => {
+    if (joystickActive && e.touches[0]) {
       e.preventDefault();
       handleMove(e.touches[0].clientX, e.touches[0].clientY);
     }
   }, { passive: false });
   
-  window.addEventListener('mouseup', handleEnd);
-  window.addEventListener('touchend', handleEnd);
+  document.addEventListener('mouseup', handleEnd);
+  document.addEventListener('touchend', handleEnd);
+  document.addEventListener('touchcancel', handleEnd);
 }
 
 // ==========================================
@@ -787,10 +804,12 @@ function updateButtons() {
   if (humanBtn) humanBtn.style.background = isDogMode ? '#666' : '#4a90d9';
   if (dogBtn) dogBtn.style.background = isDogMode ? '#4a90d9' : '#666';
   if (autoBtn) autoBtn.style.background = isAutoMode ? '#4a90d9' : '#666';
+  
   if (flyBtn) {
-    flyBtn.style.background = isFlyMode ? '#4a90d9' : '#333';
     flyBtn.style.display = isDogMode ? 'block' : 'none';
+    flyBtn.style.background = isFlyMode ? '#4a90d9' : '#333';
   }
+  
   if (floor1Btn) {
     floor1Btn.style.background = currentFloor === 1 ? '#fff' : '#666';
     floor1Btn.style.color = currentFloor === 1 ? '#000' : '#fff';
@@ -871,9 +890,7 @@ function applyThrowAnimation(avatar, isHuman) {
   } else {
     const tail = avatar.getObjectByName('tail');
     if (tail) {
-      if (throwAnimationTime < 6) {
-        tail.rotation.z = Math.sin(throwAnimationTime * 3) * 0.8;
-      }
+      tail.rotation.z = Math.sin(throwAnimationTime * 3) * 0.8;
     }
   }
 }
@@ -887,9 +904,9 @@ function showSpeechBubble(position, text, duration = 2000) {
   bubble.style.cssText = `
     position: fixed;
     background: white;
-    padding: 10px 15px;
-    border-radius: 20px;
-    font-size: 18px;
+    padding: 8px 12px;
+    border-radius: 15px;
+    font-size: 16px;
     font-weight: bold;
     box-shadow: 0 2px 10px rgba(0,0,0,0.3);
     z-index: 2000;
@@ -903,27 +920,20 @@ function showSpeechBubble(position, text, duration = 2000) {
   const y = (-vector.y * 0.5 + 0.5) * window.innerHeight;
   
   bubble.style.left = x + 'px';
-  bubble.style.top = (y - 50) + 'px';
+  bubble.style.top = (y - 40) + 'px';
   bubble.style.transform = 'translateX(-50%)';
   
   document.body.appendChild(bubble);
   
-  setTimeout(() => {
-    bubble.remove();
-  }, duration);
+  setTimeout(() => bubble.remove(), duration);
 }
 
 // ==========================================
 // イベントリスナー設定
 // ==========================================
 function setupEventListeners() {
-  window.addEventListener('keydown', (e) => {
-    keys[e.code] = true;
-  });
-  
-  window.addEventListener('keyup', (e) => {
-    keys[e.code] = false;
-  });
+  window.addEventListener('keydown', (e) => keys[e.code] = true);
+  window.addEventListener('keyup', (e) => keys[e.code] = false);
   
   window.addEventListener('resize', () => {
     camera.aspect = window.innerWidth / window.innerHeight;
@@ -931,7 +941,6 @@ function setupEventListeners() {
     renderer.setSize(window.innerWidth, window.innerHeight);
   });
   
-  // NFTクリック
   renderer.domElement.addEventListener('click', onCanvasClick);
 }
 
@@ -939,6 +948,8 @@ function setupEventListeners() {
 // キャンバスクリック処理
 // ==========================================
 function onCanvasClick(event) {
+  if (joystickActive) return;
+  
   const mouse = new THREE.Vector2();
   mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
   mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
@@ -950,7 +961,6 @@ function onCanvasClick(event) {
   
   for (const intersect of intersects) {
     let obj = intersect.object;
-    
     while (obj) {
       if (obj.userData && obj.userData.nftData) {
         showNFTModal(obj.userData.nftData);
@@ -976,7 +986,7 @@ function showNFTModal(nft) {
     left: 0;
     width: 100%;
     height: 100%;
-    background: rgba(0,0,0,0.8);
+    background: rgba(0,0,0,0.85);
     display: flex;
     justify-content: center;
     align-items: center;
@@ -987,36 +997,39 @@ function showNFTModal(nft) {
   content.style.cssText = `
     background: white;
     padding: 20px;
-    border-radius: 10px;
-    max-width: 400px;
-    max-height: 90vh;
+    border-radius: 12px;
+    max-width: 350px;
+    width: 90%;
+    max-height: 85vh;
     overflow-y: auto;
     text-align: center;
   `;
   
   const changeRule = CHANGE_RULES[nft.tokenId];
-  const changeRuleHtml = changeRule ? `<p style="color: #e74c3c; margin: 10px 0;"><strong>変化条件:</strong> ${changeRule}</p>` : '';
+  const changeRuleHtml = changeRule ? `
+    <p style="color: #e74c3c; margin: 10px 0; font-size: 13px;">
+      <strong>変化条件:</strong><br>${changeRule}
+    </p>
+  ` : '';
   
   content.innerHTML = `
-    <img src="${nft.imageUrl}" style="max-width: 100%; max-height: 250px; border-radius: 5px;">
-    <h3 style="margin: 15px 0 10px;">TAF DOG #${nft.tokenId}</h3>
-    <p style="color: #888; margin: 5px 0;"><strong>Token ID:</strong> ${nft.tokenId}</p>
-    <p style="color: #666; margin: 5px 0;"><strong>Owner:</strong> ${nft.ownerShort || 'Unknown'}</p>
+    <img src="${nft.imageUrl}" style="max-width: 100%; max-height: 200px; border-radius: 8px; margin-bottom: 10px;">
+    <h3 style="margin: 10px 0 8px; font-size: 18px;">TAF DOG #${nft.tokenId}</h3>
+    <p style="color: #888; margin: 5px 0; font-size: 12px;"><strong>Token ID:</strong> ${nft.tokenId}</p>
+    <p style="color: #666; margin: 5px 0; font-size: 12px;"><strong>Owner:</strong> ${nft.ownerShort || 'Unknown'}</p>
     ${changeRuleHtml}
     <a href="https://opensea.io/ja/assets/matic/${NFT_CONFIG.contractAddress}/${nft.tokenId}" 
        target="_blank" 
-       style="display: inline-block; margin-top: 15px; padding: 10px 20px; background: #2081e2; color: white; text-decoration: none; border-radius: 5px;">
+       style="display: inline-block; margin-top: 12px; padding: 10px 20px; background: #2081e2; color: white; text-decoration: none; border-radius: 8px; font-size: 14px;">
       OpenSeaで見る
     </a>
-    <button id="modal-close-btn" style="display: block; margin: 15px auto 0; padding: 10px 30px; background: #666; color: white; border: none; border-radius: 5px; cursor: pointer;">
+    <button id="modal-close-btn" style="display: block; margin: 12px auto 0; padding: 10px 25px; background: #666; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 14px;">
       閉じる
     </button>
   `;
   
   modal.appendChild(content);
-  modal.onclick = (e) => {
-    if (e.target === modal) modal.remove();
-  };
+  modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
   document.body.appendChild(modal);
   
   document.getElementById('modal-close-btn').onclick = () => modal.remove();
@@ -1029,7 +1042,6 @@ function updatePlayer() {
   const speed = isDogMode ? 0.15 : 0.12;
   
   let keyMove = new THREE.Vector3();
-  
   if (keys['KeyW'] || keys['ArrowUp']) keyMove.z = -1;
   if (keys['KeyS'] || keys['ArrowDown']) keyMove.z = 1;
   if (keys['KeyA'] || keys['ArrowLeft']) keyMove.x = -1;
@@ -1038,7 +1050,7 @@ function updatePlayer() {
   let finalMove = new THREE.Vector3();
   if (keyMove.length() > 0) {
     finalMove.copy(keyMove);
-  } else if (moveVector.length() > 0) {
+  } else if (moveVector.length() > 0.1) {
     finalMove.copy(moveVector);
   }
   
@@ -1050,7 +1062,6 @@ function updatePlayer() {
         (Math.random() - 0.5) * (ROOM_SIZE - 10)
       );
     }
-    
     const direction = autoTarget.clone().sub(player.position).normalize();
     finalMove.x = direction.x;
     finalMove.z = direction.z;
@@ -1115,7 +1126,7 @@ function updateBeans() {
       if (distance < 2.0) {
         target.userData.hitCount = (target.userData.hitCount || 0) + 1;
         
-        showSpeechBubble(target.position.clone().add(new THREE.Vector3(0, 2, 0)), '痛いっ！');
+        showSpeechBubble(target.position.clone().add(new THREE.Vector3(0, 3, 0)), '痛いっ！');
         
         if (target.userData.hitCount >= 3) {
           target.userData.isFlyingAway = true;
@@ -1124,7 +1135,7 @@ function updateBeans() {
             0.2,
             (Math.random() - 0.5) * 0.3
           );
-          showSpeechBubble(target.position.clone().add(new THREE.Vector3(0, 2, 0)), 'あーれー！', 3000);
+          showSpeechBubble(target.position.clone().add(new THREE.Vector3(0, 3, 0)), 'あーれー！', 3000);
         }
         
         scene.remove(bean);
@@ -1171,12 +1182,8 @@ function updateNPCDogs() {
     dog.position.add(dog.userData.velocity);
     
     const limit = ROOM_SIZE / 2 - 3;
-    if (Math.abs(dog.position.x) > limit) {
-      dog.userData.velocity.x *= -1;
-    }
-    if (Math.abs(dog.position.z) > limit) {
-      dog.userData.velocity.z *= -1;
-    }
+    if (Math.abs(dog.position.x) > limit) dog.userData.velocity.x *= -1;
+    if (Math.abs(dog.position.z) > limit) dog.userData.velocity.z *= -1;
     
     if (dog.userData.velocity.length() > 0) {
       dog.rotation.y = Math.atan2(dog.userData.velocity.x, dog.userData.velocity.z);
@@ -1204,7 +1211,7 @@ function animate() {
   
   updatePlayer();
   
-  const isMoving = moveVector.length() > 0 || Object.values(keys).some(k => k);
+  const isMoving = moveVector.length() > 0.1 || Object.values(keys).some(k => k);
   if (isDogMode) {
     animateDog(playerAvatar, time, isMoving);
     applyThrowAnimation(playerAvatar, false);

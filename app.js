@@ -1,5 +1,5 @@
 // ==========================================
-// app.js - メインアプリケーション（修正版v2）
+// app.js - メインアプリケーション（完全版）
 // ==========================================
 
 import * as THREE from "three";
@@ -52,51 +52,45 @@ let dustParticles = null;
 let clock = new THREE.Clock();
 
 // ==========================================
-// オーナー情報取得（Alchemy API）
+// Alchemy API でオーナー情報取得
 // ==========================================
 async function fetchOwners() {
-  const ALCHEMY_API_KEY = "demo"; // 本番では実際のキーに置き換え
-  const baseUrl = `https://polygon-mainnet.g.alchemy.com/nft/v3/${ALCHEMY_API_KEY}/getOwnersForContract`;
+  const ALCHEMY_API_KEY = "NzzY5_VyMSoXXD0XqZpDL";
   
   try {
-    const response = await fetch(`${baseUrl}?contractAddress=${NFT_CONFIG.contractAddress}&withTokenBalances=true`);
+    const url = `https://polygon-mainnet.g.alchemy.com/nft/v3/${ALCHEMY_API_KEY}/getOwnersForContract?contractAddress=${NFT_CONFIG.contractAddress}&withTokenBalances=true`;
+    
+    const response = await fetch(url);
     const data = await response.json();
     
     if (data.owners) {
-      // トークンIDごとにオーナーをマッピング
       const ownerMap = {};
-      data.owners.forEach(ownerData => {
-        if (ownerData.tokenBalances) {
-          ownerData.tokenBalances.forEach(token => {
-            const tokenId = parseInt(token.tokenId, 16).toString();
-            ownerMap[tokenId] = ownerData.ownerAddress;
-          });
-        }
+      
+      data.owners.forEach(item => {
+        item.tokenBalances.forEach(token => {
+          const tokenId = parseInt(token.tokenId, 16).toString();
+          ownerMap[tokenId] = item.ownerAddress;
+        });
       });
       
-      // NFTデータに反映
       allNFTs.forEach(nft => {
         const owner = ownerMap[nft.tokenId];
         if (owner) {
           nft.owner = owner;
           nft.ownerShort = `${owner.slice(0, 6)}...${owner.slice(-4)}`;
         } else {
-          nft.ownerShort = "Unknown";
+          nft.ownerShort = "Not minted";
         }
       });
+      
+      console.log("Owners loaded:", Object.keys(ownerMap).length);
     }
   } catch (error) {
-    console.warn("Owner fetch failed, using fallback:", error);
-    // フォールバック: PolygonScanから取得を試みる
-    await fetchOwnersFromPolygonScan();
+    console.warn("Owner fetch failed:", error);
+    allNFTs.forEach(nft => {
+      nft.ownerShort = "N/A";
+    });
   }
-}
-
-async function fetchOwnersFromPolygonScan() {
-  // 簡易的なフォールバック
-  allNFTs.forEach(nft => {
-    nft.ownerShort = "0x...";
-  });
 }
 
 // ==========================================
@@ -205,13 +199,13 @@ function createRoom() {
 }
 
 // ==========================================
-// 迷路風の壁にNFTを配置（大幅改善版）
+// 迷路風の壁にNFTを配置
 // ==========================================
 function createMazeWalls() {
   const nfts = currentFloor === 1 ? allNFTs.slice(0, 80) : allNFTs.slice(80, 100);
   const wallMat = new THREE.MeshStandardMaterial({ color: 0xeeeeee, roughness: 0.9 });
 
-  // 【大幅改善】間隔を7に、壁からのオフセットを1.0に
+  // 間隔と壁からのオフセット
   const NFT_SPACING = 7;
   const WALL_OFFSET = 1.0;
 
@@ -301,7 +295,7 @@ function createMazeWalls() {
 }
 
 // ==========================================
-// NFTフレーム作成（壁刺さり完全防止）
+// NFTフレーム作成
 // ==========================================
 function createArtFrame(nft, position, rotation) {
   const group = new THREE.Group();
@@ -309,7 +303,7 @@ function createArtFrame(nft, position, rotation) {
   group.rotation.copy(rotation);
   group.userData.nft = nft;
 
-  // フレーム（さらに薄く）
+  // フレーム
   const frame = new THREE.Mesh(
     new THREE.BoxGeometry(3.2, 3.2, 0.05),
     new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.3 })
@@ -454,7 +448,7 @@ function updateTargets(delta) {
 }
 
 // ==========================================
-// 豆投げ（カメラ方向に投げる）
+// 豆投げ
 // ==========================================
 function throwBean() {
   const bean = createBean();
@@ -520,7 +514,7 @@ function updateBeans(delta) {
 }
 
 // ==========================================
-// プレイヤー更新（大幅速度アップ）
+// プレイヤー更新
 // ==========================================
 function updatePlayer(delta, time) {
   isMoving = Math.abs(moveVector.x) > 0.01 || Math.abs(moveVector.y) > 0.01;
@@ -537,7 +531,7 @@ function updatePlayer(delta, time) {
       .addScaledVector(right, moveVector.x)
       .normalize();
 
-    // 【大幅改善】速度を4倍に
+    // 速度（高速化済み）
     const speed = isDogMode ? 0.5 : 0.4;
     playerVelocity.lerp(moveDir.multiplyScalar(speed), 0.2);
 

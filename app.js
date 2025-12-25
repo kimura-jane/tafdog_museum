@@ -1,5 +1,5 @@
 // ==========================================
-// app.js - メインアプリケーション（完全版）
+// app.js - メインアプリケーション（修正版）
 // ==========================================
 
 import * as THREE from "three";
@@ -231,90 +231,62 @@ function createRoom() {
 }
 
 // ==========================================
-// NFTを壁全体に均等配置
+// NFTを4つの壁に均等配置（シンプル版）
 // ==========================================
 function placeNFTsOnWalls() {
   const nfts = currentFloor === 1 ? allNFTs.slice(0, 80) : allNFTs.slice(80, 100);
   
-  const WALL_OFFSET = 1.5;
-  const NFT_SIZE = 3.2;
-  const MARGIN = 2;
-
-  const wallLength = ROOM_SIZE - MARGIN * 2;
+  const WALL_OFFSET = 2.0;  // 壁からの距離
+  const MARGIN = 4;  // 端からのマージン
+  const usableLength = ROOM_SIZE - MARGIN * 2;
+  
+  // 4つの壁に分配
+  const perWall = Math.ceil(nfts.length / 4);
   
   let nftIndex = 0;
 
-  const wallConfigs = [
-    {
-      getPos: (i, total) => {
-        const spacing = wallLength / (total + 1);
-        const x = -wallLength / 2 + spacing * (i + 1);
-        return new THREE.Vector3(x, 3, -ROOM_SIZE / 2 + WALL_OFFSET);
-      },
-      rot: new THREE.Euler(0, 0, 0)
-    },
-    {
-      getPos: (i, total) => {
-        const spacing = wallLength / (total + 1);
-        const x = wallLength / 2 - spacing * (i + 1);
-        return new THREE.Vector3(x, 3, ROOM_SIZE / 2 - WALL_OFFSET);
-      },
-      rot: new THREE.Euler(0, Math.PI, 0)
-    },
-    {
-      getPos: (i, total) => {
-        const spacing = wallLength / (total + 1);
-        const z = -wallLength / 2 + spacing * (i + 1);
-        return new THREE.Vector3(ROOM_SIZE / 2 - WALL_OFFSET, 3, z);
-      },
-      rot: new THREE.Euler(0, -Math.PI / 2, 0)
-    },
-    {
-      getPos: (i, total) => {
-        const spacing = wallLength / (total + 1);
-        const z = wallLength / 2 - spacing * (i + 1);
-        return new THREE.Vector3(-ROOM_SIZE / 2 + WALL_OFFSET, 3, z);
-      },
-      rot: new THREE.Euler(0, Math.PI / 2, 0)
-    }
-  ];
-
-  const centerWallMat = new THREE.MeshStandardMaterial({ color: 0xeeeeee, roughness: 0.9 });
-  const centerWall = new THREE.Mesh(new THREE.BoxGeometry(0.3, 6, 24), centerWallMat);
-  centerWall.position.set(0, 3, 0);
-  centerWall.userData.isRoom = true;
-  scene.add(centerWall);
-
-  const totalWalls = 4;
-  const nftsEachWall = Math.ceil(nfts.length / (totalWalls + 2));
-
-  wallConfigs.forEach((config, wallIdx) => {
-    const count = Math.min(nftsEachWall, nfts.length - nftIndex);
-    
-    for (let i = 0; i < count; i++) {
-      if (nftIndex >= nfts.length) break;
-      const nft = nfts[nftIndex++];
-      const pos = config.getPos(i, count);
-      createArtFrame(nft, pos, config.rot);
-    }
-  });
-
-  const centerEastCount = Math.min(3, nfts.length - nftIndex);
-  for (let i = 0; i < centerEastCount; i++) {
-    if (nftIndex >= nfts.length) break;
+  // 北壁（Z=-）
+  const northCount = Math.min(perWall, nfts.length - nftIndex);
+  for (let i = 0; i < northCount; i++) {
     const nft = nfts[nftIndex++];
-    const z = (i - 1) * 6;
-    const pos = new THREE.Vector3(WALL_OFFSET, 3, z);
-    createArtFrame(nft, pos, new THREE.Euler(0, -Math.PI / 2, 0));
+    const spacing = usableLength / (northCount + 1);
+    const x = -usableLength / 2 + spacing * (i + 1);
+    const pos = new THREE.Vector3(x, 3, -ROOM_SIZE / 2 + WALL_OFFSET);
+    const rot = new THREE.Euler(0, 0, 0);
+    createArtFrame(nft, pos, rot);
   }
 
-  const centerWestCount = Math.min(3, nfts.length - nftIndex);
-  for (let i = 0; i < centerWestCount; i++) {
-    if (nftIndex >= nfts.length) break;
+  // 南壁（Z=+）
+  const southCount = Math.min(perWall, nfts.length - nftIndex);
+  for (let i = 0; i < southCount; i++) {
     const nft = nfts[nftIndex++];
-    const z = (i - 1) * 6;
-    const pos = new THREE.Vector3(-WALL_OFFSET, 3, z);
-    createArtFrame(nft, pos, new THREE.Euler(0, Math.PI / 2, 0));
+    const spacing = usableLength / (southCount + 1);
+    const x = usableLength / 2 - spacing * (i + 1);
+    const pos = new THREE.Vector3(x, 3, ROOM_SIZE / 2 - WALL_OFFSET);
+    const rot = new THREE.Euler(0, Math.PI, 0);
+    createArtFrame(nft, pos, rot);
+  }
+
+  // 東壁（X=+）
+  const eastCount = Math.min(perWall, nfts.length - nftIndex);
+  for (let i = 0; i < eastCount; i++) {
+    const nft = nfts[nftIndex++];
+    const spacing = usableLength / (eastCount + 1);
+    const z = -usableLength / 2 + spacing * (i + 1);
+    const pos = new THREE.Vector3(ROOM_SIZE / 2 - WALL_OFFSET, 3, z);
+    const rot = new THREE.Euler(0, -Math.PI / 2, 0);
+    createArtFrame(nft, pos, rot);
+  }
+
+  // 西壁（X=-）
+  const westCount = Math.min(perWall, nfts.length - nftIndex);
+  for (let i = 0; i < westCount; i++) {
+    const nft = nfts[nftIndex++];
+    const spacing = usableLength / (westCount + 1);
+    const z = usableLength / 2 - spacing * (i + 1);
+    const pos = new THREE.Vector3(-ROOM_SIZE / 2 + WALL_OFFSET, 3, z);
+    const rot = new THREE.Euler(0, Math.PI / 2, 0);
+    createArtFrame(nft, pos, rot);
   }
 }
 
@@ -423,7 +395,7 @@ function updateNPCDogs(delta, time) {
 
     if (dist > 0.5) {
       const dir = new THREE.Vector3().subVectors(target, dog.position).normalize();
-      dog.position.add(dir.multiplyScalar(delta * 2));
+      dog.position.add(dir.multiplyScalar(delta * 1.5));
       dog.rotation.y = Math.atan2(dir.x, dir.z);
       animateDog(dog, time, true);
     } else {
@@ -545,7 +517,7 @@ function updateBeans(delta) {
 }
 
 // ==========================================
-// プレイヤー更新
+// プレイヤー更新（ゆっくり移動）
 // ==========================================
 function updatePlayer(delta, time) {
   // AUTO機能
@@ -582,15 +554,15 @@ function updatePlayer(delta, time) {
         .normalize();
     }
 
-    // 速度（少し遅く）
-    const speed = isDogMode ? 0.3 : 0.25;
-    playerVelocity.lerp(moveDir.multiplyScalar(speed), 0.2);
+    // ゆっくり移動
+    const speed = isDogMode ? 0.15 : 0.12;
+    playerVelocity.lerp(moveDir.multiplyScalar(speed), 0.15);
 
     if (moveDir.length() > 0.01) {
       playerRotation = Math.atan2(moveDir.x, moveDir.z);
     }
   } else {
-    playerVelocity.lerp(new THREE.Vector3(), 0.2);
+    playerVelocity.lerp(new THREE.Vector3(), 0.15);
   }
 
   playerPosition.add(playerVelocity);

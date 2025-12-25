@@ -1,5 +1,5 @@
 // ==========================================
-// app.js - メインアプリケーション（完全修正版）
+// app.js - メインアプリケーション（完全版）
 // ==========================================
 
 import * as THREE from "three";
@@ -32,6 +32,8 @@ let scene, camera, renderer, controls;
 let player, playerAvatar;
 let isDogMode = false;
 let isFlying = false;
+let isAutoMode = false;
+let autoTarget = null;
 let currentFloor = 1;
 let humanColorIndex = 0;
 let dogColorIndex = 0;
@@ -61,7 +63,6 @@ function showSpeechBubble(text, position, duration = 1500) {
   bubble.textContent = text;
   document.body.appendChild(bubble);
 
-  // 3D位置を2D画面座標に変換
   const vector = position.clone();
   vector.project(camera);
   const x = (vector.x * 0.5 + 0.5) * window.innerWidth;
@@ -71,7 +72,6 @@ function showSpeechBubble(text, position, duration = 1500) {
   bubble.style.top = `${y}px`;
   bubble.style.transform = "translate(-50%, -100%)";
 
-  // アニメーション
   setTimeout(() => {
     bubble.style.opacity = "0";
     bubble.style.transform = "translate(-50%, -150%)";
@@ -99,7 +99,6 @@ async function fetchOwners() {
       
       data.owners.forEach(item => {
         item.tokenBalances.forEach(token => {
-          // 16進数と10進数両方に対応
           let tokenId;
           if (token.tokenId.startsWith("0x")) {
             tokenId = parseInt(token.tokenId, 16).toString();
@@ -151,8 +150,8 @@ async function init() {
 
   controls = new OrbitControls(camera, renderer.domElement);
   controls.enablePan = false;
-  controls.minDistance = 2;  // より近くまで寄れる
-  controls.maxDistance = 12; // 少し近め
+  controls.minDistance = 2;
+  controls.maxDistance = 12;
   controls.maxPolarAngle = Math.PI / 2 - 0.1;
   controls.target.set(0, 1, 0);
 
@@ -195,7 +194,6 @@ function createRoom() {
   const floorColor = isMuseum ? 0xf0f0f0 : 0xdeb887;
   const wallColor = isMuseum ? 0xfafafa : 0xe0e0e0;
 
-  // 床
   const floor = new THREE.Mesh(
     new THREE.PlaneGeometry(ROOM_SIZE, ROOM_SIZE),
     new THREE.MeshStandardMaterial({ color: floorColor, roughness: 0.8 })
@@ -205,7 +203,6 @@ function createRoom() {
   floor.userData.isRoom = true;
   scene.add(floor);
 
-  // 外壁
   const wallMat = new THREE.MeshStandardMaterial({ color: wallColor, roughness: 0.9 });
   const walls = [
     { pos: [0, WALL_HEIGHT / 2, -ROOM_SIZE / 2], size: [ROOM_SIZE, WALL_HEIGHT, 0.3] },
@@ -221,7 +218,6 @@ function createRoom() {
     scene.add(wall);
   });
 
-  // 天井
   const ceiling = new THREE.Mesh(
     new THREE.PlaneGeometry(ROOM_SIZE, ROOM_SIZE),
     new THREE.MeshStandardMaterial({ color: 0xffffff })
@@ -235,24 +231,21 @@ function createRoom() {
 }
 
 // ==========================================
-// NFTを壁全体に均等配置（修正版）
+// NFTを壁全体に均等配置
 // ==========================================
 function placeNFTsOnWalls() {
   const nfts = currentFloor === 1 ? allNFTs.slice(0, 80) : allNFTs.slice(80, 100);
   
-  const WALL_OFFSET = 1.5;  // 壁からの距離を大きく
+  const WALL_OFFSET = 1.5;
   const NFT_SIZE = 3.2;
-  const MARGIN = 2;  // 端からのマージン
+  const MARGIN = 2;
 
-  // 各壁に配置するNFT数を計算
   const wallLength = ROOM_SIZE - MARGIN * 2;
-  const nftsPerWall = Math.floor(wallLength / (NFT_SIZE + 2));  // 間隔を確保
   
   let nftIndex = 0;
 
-  // 4つの壁に順番に配置
   const wallConfigs = [
-    { // 北壁
+    {
       getPos: (i, total) => {
         const spacing = wallLength / (total + 1);
         const x = -wallLength / 2 + spacing * (i + 1);
@@ -260,7 +253,7 @@ function placeNFTsOnWalls() {
       },
       rot: new THREE.Euler(0, 0, 0)
     },
-    { // 南壁
+    {
       getPos: (i, total) => {
         const spacing = wallLength / (total + 1);
         const x = wallLength / 2 - spacing * (i + 1);
@@ -268,7 +261,7 @@ function placeNFTsOnWalls() {
       },
       rot: new THREE.Euler(0, Math.PI, 0)
     },
-    { // 東壁
+    {
       getPos: (i, total) => {
         const spacing = wallLength / (total + 1);
         const z = -wallLength / 2 + spacing * (i + 1);
@@ -276,7 +269,7 @@ function placeNFTsOnWalls() {
       },
       rot: new THREE.Euler(0, -Math.PI / 2, 0)
     },
-    { // 西壁
+    {
       getPos: (i, total) => {
         const spacing = wallLength / (total + 1);
         const z = wallLength / 2 - spacing * (i + 1);
@@ -286,20 +279,16 @@ function placeNFTsOnWalls() {
     }
   ];
 
-  // 中央の壁（両面）
   const centerWallMat = new THREE.MeshStandardMaterial({ color: 0xeeeeee, roughness: 0.9 });
   const centerWall = new THREE.Mesh(new THREE.BoxGeometry(0.3, 6, 24), centerWallMat);
   centerWall.position.set(0, 3, 0);
   centerWall.userData.isRoom = true;
   scene.add(centerWall);
 
-  // NFTを各壁に配置
   const totalWalls = 4;
-  const nftsOnOuterWalls = Math.min(nftsPerWall * totalWalls, nfts.length);
-  const nftsEachWall = Math.ceil(nftsOnOuterWalls / totalWalls);
+  const nftsEachWall = Math.ceil(nfts.length / (totalWalls + 2));
 
   wallConfigs.forEach((config, wallIdx) => {
-    const startIdx = nftIndex;
     const count = Math.min(nftsEachWall, nfts.length - nftIndex);
     
     for (let i = 0; i < count; i++) {
@@ -310,7 +299,6 @@ function placeNFTsOnWalls() {
     }
   });
 
-  // 中央壁の東側
   const centerEastCount = Math.min(3, nfts.length - nftIndex);
   for (let i = 0; i < centerEastCount; i++) {
     if (nftIndex >= nfts.length) break;
@@ -320,7 +308,6 @@ function placeNFTsOnWalls() {
     createArtFrame(nft, pos, new THREE.Euler(0, -Math.PI / 2, 0));
   }
 
-  // 中央壁の西側
   const centerWestCount = Math.min(3, nfts.length - nftIndex);
   for (let i = 0; i < centerWestCount; i++) {
     if (nftIndex >= nfts.length) break;
@@ -332,7 +319,7 @@ function placeNFTsOnWalls() {
 }
 
 // ==========================================
-// NFTフレーム作成（壁刺さり完全防止）
+// NFTフレーム作成（両面表示対応）
 // ==========================================
 function createArtFrame(nft, position, rotation) {
   const group = new THREE.Group();
@@ -340,7 +327,6 @@ function createArtFrame(nft, position, rotation) {
   group.rotation.copy(rotation);
   group.userData.nft = nft;
 
-  // フレーム（薄くして壁から離す）
   const frame = new THREE.Mesh(
     new THREE.BoxGeometry(3.2, 3.2, 0.05),
     new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.3 })
@@ -348,7 +334,6 @@ function createArtFrame(nft, position, rotation) {
   frame.position.z = 0.03;
   group.add(frame);
 
-  // マット
   const mat = new THREE.Mesh(
     new THREE.BoxGeometry(2.9, 2.9, 0.01),
     new THREE.MeshStandardMaterial({ color: 0xffffff })
@@ -356,7 +341,6 @@ function createArtFrame(nft, position, rotation) {
   mat.position.z = 0.06;
   group.add(mat);
 
-  // 画像
   const loader = new THREE.TextureLoader();
   const proxyUrl = `https://wsrv.nl/?url=${encodeURIComponent(nft.imageUrl)}&w=512`;
 
@@ -364,20 +348,25 @@ function createArtFrame(nft, position, rotation) {
     texture.colorSpace = THREE.SRGBColorSpace;
     const art = new THREE.Mesh(
       new THREE.PlaneGeometry(2.5, 2.5),
-      new THREE.MeshBasicMaterial({ map: texture })
+      new THREE.MeshBasicMaterial({ 
+        map: texture,
+        side: THREE.DoubleSide
+      })
     );
     art.position.z = 0.07;
     group.add(art);
   }, undefined, () => {
     const art = new THREE.Mesh(
       new THREE.PlaneGeometry(2.5, 2.5),
-      new THREE.MeshStandardMaterial({ color: 0x333333 })
+      new THREE.MeshStandardMaterial({ 
+        color: 0x333333,
+        side: THREE.DoubleSide
+      })
     );
     art.position.z = 0.07;
     group.add(art);
   });
 
-  // スポットライト
   const light = new THREE.PointLight(0xffffff, 0.5, 5);
   light.position.set(0, 1.5, 1);
   group.add(light);
@@ -449,7 +438,7 @@ function updateNPCDogs(delta, time) {
 }
 
 // ==========================================
-// ターゲットキャラ（4隅に配置）
+// ターゲットキャラ
 // ==========================================
 function createTargets() {
   const positions = [
@@ -527,7 +516,6 @@ function updateBeans(delta) {
       if (dist < 1.5) {
         char.userData.hitCount++;
 
-        // 痛がるエフェクト
         if (char.userData.mesh) {
           char.userData.mesh.material.color.setHex(0xff0000);
           setTimeout(() => {
@@ -535,15 +523,12 @@ function updateBeans(delta) {
           }, 200);
         }
 
-        // 吹き出し「痛いっ！」
         const bubblePos = char.position.clone();
         bubblePos.y += 3;
         showSpeechBubble("痛いっ！", bubblePos, 1000);
 
-        // 10回で飛んでいく
         if (char.userData.hitCount >= 10) {
           char.userData.isFlyingAway = true;
-          // 吹き出し「あーれー」
           showSpeechBubble("あーーれーーー！！", bubblePos, 2000);
         }
 
@@ -563,6 +548,20 @@ function updateBeans(delta) {
 // プレイヤー更新
 // ==========================================
 function updatePlayer(delta, time) {
+  // AUTO機能
+  if (isAutoMode) {
+    if (!autoTarget || playerPosition.distanceTo(autoTarget) < 2) {
+      autoTarget = new THREE.Vector3(
+        (Math.random() - 0.5) * (ROOM_SIZE - 10),
+        0,
+        (Math.random() - 0.5) * (ROOM_SIZE - 10)
+      );
+    }
+    const dir = new THREE.Vector3().subVectors(autoTarget, playerPosition).normalize();
+    moveVector.x = dir.x;
+    moveVector.y = dir.z;
+  }
+
   isMoving = Math.abs(moveVector.x) > 0.01 || Math.abs(moveVector.y) > 0.01;
 
   if (isMoving) {
@@ -572,12 +571,19 @@ function updatePlayer(delta, time) {
     forward.normalize();
 
     const right = new THREE.Vector3().crossVectors(forward, new THREE.Vector3(0, 1, 0));
-    const moveDir = new THREE.Vector3()
-      .addScaledVector(forward, moveVector.y)
-      .addScaledVector(right, moveVector.x)
-      .normalize();
+    
+    let moveDir;
+    if (isAutoMode) {
+      moveDir = new THREE.Vector3(moveVector.x, 0, moveVector.y).normalize();
+    } else {
+      moveDir = new THREE.Vector3()
+        .addScaledVector(forward, moveVector.y)
+        .addScaledVector(right, moveVector.x)
+        .normalize();
+    }
 
-    const speed = isDogMode ? 0.5 : 0.4;
+    // 速度（少し遅く）
+    const speed = isDogMode ? 0.3 : 0.25;
     playerVelocity.lerp(moveDir.multiplyScalar(speed), 0.2);
 
     if (moveDir.length() > 0.01) {
@@ -621,6 +627,7 @@ function createUI() {
       <div class="flex gap-2">
         <button id="btn-human" class="px-4 py-2 rounded-full bg-white text-black font-bold text-sm">HUMAN</button>
         <button id="btn-dog" class="px-4 py-2 rounded-full bg-black/50 text-white/70 border border-white/20 font-bold text-sm">DOG</button>
+        <button id="btn-auto" class="px-4 py-2 rounded-full bg-black/50 text-white/70 border border-white/20 font-bold text-sm">AUTO</button>
       </div>
     </div>
     <div class="fixed top-1/2 left-4 -translate-y-1/2 flex flex-col gap-2 z-10">
@@ -664,6 +671,15 @@ function createUI() {
     }
   };
 
+  document.getElementById("btn-auto").onclick = () => {
+    isAutoMode = !isAutoMode;
+    if (!isAutoMode) {
+      moveVector.x = 0;
+      moveVector.y = 0;
+    }
+    updateButtons();
+  };
+
   document.getElementById("btn-fly").onclick = () => {
     if (!isDogMode) {
       isFlying = !isFlying;
@@ -697,12 +713,14 @@ function createUI() {
 function updateButtons() {
   const humanBtn = document.getElementById("btn-human");
   const dogBtn = document.getElementById("btn-dog");
+  const autoBtn = document.getElementById("btn-auto");
   const flyBtn = document.getElementById("btn-fly");
   const floor1Btn = document.getElementById("btn-floor-1");
   const floor2Btn = document.getElementById("btn-floor-2");
 
   humanBtn.className = `px-4 py-2 rounded-full font-bold text-sm ${!isDogMode ? "bg-white text-black" : "bg-black/50 text-white/70 border border-white/20"}`;
   dogBtn.className = `px-4 py-2 rounded-full font-bold text-sm ${isDogMode ? "bg-white text-black" : "bg-black/50 text-white/70 border border-white/20"}`;
+  autoBtn.className = `px-4 py-2 rounded-full font-bold text-sm ${isAutoMode ? "bg-green-500 text-white" : "bg-black/50 text-white/70 border border-white/20"}`;
   flyBtn.className = `w-14 h-14 rounded-full font-bold text-xs ${isFlying ? "bg-blue-500 text-white" : "bg-black/50 text-white/70 border border-white/20"}`;
   flyBtn.style.display = isDogMode ? "none" : "flex";
   floor1Btn.className = `w-12 h-12 rounded-lg font-bold text-sm ${currentFloor === 1 ? "bg-white text-black" : "bg-black/50 text-white/70 border border-white/20"}`;
@@ -728,6 +746,7 @@ function setupJoystick() {
   const maxDist = 40;
 
   function handleMove(x, y) {
+    if (isAutoMode) return;
     const rect = base.getBoundingClientRect();
     const cx = rect.left + rect.width / 2;
     const cy = rect.top + rect.height / 2;
@@ -744,6 +763,7 @@ function setupJoystick() {
   }
 
   function handleEnd() {
+    if (isAutoMode) return;
     active = false;
     stick.style.transform = "translate(0,0)";
     moveVector.x = 0;
@@ -769,6 +789,7 @@ function setupEvents() {
   });
 
   window.addEventListener("keydown", e => {
+    if (isAutoMode) return;
     switch (e.key.toLowerCase()) {
       case "w": moveVector.y = 1; break;
       case "s": moveVector.y = -1; break;
@@ -778,6 +799,7 @@ function setupEvents() {
     }
   });
   window.addEventListener("keyup", e => {
+    if (isAutoMode) return;
     switch (e.key.toLowerCase()) {
       case "w": case "s": moveVector.y = 0; break;
       case "a": case "d": moveVector.x = 0; break;

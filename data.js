@@ -5,8 +5,62 @@
 export const NFT_CONFIG = {
   contractAddress: "0xDD8aEA78eebc6b444d960A18D282F453195d55A9",
   ownerWallet: "0x8242dae5c6ff90b03d15c54cad95c3ed97ac0571",
-  totalSupply: 100,
+  totalSupply: 50,
   imageBaseUrl: "https://raw.githubusercontent.com/kimura-jane/gazo/main/"
+};
+
+// TokenIDと画像ファイルの対応表
+const TOKEN_IMAGE_MAP = {
+  1: { base: "tafdog_004", state: "tafdog_007_state" },
+  2: { base: "tafdog_016", state: null },
+  3: { base: "tafdog_019", state: null },
+  4: { base: "tafdog_002", state: "tafdog_009_state" },
+  5: { base: "tafdog_022", state: null },
+  6: { base: "tafdog_025", state: null },
+  7: { base: "tafdog_003", state: "tafdog_005_state" },
+  8: { base: "tafdog_035", state: null },
+  9: { base: "tafdog_038", state: null },
+  10: { base: "tafdog_005", state: "tafdog_008_state" },
+  11: { base: "tafdog_053", state: null },
+  12: { base: "tafdog_058", state: null },
+  13: { base: "tafdog_006", state: "tafdog_002_state" },
+  14: { base: "tafdog_065", state: null },
+  15: { base: "tafdog_015", state: null },
+  16: { base: "tafdog_007", state: "tafdog_003_state" },
+  17: { base: "tafdog_017", state: null },
+  18: { base: "tafdog_018", state: null },
+  19: { base: "tafdog_011", state: "tafdog_011_state" },
+  20: { base: "tafdog_020", state: null },
+  21: { base: "tafdog_021", state: null },
+  22: { base: "tafdog_013", state: "tafdog_015_state" },
+  23: { base: "tafdog_023", state: null },
+  24: { base: "tafdog_024", state: null },
+  25: { base: "tafdog_042", state: "tafdog_016_state" },
+  26: { base: "tafdog_026", state: null },
+  27: { base: "tafdog_027", state: null },
+  28: { base: "tafdog_056", state: "tafdog_017_state" },
+  29: { base: "tafdog_029", state: null },
+  30: { base: "tafdog_030", state: null },
+  31: { base: "tafdog_031", state: null },
+  32: { base: "tafdog_032", state: null },
+  33: { base: "tafdog_033", state: null },
+  34: { base: "tafdog_034", state: null },
+  35: { base: "tafdog_009", state: "tafdog_004_state" },
+  36: { base: "tafdog_036", state: null },
+  37: { base: "tafdog_037", state: null },
+  38: { base: "tafdog_010", state: "tafdog_010_state" },
+  39: { base: "tafdog_039", state: null },
+  40: { base: "tafdog_040", state: null },
+  41: { base: "tafdog_041", state: null },
+  42: { base: "tafdog_075", state: null },
+  43: { base: "tafdog_043", state: null },
+  44: { base: "tafdog_044", state: null },
+  45: { base: "tafdog_045", state: null },
+  46: { base: "tafdog_046", state: null },
+  47: { base: "tafdog_047", state: null },
+  48: { base: "tafdog_048", state: null },
+  49: { base: "tafdog_049", state: null },
+  50: { base: "tafdog_050", state: null }
 };
 
 // 変化条件
@@ -22,26 +76,20 @@ export const CHANGE_RULES = {
   "25": "毎日12-13時だけ変化",
   "28": "毎日0-2時だけ変化",
   "35": "水曜日だけ変化",
-  "38": "金・土・日だけ変化",
-  "53": "平日9-17時だけ変化",
-  "58": "火曜19-21時だけ変化",
-  "65": "埼玉で雨の時だけ変化",
-  "70": "毎日15-16時だけ変化",
-  "75": "毎日5-7時だけ変化",
-  "80": "月末だけ変化",
-  "90": "第2土曜日だけ変化",
-  "100": "毎日2-5時だけ変化"
+  "38": "金・土・日だけ変化"
 };
 
 // NFTデータ生成
 export function generateNFTData() {
   const nfts = [];
   for (let i = 1; i <= NFT_CONFIG.totalSupply; i++) {
-    const paddedId = String(i).padStart(3, "0");
+    const imageInfo = TOKEN_IMAGE_MAP[i];
+    if (!imageInfo) continue;
+    
     nfts.push({
       tokenId: String(i),
-      imageUrl: `${NFT_CONFIG.imageBaseUrl}tafdog_${paddedId}.png`,
-      stateImageUrl: CHANGE_RULES[String(i)] ? `${NFT_CONFIG.imageBaseUrl}tafdog_${paddedId}_state.png` : null,
+      imageUrl: `${NFT_CONFIG.imageBaseUrl}${imageInfo.base}.png`,
+      stateImageUrl: imageInfo.state ? `${NFT_CONFIG.imageBaseUrl}${imageInfo.state}.png` : null,
       changeRule: CHANGE_RULES[String(i)] || null,
       owner: null,
       ownerShort: "Loading..."
@@ -50,7 +98,7 @@ export function generateNFTData() {
   return nfts;
 }
 
-// 部屋サイズ（広くした）
+// 部屋サイズ
 export const ROOM_SIZE = 80;
 export const WALL_HEIGHT = 10;
 

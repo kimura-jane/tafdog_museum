@@ -26,8 +26,6 @@ let dustParticles;
 let moveVector = new THREE.Vector3();
 let keys = {};
 let joystickActive = false;
-let cameraFollowPlayer = true;
-let lastInteractionTime = 0;
 
 let currentHumanColorIndex = 0;
 let currentDogColorIndex = 0;
@@ -63,14 +61,6 @@ async function init() {
   controls.maxDistance = 50;
   controls.maxPolarAngle = Math.PI / 2.1;
   controls.enablePan = false;
-  
-  // OrbitControls操作時にカメラ追従を一時停止
-  controls.addEventListener('start', () => {
-    cameraFollowPlayer = false;
-  });
-  controls.addEventListener('end', () => {
-    lastInteractionTime = Date.now();
-  });
   
   setupLighting();
   createRoom();
@@ -337,12 +327,9 @@ function createTargets() {
   const baseUrl = "https://raw.githubusercontent.com/kimura-jane/tafdog_museum/main/";
   const targetFiles = ["IMG_1822.png", "IMG_1889.png"];
   
-  // 四隅の座標
   const corners = [
-    { x: ROOM_SIZE / 2 - 5, z: -ROOM_SIZE / 2 + 5 },   // 右奥
-    { x: -ROOM_SIZE / 2 + 5, z: -ROOM_SIZE / 2 + 5 },  // 左奥
-    { x: ROOM_SIZE / 2 - 5, z: ROOM_SIZE / 2 - 5 },    // 右手前
-    { x: -ROOM_SIZE / 2 + 5, z: ROOM_SIZE / 2 - 5 }    // 左手前
+    { x: ROOM_SIZE / 2 - 5, z: -ROOM_SIZE / 2 + 5 },
+    { x: -ROOM_SIZE / 2 + 5, z: ROOM_SIZE / 2 - 5 }
   ];
   
   targetFiles.forEach((file, index) => {
@@ -674,7 +661,7 @@ function onCanvasClick(event) {
 }
 
 // ==========================================
-// NFTモーダル表示
+// NFTモーダル表示（修正版）
 // ==========================================
 function showNFTModal(nft) {
   document.getElementById('nft-modal')?.remove();
@@ -690,13 +677,24 @@ function showNFTModal(nft) {
   let imagesHtml = '';
   
   if (changeRule && nft.stateImageUrl) {
+    // 2枚表示
     imagesHtml = `
       <div style="display:flex;gap:8px;justify-content:center;margin-bottom:10px;">
-        <div style="flex:1;"><img src="${nft.imageUrl}" style="width:100%;border-radius:6px;"><div style="font-size:10px;color:#888;margin-top:4px;">通常</div></div>
-        <div style="flex:1;"><img src="${nft.stateImageUrl}" style="width:100%;border-radius:6px;"><div style="font-size:10px;color:#888;margin-top:4px;">変化後</div></div>
+        <div style="flex:1;max-width:160px;">
+          <img src="${nft.imageUrl}" style="width:100%;border-radius:6px;display:block;">
+          <div style="font-size:10px;color:#888;margin-top:4px;">通常</div>
+        </div>
+        <div style="flex:1;max-width:160px;">
+          <img src="${nft.stateImageUrl}" style="width:100%;border-radius:6px;display:block;">
+          <div style="font-size:10px;color:#888;margin-top:4px;">変化後</div>
+        </div>
       </div>`;
   } else {
-    imagesHtml = `<img src="${nft.imageUrl}" style="max-width:100%;max-height:200px;border-radius:8px;margin-bottom:10px;">`;
+    // 1枚表示（中央寄せ）
+    imagesHtml = `
+      <div style="display:flex;justify-content:center;margin-bottom:10px;">
+        <img src="${nft.imageUrl}" style="max-width:200px;max-height:200px;border-radius:8px;display:block;">
+      </div>`;
   }
   
   const changeRuleHtml = changeRule ? `<p style="color:#e74c3c;margin:8px 0;font-size:12px;background:#fff5f5;padding:8px;border-radius:6px;"><strong>変化条件:</strong><br>${changeRule}</p>` : '';
@@ -718,7 +716,7 @@ function showNFTModal(nft) {
 }
 
 // ==========================================
-// プレイヤー更新
+// プレイヤー更新（視点を戻さない版）
 // ==========================================
 function updatePlayer() {
   const speed = isDogMode ? 0.15 : 0.12;
@@ -742,10 +740,7 @@ function updatePlayer() {
     finalMove.z = dir.z;
   }
   
-  // 移動中はカメラ追従を再開
   if (finalMove.length() > 0) {
-    cameraFollowPlayer = true;
-    
     const movement = finalMove.clone().normalize().multiplyScalar(speed);
     const camDir = new THREE.Vector3();
     camera.getWorldDirection(camDir);
@@ -773,19 +768,8 @@ function updatePlayer() {
     player.position.y = 0;
   }
   
-  // 3秒操作がなければカメラ追従を再開
-  if (!cameraFollowPlayer && Date.now() - lastInteractionTime > 3000) {
-    cameraFollowPlayer = true;
-  }
-  
-  // カメラ追従（フラグがtrueの時のみ）
-  if (cameraFollowPlayer) {
-    camera.position.lerp(player.position.clone().add(new THREE.Vector3(0, 5, 10)), 0.05);
-    controls.target.lerp(player.position, 0.05);
-  } else {
-    // 視点操作中はtargetだけプレイヤーに向ける（カメラ位置は変えない）
-    controls.target.lerp(player.position, 0.02);
-  }
+  // カメラのターゲットだけプレイヤーに追従（カメラ位置は変えない）
+  controls.target.copy(player.position);
 }
 
 // ==========================================

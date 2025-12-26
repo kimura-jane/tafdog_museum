@@ -2,841 +2,1105 @@
 // app.js - TAF DOG MUSEUM メインアプリケーション
 // ==========================================
 
-import * as THREE from "three";
-import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-
-import { NFT_CONFIG, ROOM_SIZE, WALL_HEIGHT, HUMAN_COLORS, DOG_COLORS, generateNFTData } from './data.js';
-import { createHumanAvatar, createDogAvatar, animateHuman, animateDog, createDustParticles } from './functions.js';
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { NFT_CONFIG, ROOM_SIZE, WALL_HEIGHT, TARGET_IMAGES, HUMAN_COLORS, DOG_COLORS, generateNFTData, CHANGE_RULES } from './data.js';
+import { getLighting, createHumanAvatar, createDogAvatar, animateHuman, animateDog, createDustParticles } from './functions.js';
 
 // ==========================================
 // グローバル変数
 // ==========================================
+const ALCHEMY_API_KEY = "GvZn0mlz0Gh9RI6C-Wl5xl9fLjs8QmaQ";
+
 let scene, camera, renderer, controls;
-let player, avatar;
-let isDogMode = false;
-let isFlyMode = false;
+let player, playerAvatar;
+let isHuman = true;
+let isDog = false;
 let isAutoMode = false;
-let currentColorIndex = 0;
+let isFlyMode = false;
+let humanColorIndex = 0;
+let dogColorIndex = 0;
 let moveVector = new THREE.Vector3();
-let joystickActive = false;
-let beans = [];
-let targets = [];
-let dustParticles;
+let velocity = new THREE.Vector3();
 let nftData = [];
-let currentFloor = 1;
-let isThrowingAnimation = false;
-let throwAnimationTime = 0;
-let footprints = [];
-let lastFootprintTime = 0;
-let lastFootprintPos = new THREE.Vector3();
-let isLeftFoot = false;
+let nftMeshes = [];
+let targets = [];
+let beans = [];
+let dustParticles;
+let joystickActive = false;
+let lastUserInteraction = 0;
 
-let isUserControlling = false;
-let userControlTimeout = null;
-
-let flyBtn, throwBtn, humanBtn, dogBtn, autoBtn, floorBtn;
-
-const keys = { w: false, a: false, s: false, d: false, space: false };
-const ALCHEMY_API_KEY = "NzzY5_VyMSoXXD0XqZpDL";
-
-// 額縁のスタイル
-const FRAME_STYLES = [
-    { color: 0xd4af37, name: 'gold', width: 0.2 },
-    { color: 0x1a1a1a, name: 'black', width: 0.15 },
-    { color: 0xffffff, name: 'white', width: 0.12 },
-    { color: 0x8b4513, name: 'wood', width: 0.2 },
-    { color: 0xc0c0c0, name: 'silver', width: 0.15 }
-];
+// ターゲットキャラの画像URL
+const baseUrl = "https://raw.githubusercontent.com/kimura-jane/tafdog_museum/main/";
+const targetFiles = ["IMG_1822.png", "IMG_1889.png"];
 
 // ==========================================
 // 初期化
 // ==========================================
 async function init() {
-    try {
-        scene = new THREE.Scene();
-        scene.background = new THREE.Color(0x2a2a2a);
-        scene.fog = new THREE.Fog(0x2a2a2a, 40, 100);
+  try {
+    // シーン作成
+    scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x1a1a1a);
+    scene.fog = new THREE.Fog(0x1a1a1a, 30, 100);
 
-        camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-        camera.position.set(0, 5, 15);
+    // カメラ
+    camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+    camera.position.set(0, 5, 15);
 
-        renderer = new THREE.WebGLRenderer({ antialias: true });
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-        renderer.shadowMap.enabled = true;
-        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    // レンダラー
+    renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    document.getElementById('root').appendChild(renderer.domElement);
 
-        const root = document.getElementById('root');
-        root.appendChild(renderer.domElement);
+    // コントロール
+    controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.05;
+    controls.minDistance = 5;
+    controls.maxDistance = 50;
+    controls.maxPolarAngle = Math.PI / 2;
 
-        const loadingEl = document.getElementById('loading');
-        if (loadingEl) loadingEl.remove();
+    // 照明
+    setupLighting();
 
-        controls = new OrbitControls(camera, renderer.domElement);
-        controls.enableDamping = true;
-        controls.dampingFactor = 0.1;
-        controls.enablePan = false;
-        controls.minDistance = 5;
-        controls.maxDistance = 30;
-        controls.maxPolarAngle = Math.PI / 2.2;
-        controls.minPolarAngle = 0.3;
+    // 部屋作成
+    createRoom();
 
-        controls.addEventListener('start', () => {
-            isUserControlling = true;
-            if (userControlTimeout) clearTimeout(userControlTimeout);
-        });
-        controls.addEventListener('end', () => {
-            userControlTimeout = setTimeout(() => {
-                isUserControlling = false;
-            }, 1500);
-        });
+    // プレイヤー作成
+    createPlayer();
 
-        setupLighting();
-        createRoom();
-        createPlayer();
+    // NFTデータ取得・配置
+    nftData = generateNFTData();
+    await fetchOwnerData();
+    placeNFTsOnWalls();
 
-        nftData = generateNFTData();
-        fetchOwnerData();
-        placeNFTsOnWalls();
-        createTargets();
+    // ターゲットキャラ作成
+    createTargets();
 
-        dustParticles = createDustParticles(50);
-        scene.add(dustParticles);
+    // ダストパーティクル
+    dustParticles = createDustParticles(100);
+    scene.add(dustParticles);
 
-        createUI();
-        setupJoystick();
-        setupEventListeners();
+    // UI作成
+    createUI();
+    createJoystick();
 
-        animate();
+    // イベントリスナー
+    window.addEventListener('resize', onWindowResize);
+    window.addEventListener('keydown', onKeyDown);
 
-    } catch (error) {
-        console.error('Init error:', error);
+    // ローディング画面を削除
+    const loading = document.getElementById('loading');
+    if (loading) loading.remove();
+
+    // アニメーション開始
+    animate();
+
+  } catch (error) {
+    console.error('初期化エラー:', error);
+    const loading = document.getElementById('loading');
+    if (loading) {
+      loading.innerHTML = `<div style="color:red;">エラー: ${error.message}</div>`;
     }
+  }
 }
 
 // ==========================================
 // 照明設定
 // ==========================================
 function setupLighting() {
-    const ambient = new THREE.AmbientLight(0xffffff, 0.6);
-    scene.add(ambient);
+  // 環境光（明るめ）
+  const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+  scene.add(ambientLight);
 
-    const topLight = new THREE.DirectionalLight(0xffffff, 0.5);
-    topLight.position.set(0, WALL_HEIGHT, 0);
-    scene.add(topLight);
+  // メインライト（上から）
+  const mainLight = new THREE.DirectionalLight(0xffffff, 0.8);
+  mainLight.position.set(0, 20, 0);
+  mainLight.castShadow = true;
+  mainLight.shadow.mapSize.width = 2048;
+  mainLight.shadow.mapSize.height = 2048;
+  scene.add(mainLight);
 
-    const dirLight = new THREE.DirectionalLight(0xffffff, 0.4);
-    dirLight.position.set(10, 20, 10);
-    dirLight.castShadow = true;
-    dirLight.shadow.mapSize.width = 2048;
-    dirLight.shadow.mapSize.height = 2048;
-    scene.add(dirLight);
+  // 補助ライト（斜め前から）
+  const subLight1 = new THREE.DirectionalLight(0xfff5e6, 0.4);
+  subLight1.position.set(20, 15, 20);
+  scene.add(subLight1);
 
-    const fillLight = new THREE.DirectionalLight(0xffffff, 0.3);
-    fillLight.position.set(-10, 15, -10);
-    scene.add(fillLight);
+  // 補助ライト（反対側から）
+  const subLight2 = new THREE.DirectionalLight(0xe6f0ff, 0.3);
+  subLight2.position.set(-20, 15, -20);
+  scene.add(subLight2);
 
-    const hemi = new THREE.HemisphereLight(0xffffff, 0x8888aa, 0.4);
-    scene.add(hemi);
+  // 床を照らすライト
+  const floorLight = new THREE.PointLight(0xffffff, 0.3, 100);
+  floorLight.position.set(0, 8, 0);
+  scene.add(floorLight);
 }
 
 // ==========================================
 // 部屋作成
 // ==========================================
 function createRoom() {
-    // 床
-    const floorGeo = new THREE.PlaneGeometry(ROOM_SIZE, ROOM_SIZE);
-    const floorMat = new THREE.MeshStandardMaterial({
-        color: 0x4a3728,
-        roughness: 0.6,
-        metalness: 0.1
-    });
-    const floor = new THREE.Mesh(floorGeo, floorMat);
-    floor.rotation.x = -Math.PI / 2;
-    floor.receiveShadow = true;
-    scene.add(floor);
+  const halfSize = ROOM_SIZE / 2;
 
-    // 床のライン
-    const lineMat = new THREE.LineBasicMaterial({ color: 0x5a4738, transparent: true, opacity: 0.5 });
-    for (let i = -ROOM_SIZE / 2; i <= ROOM_SIZE / 2; i += 5) {
-        const points = [new THREE.Vector3(i, 0.02, -ROOM_SIZE / 2), new THREE.Vector3(i, 0.02, ROOM_SIZE / 2)];
-        scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(points), lineMat));
-        const points2 = [new THREE.Vector3(-ROOM_SIZE / 2, 0.02, i), new THREE.Vector3(ROOM_SIZE / 2, 0.02, i)];
-        scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(points2), lineMat));
-    }
+  // 床（ダークウッド調）
+  const floorGeometry = new THREE.PlaneGeometry(ROOM_SIZE, ROOM_SIZE);
+  const floorMaterial = new THREE.MeshStandardMaterial({
+    color: 0x3d2b1f,
+    roughness: 0.4,
+    metalness: 0.1
+  });
+  const floor = new THREE.Mesh(floorGeometry, floorMaterial);
+  floor.rotation.x = -Math.PI / 2;
+  floor.receiveShadow = true;
+  scene.add(floor);
 
-    // 天井
-    const ceilingGeo = new THREE.PlaneGeometry(ROOM_SIZE, ROOM_SIZE);
-    const ceilingMat = new THREE.MeshStandardMaterial({ color: 0x3a3a3a, side: THREE.DoubleSide });
-    const ceiling = new THREE.Mesh(ceilingGeo, ceilingMat);
-    ceiling.rotation.x = Math.PI / 2;
-    ceiling.position.y = WALL_HEIGHT;
-    scene.add(ceiling);
+  // 天井
+  const ceilingGeometry = new THREE.PlaneGeometry(ROOM_SIZE, ROOM_SIZE);
+  const ceilingMaterial = new THREE.MeshStandardMaterial({
+    color: 0x2a2a2a,
+    roughness: 0.9
+  });
+  const ceiling = new THREE.Mesh(ceilingGeometry, ceilingMaterial);
+  ceiling.rotation.x = Math.PI / 2;
+  ceiling.position.y = WALL_HEIGHT;
+  scene.add(ceiling);
 
-    // 壁
-    const wallMat = new THREE.MeshStandardMaterial({
-        color: 0xe8e4dc,
-        side: THREE.DoubleSide,
-        roughness: 0.9
-    });
+  // 壁（オフホワイト）
+  const wallMaterial = new THREE.MeshStandardMaterial({
+    color: 0xf0ebe0,
+    roughness: 0.7,
+    metalness: 0
+  });
 
-    const walls = [
-        { pos: [0, WALL_HEIGHT / 2, -ROOM_SIZE / 2], rot: [0, 0, 0] },
-        { pos: [0, WALL_HEIGHT / 2, ROOM_SIZE / 2], rot: [0, Math.PI, 0] },
-        { pos: [-ROOM_SIZE / 2, WALL_HEIGHT / 2, 0], rot: [0, Math.PI / 2, 0] },
-        { pos: [ROOM_SIZE / 2, WALL_HEIGHT / 2, 0], rot: [0, -Math.PI / 2, 0] }
-    ];
+  // 壁の位置と回転
+  const walls = [
+    { pos: [0, WALL_HEIGHT / 2, -halfSize], rot: [0, 0, 0] },      // 北壁
+    { pos: [0, WALL_HEIGHT / 2, halfSize], rot: [0, Math.PI, 0] }, // 南壁
+    { pos: [-halfSize, WALL_HEIGHT / 2, 0], rot: [0, Math.PI / 2, 0] },  // 西壁
+    { pos: [halfSize, WALL_HEIGHT / 2, 0], rot: [0, -Math.PI / 2, 0] }   // 東壁
+  ];
 
-    walls.forEach(w => {
-        const wall = new THREE.Mesh(new THREE.PlaneGeometry(ROOM_SIZE, WALL_HEIGHT), wallMat);
-        wall.position.set(...w.pos);
-        wall.rotation.set(...w.rot);
-        scene.add(wall);
-    });
+  walls.forEach(w => {
+    const wallGeometry = new THREE.PlaneGeometry(ROOM_SIZE, WALL_HEIGHT);
+    const wall = new THREE.Mesh(wallGeometry, wallMaterial);
+    wall.position.set(...w.pos);
+    wall.rotation.set(...w.rot);
+    wall.receiveShadow = true;
+    scene.add(wall);
+  });
 
-    // 巾木
-    const baseboardMat = new THREE.MeshStandardMaterial({ color: 0x3a2a1a });
-    walls.forEach(w => {
-        const baseboard = new THREE.Mesh(new THREE.BoxGeometry(ROOM_SIZE, 0.4, 0.15), baseboardMat);
-        baseboard.position.set(w.pos[0], 0.2, w.pos[2]);
-        baseboard.rotation.y = w.rot[1];
-        scene.add(baseboard);
-    });
+  // 巾木（床と壁の境目）
+  const baseboardMaterial = new THREE.MeshStandardMaterial({ color: 0x2a2a2a });
+  const baseboardHeight = 0.2;
 
-    // 天井レール
-    const railMat = new THREE.MeshStandardMaterial({ color: 0x2a2a2a, metalness: 0.7, roughness: 0.3 });
-    const railDist = 8;
-    [
-        { x: 0, z: -ROOM_SIZE / 2 + railDist, rotY: 0 },
-        { x: 0, z: ROOM_SIZE / 2 - railDist, rotY: 0 },
-        { x: -ROOM_SIZE / 2 + railDist, z: 0, rotY: Math.PI / 2 },
-        { x: ROOM_SIZE / 2 - railDist, z: 0, rotY: Math.PI / 2 }
-    ].forEach(pos => {
-        const rail = new THREE.Mesh(new THREE.BoxGeometry(ROOM_SIZE * 0.85, 0.15, 0.4), railMat);
-        rail.position.set(pos.x, WALL_HEIGHT - 0.3, pos.z);
-        rail.rotation.y = pos.rotY;
-        scene.add(rail);
-    });
+  const baseboards = [
+    { pos: [0, baseboardHeight / 2, -halfSize + 0.05], size: [ROOM_SIZE, baseboardHeight, 0.1] },
+    { pos: [0, baseboardHeight / 2, halfSize - 0.05], size: [ROOM_SIZE, baseboardHeight, 0.1] },
+    { pos: [-halfSize + 0.05, baseboardHeight / 2, 0], size: [0.1, baseboardHeight, ROOM_SIZE] },
+    { pos: [halfSize - 0.05, baseboardHeight / 2, 0], size: [0.1, baseboardHeight, ROOM_SIZE] }
+  ];
+
+  baseboards.forEach(b => {
+    const geo = new THREE.BoxGeometry(...b.size);
+    const mesh = new THREE.Mesh(geo, baseboardMaterial);
+    mesh.position.set(...b.pos);
+    scene.add(mesh);
+  });
+
+  // 天井照明レール
+  createCeilingRails();
+
+  // 足跡
+  createFootprints();
 }
 
 // ==========================================
-// 額縁作成
+// 天井照明レール
 // ==========================================
-function createFrame(width, height, style) {
-    const group = new THREE.Group();
-    const fw = style.width;
-    const depth = 0.1;
+function createCeilingRails() {
+  const railMaterial = new THREE.MeshStandardMaterial({ color: 0x1a1a1a });
+  const railHeight = WALL_HEIGHT - 0.1;
 
-    const mat = new THREE.MeshStandardMaterial({
-        color: style.color,
-        metalness: style.name === 'gold' || style.name === 'silver' ? 0.7 : 0.1,
-        roughness: style.name === 'gold' || style.name === 'silver' ? 0.3 : 0.6
-    });
+  // 中央レール（東西方向）
+  const rail1 = new THREE.Mesh(
+    new THREE.BoxGeometry(ROOM_SIZE * 0.8, 0.1, 0.3),
+    railMaterial
+  );
+  rail1.position.set(0, railHeight, 0);
+  scene.add(rail1);
 
-    const top = new THREE.Mesh(new THREE.BoxGeometry(width + fw * 2, fw, depth), mat);
-    top.position.set(0, height / 2 + fw / 2, depth / 2);
-    group.add(top);
-
-    const bottom = new THREE.Mesh(new THREE.BoxGeometry(width + fw * 2, fw, depth), mat);
-    bottom.position.set(0, -height / 2 - fw / 2, depth / 2);
-    group.add(bottom);
-
-    const left = new THREE.Mesh(new THREE.BoxGeometry(fw, height, depth), mat);
-    left.position.set(-width / 2 - fw / 2, 0, depth / 2);
-    group.add(left);
-
-    const right = new THREE.Mesh(new THREE.BoxGeometry(fw, height, depth), mat);
-    right.position.set(width / 2 + fw / 2, 0, depth / 2);
-    group.add(right);
-
-    const matGeo = new THREE.PlaneGeometry(width + 0.3, height + 0.3);
-    const matMat = new THREE.MeshStandardMaterial({ color: 0xfffef5 });
-    const inner = new THREE.Mesh(matGeo, matMat);
-    inner.position.z = 0.01;
-    group.add(inner);
-
-    return group;
+  // 中央レール（南北方向）
+  const rail2 = new THREE.Mesh(
+    new THREE.BoxGeometry(0.3, 0.1, ROOM_SIZE * 0.8),
+    railMaterial
+  );
+  rail2.position.set(0, railHeight, 0);
+  scene.add(rail2);
 }
 
 // ==========================================
-// NFTスポットライト
+// 足跡作成
 // ==========================================
-function addSpotlight(targetPos, wallDir) {
-    const light = new THREE.SpotLight(0xfff8e8, 1.5, 25, Math.PI / 7, 0.4, 1);
-    light.position.set(
-        targetPos.x + wallDir.x * 6,
-        WALL_HEIGHT - 0.5,
-        targetPos.z + wallDir.z * 6
-    );
-    light.target.position.copy(targetPos);
-    scene.add(light);
-    scene.add(light.target);
+function createFootprints() {
+  const footprintMaterial = new THREE.MeshBasicMaterial({
+    color: 0x2a2a2a,
+    transparent: true,
+    opacity: 0.15
+  });
 
-    const housing = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.12, 0.18, 0.35, 8),
-        new THREE.MeshStandardMaterial({ color: 0x222222, metalness: 0.8 })
+  // ランダムな位置に足跡を配置
+  for (let i = 0; i < 30; i++) {
+    const x = (Math.random() - 0.5) * (ROOM_SIZE - 10);
+    const z = (Math.random() - 0.5) * (ROOM_SIZE - 10);
+    const rotation = Math.random() * Math.PI * 2;
+
+    // 左足
+    const leftFoot = new THREE.Mesh(
+      new THREE.CircleGeometry(0.15, 16),
+      footprintMaterial
     );
-    housing.position.copy(light.position);
-    housing.position.y += 0.1;
-    scene.add(housing);
+    leftFoot.rotation.x = -Math.PI / 2;
+    leftFoot.position.set(x - 0.15, 0.01, z);
+    leftFoot.rotation.z = rotation;
+    scene.add(leftFoot);
+
+    // 右足
+    const rightFoot = new THREE.Mesh(
+      new THREE.CircleGeometry(0.15, 16),
+      footprintMaterial
+    );
+    rightFoot.rotation.x = -Math.PI / 2;
+    rightFoot.position.set(x + 0.15, 0.01, z + 0.3);
+    rightFoot.rotation.z = rotation;
+    scene.add(rightFoot);
+  }
 }
 
 // ==========================================
 // プレイヤー作成
 // ==========================================
 function createPlayer() {
-    player = new THREE.Group();
-    scene.add(player);
-    avatar = createHumanAvatar(HUMAN_COLORS[currentColorIndex]);
-    player.add(avatar);
-}
+  player = new THREE.Group();
+  player.position.set(0, 0, 0);
+  scene.add(player);
 
-function switchAvatar() {
-    if (avatar) player.remove(avatar);
-    avatar = isDogMode
-        ? createDogAvatar(DOG_COLORS[currentColorIndex % DOG_COLORS.length])
-        : createHumanAvatar(HUMAN_COLORS[currentColorIndex % HUMAN_COLORS.length]);
-    player.add(avatar);
+  playerAvatar = createHumanAvatar(HUMAN_COLORS[humanColorIndex]);
+  player.add(playerAvatar);
 }
 
 // ==========================================
-// 足跡
-// ==========================================
-function createFootprint(position) {
-    const group = new THREE.Group();
-    const mat = new THREE.MeshBasicMaterial({ color: 0xffd700, transparent: true, opacity: 0.5 });
-
-    if (isDogMode) {
-        const main = new THREE.Mesh(new THREE.CircleGeometry(0.12, 16), mat);
-        main.rotation.x = -Math.PI / 2;
-        main.position.y = 0.01;
-        group.add(main);
-
-        [{ x: -0.08, z: -0.12 }, { x: 0.08, z: -0.12 }, { x: -0.12, z: -0.02 }, { x: 0.12, z: -0.02 }].forEach(p => {
-            const toe = new THREE.Mesh(new THREE.CircleGeometry(0.05, 10), mat);
-            toe.rotation.x = -Math.PI / 2;
-            toe.position.set(p.x, 0.01, p.z);
-            group.add(toe);
-        });
-    } else {
-        const shape = new THREE.Shape();
-        shape.ellipse(0, 0, 0.1, 0.2, 0, Math.PI * 2);
-        const foot = new THREE.Mesh(new THREE.ShapeGeometry(shape), mat);
-        foot.rotation.x = -Math.PI / 2;
-        foot.rotation.z = isLeftFoot ? 0.15 : -0.15;
-        foot.position.y = 0.01;
-        group.add(foot);
-    }
-
-    group.position.copy(position);
-    group.position.y = 0;
-
-    const offset = isLeftFoot ? -0.15 : 0.15;
-    group.position.x += Math.cos(player.rotation.y + Math.PI / 2) * offset;
-    group.position.z -= Math.sin(player.rotation.y + Math.PI / 2) * offset;
-
-    group.userData = { createdAt: Date.now() };
-    scene.add(group);
-    footprints.push(group);
-}
-
-function updateFootprints() {
-    const now = Date.now();
-    for (let i = footprints.length - 1; i >= 0; i--) {
-        const fp = footprints[i];
-        const age = now - fp.userData.createdAt;
-
-        if (age > 2500) {
-            scene.remove(fp);
-            footprints.splice(i, 1);
-        } else if (age > 1200) {
-            const opacity = 0.5 * (1 - (age - 1200) / 1300);
-            fp.children.forEach(c => { if (c.material) c.material.opacity = opacity; });
-        }
-    }
-}
-
-// ==========================================
-// NFT関連
+// NFTオーナー取得
 // ==========================================
 async function fetchOwnerData() {
-    try {
-        const res = await fetch(`https://polygon-mainnet.g.alchemy.com/nft/v3/${ALCHEMY_API_KEY}/getNFTsForContract?contractAddress=${NFT_CONFIG.contractAddress}&withMetadata=false`);
-        const data = await res.json();
-        if (data.nfts) {
-            data.nfts.forEach(nft => {
-                const item = nftData.find(n => String(n.tokenId) === String(nft.tokenId));
-                if (item && nft.owners?.[0]) {
-                    item.owner = nft.owners[0];
-                    item.ownerShort = nft.owners[0].slice(0, 6) + '...' + nft.owners[0].slice(-4);
-                }
-            });
+  try {
+    const url = `https://polygon-mainnet.g.alchemy.com/nft/v3/${ALCHEMY_API_KEY}/getOwnersForContract?contractAddress=${NFT_CONFIG.contractAddress}&withTokenBalances=true`;
+    const response = await fetch(url);
+    const data = await response.json();
+
+    if (data.owners) {
+      data.owners.forEach(ownerInfo => {
+        const wallet = ownerInfo.ownerAddress;
+        if (ownerInfo.tokenBalances) {
+          ownerInfo.tokenBalances.forEach(tb => {
+            const tokenId = String(parseInt(tb.tokenId, 16));
+            const nft = nftData.find(n => n.tokenId === tokenId);
+            if (nft) {
+              nft.owner = wallet;
+              nft.ownerShort = wallet.slice(0, 6) + '...' + wallet.slice(-4);
+            }
+          });
         }
-    } catch (e) { console.error(e); }
-}
-
-function placeNFTsOnWalls() {
-    scene.children.filter(c => c.userData?.isNFT).forEach(c => scene.remove(c));
-
-    const perWall = 5;
-    const start = (currentFloor - 1) * 20;
-    const nfts = nftData.slice(start, Math.min(start + 20, nftData.length));
-    const spacing = ROOM_SIZE / (perWall + 1);
-
-    const walls = [
-        { x: 0, z: -ROOM_SIZE / 2 + 0.5, rotY: 0, dir: { x: 0, z: 1 }, horiz: true },
-        { x: 0, z: ROOM_SIZE / 2 - 0.5, rotY: Math.PI, dir: { x: 0, z: -1 }, horiz: true },
-        { x: -ROOM_SIZE / 2 + 0.5, z: 0, rotY: Math.PI / 2, dir: { x: 1, z: 0 }, horiz: false },
-        { x: ROOM_SIZE / 2 - 0.5, z: 0, rotY: -Math.PI / 2, dir: { x: -1, z: 0 }, horiz: false }
-    ];
-
-    nfts.forEach((nft, i) => {
-        const wallIdx = Math.floor(i / perWall);
-        const posIdx = i % perWall;
-        if (wallIdx >= walls.length) return;
-
-        const wall = walls[wallIdx];
-        const offset = (posIdx - (perWall - 1) / 2) * spacing;
-        const frameStyle = FRAME_STYLES[i % FRAME_STYLES.length];
-
-        new THREE.TextureLoader().load(nft.imageUrl, tex => {
-            const size = 4;
-            const group = new THREE.Group();
-
-            const frame = createFrame(size, size, frameStyle);
-            group.add(frame);
-
-            const mesh = new THREE.Mesh(
-                new THREE.PlaneGeometry(size, size),
-                new THREE.MeshBasicMaterial({ map: tex })
-            );
-            mesh.position.z = 0.02;
-            group.add(mesh);
-
-            const posX = wall.horiz ? wall.x + offset : wall.x;
-            const posZ = wall.horiz ? wall.z : wall.z + offset;
-            group.position.set(posX, WALL_HEIGHT / 2, posZ);
-            group.rotation.y = wall.rotY;
-
-            group.userData = { isNFT: true, nftData: nft };
-            scene.add(group);
-
-            addSpotlight(group.position, wall.dir);
-        });
-    });
+      });
+    }
+  } catch (error) {
+    console.error('オーナーデータ取得エラー:', error);
+  }
 }
 
 // ==========================================
-// ターゲット作成
+// NFT配置
+// ==========================================
+function placeNFTsOnWalls() {
+  // 既存のNFTメッシュをクリア
+  nftMeshes.forEach(mesh => scene.remove(mesh));
+  nftMeshes = [];
+
+  const halfSize = ROOM_SIZE / 2;
+  const wallOffset = 0.5;
+  const nftHeight = 4;
+  const nftWidth = 3;
+  const totalNFTs = nftData.length; // 50枚
+
+  // 壁ごとのNFT配置設定
+  // 50枚を4壁に分配: 13, 13, 12, 12
+  const wallConfigs = [
+    { // 北壁 (13枚)
+      count: 13,
+      getPosition: (i, spacing) => new THREE.Vector3(
+        -halfSize + spacing * (i + 1),
+        WALL_HEIGHT / 2,
+        -halfSize + wallOffset
+      ),
+      rotation: 0
+    },
+    { // 南壁 (13枚)
+      count: 13,
+      getPosition: (i, spacing) => new THREE.Vector3(
+        halfSize - spacing * (i + 1),
+        WALL_HEIGHT / 2,
+        halfSize - wallOffset
+      ),
+      rotation: Math.PI
+    },
+    { // 西壁 (12枚)
+      count: 12,
+      getPosition: (i, spacing) => new THREE.Vector3(
+        -halfSize + wallOffset,
+        WALL_HEIGHT / 2,
+        halfSize - spacing * (i + 1)
+      ),
+      rotation: Math.PI / 2
+    },
+    { // 東壁 (12枚)
+      count: 12,
+      getPosition: (i, spacing) => new THREE.Vector3(
+        halfSize - wallOffset,
+        WALL_HEIGHT / 2,
+        -halfSize + spacing * (i + 1)
+      ),
+      rotation: -Math.PI / 2
+    }
+  ];
+
+  // 額縁スタイル
+  const frameStyles = [
+    { color: 0xd4af37, width: 0.15 }, // ゴールド
+    { color: 0x1a1a1a, width: 0.12 }, // ブラック
+    { color: 0xf5f5f5, width: 0.1 },  // ホワイト
+    { color: 0x8b4513, width: 0.15 }, // ウッド
+    { color: 0xc0c0c0, width: 0.12 }  // シルバー
+  ];
+
+  let nftIndex = 0;
+
+  wallConfigs.forEach((config, wallIndex) => {
+    const spacing = ROOM_SIZE / (config.count + 1);
+
+    for (let i = 0; i < config.count && nftIndex < totalNFTs; i++) {
+      const nft = nftData[nftIndex];
+      const position = config.getPosition(i, spacing);
+      const frameStyle = frameStyles[nftIndex % frameStyles.length];
+
+      createNFTDisplay(nft, position, config.rotation, frameStyle, nftWidth, nftHeight);
+      nftIndex++;
+    }
+  });
+}
+
+// ==========================================
+// NFT表示作成
+// ==========================================
+function createNFTDisplay(nft, position, rotation, frameStyle, width, height) {
+  const group = new THREE.Group();
+
+  // 額縁
+  const frameGeometry = new THREE.BoxGeometry(
+    width + frameStyle.width * 2,
+    height + frameStyle.width * 2,
+    0.1
+  );
+  const frameMaterial = new THREE.MeshStandardMaterial({
+    color: frameStyle.color,
+    roughness: 0.3,
+    metalness: 0.5
+  });
+  const frame = new THREE.Mesh(frameGeometry, frameMaterial);
+  frame.position.z = -0.05;
+  group.add(frame);
+
+  // NFT画像
+  const loader = new THREE.TextureLoader();
+  loader.load(
+    nft.imageUrl,
+    (texture) => {
+      texture.colorSpace = THREE.SRGBColorSpace;
+      const material = new THREE.MeshBasicMaterial({ map: texture });
+      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(width, height), material);
+      mesh.userData.nftData = nft;
+      group.add(mesh);
+      nftMeshes.push(mesh);
+
+      // クリックイベント用にグループにもデータを保存
+      group.userData.nftData = nft;
+    },
+    undefined,
+    (error) => {
+      console.error('テクスチャ読み込みエラー:', nft.imageUrl, error);
+      // エラー時はプレースホルダーを表示
+      const material = new THREE.MeshBasicMaterial({ color: 0x333333 });
+      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(width, height), material);
+      mesh.userData.nftData = nft;
+      group.add(mesh);
+      nftMeshes.push(mesh);
+    }
+  );
+
+  // スポットライト
+  const spotlight = new THREE.SpotLight(0xffffff, 1.5, 15, Math.PI / 6, 0.5);
+  spotlight.position.set(0, 3, 2);
+  spotlight.target.position.set(0, 0, 0);
+  group.add(spotlight);
+  group.add(spotlight.target);
+
+  group.position.copy(position);
+  group.rotation.y = rotation;
+  scene.add(group);
+}
+
+// ==========================================
+// ターゲットキャラ作成
 // ==========================================
 function createTargets() {
-    const baseUrl = 'https://raw.githubusercontent.com/kimura-jane/tafdog_museum/main/';
-    const files = ['IMG_1822.png', 'IMG_1889.png'];
-    const corners = [
-        { x: ROOM_SIZE / 2 - 5, z: -ROOM_SIZE / 2 + 5 },
-        { x: -ROOM_SIZE / 2 + 5, z: -ROOM_SIZE / 2 + 5 },
-        { x: ROOM_SIZE / 2 - 5, z: ROOM_SIZE / 2 - 5 },
-        { x: -ROOM_SIZE / 2 + 5, z: ROOM_SIZE / 2 - 5 }
-    ];
+  const halfSize = ROOM_SIZE / 2;
+  const cornerOffset = 8;
 
-    corners.forEach((c, i) => {
-        new THREE.TextureLoader().load(baseUrl + files[i % 2], tex => {
-            const mesh = new THREE.Mesh(
-                new THREE.PlaneGeometry(3, 4),
-                new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide, transparent: true })
-            );
-            const group = new THREE.Group();
-            group.add(mesh);
-            group.position.set(c.x, 2, c.z);
-            group.userData = { hitCount: 0, isFlyingAway: false };
-            scene.add(group);
-            targets.push(group);
-        });
+  const corners = [
+    { x: -halfSize + cornerOffset, z: -halfSize + cornerOffset, file: targetFiles[0] },
+    { x: halfSize - cornerOffset, z: -halfSize + cornerOffset, file: targetFiles[1] },
+    { x: -halfSize + cornerOffset, z: halfSize - cornerOffset, file: targetFiles[1] },
+    { x: halfSize - cornerOffset, z: halfSize - cornerOffset, file: targetFiles[0] }
+  ];
+
+  const loader = new THREE.TextureLoader();
+
+  corners.forEach(corner => {
+    const url = baseUrl + corner.file;
+    loader.load(url, (texture) => {
+      texture.colorSpace = THREE.SRGBColorSpace;
+      const material = new THREE.MeshBasicMaterial({
+        map: texture,
+        transparent: true,
+        side: THREE.DoubleSide
+      });
+      const geometry = new THREE.PlaneGeometry(2, 3);
+      const mesh = new THREE.Mesh(geometry, material);
+
+      const group = new THREE.Group();
+      group.add(mesh);
+      group.position.set(corner.x, 1.5, corner.z);
+      group.userData.hitCount = 0;
+      group.userData.isFlyingAway = false;
+      group.userData.velocity = new THREE.Vector3();
+
+      targets.push(group);
+      scene.add(group);
     });
+  });
 }
 
 // ==========================================
 // UI作成
 // ==========================================
 function createUI() {
-    // タイトル（上に配置）
-    const title = document.createElement('div');
-    title.textContent = 'TAF DOG MUSEUM';
-    title.style.cssText = 'position:fixed;top:5px;left:50%;transform:translateX(-50%);font-size:14px;font-weight:bold;color:#fff;text-shadow:2px 2px 4px #000;z-index:1000;pointer-events:none;letter-spacing:2px;';
-    document.body.appendChild(title);
+  // タイトル
+  const title = document.createElement('div');
+  title.style.cssText = `
+    position: fixed;
+    top: 8px;
+    left: 50%;
+    transform: translateX(-50%);
+    color: white;
+    font-size: 14px;
+    font-weight: bold;
+    text-shadow: 0 0 10px rgba(0,0,0,0.5);
+    z-index: 1000;
+    pointer-events: none;
+  `;
+  title.textContent = 'TAF DOG Museum';
+  document.body.appendChild(title);
 
-    // フロアボタン（左上）
-    floorBtn = document.createElement('button');
-    floorBtn.textContent = currentFloor + 'F';
-    floorBtn.style.cssText = 'position:fixed;left:10px;top:30px;padding:8px 16px;background:rgba(0,0,0,0.6);border:1px solid rgba(255,255,255,0.3);color:#fff;font-size:14px;font-weight:bold;border-radius:8px;z-index:1000;';
-    floorBtn.onclick = () => {
-        currentFloor = currentFloor >= 5 ? 1 : currentFloor + 1;
-        floorBtn.textContent = currentFloor + 'F';
-        placeNFTsOnWalls();
-    };
-    document.body.appendChild(floorBtn);
+  // 上部ボタンバー
+  const topBar = document.createElement('div');
+  topBar.style.cssText = `
+    position: fixed;
+    top: 35px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 8px;
+    z-index: 1000;
+  `;
+  document.body.appendChild(topBar);
 
-    // モードボタン（上部中央、タイトルの下）
-    const modeDiv = document.createElement('div');
-    modeDiv.style.cssText = 'position:fixed;top:30px;left:50%;transform:translateX(-50%);display:flex;gap:6px;z-index:1000;';
-    document.body.appendChild(modeDiv);
+  const buttonStyle = `
+    padding: 8px 16px;
+    border: none;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.3s;
+  `;
 
-    const btnStyle = (active) => `padding:8px 14px;background:${active ? '#4a90d9' : 'rgba(0,0,0,0.6)'};border:1px solid rgba(255,255,255,0.3);color:#fff;font-size:12px;font-weight:bold;border-radius:6px;cursor:pointer;`;
+  // HUMANボタン
+  const humanBtn = document.createElement('button');
+  humanBtn.textContent = 'HUMAN';
+  humanBtn.style.cssText = buttonStyle + 'background: #4a90d9; color: white;';
+  humanBtn.onclick = () => switchToHuman();
+  topBar.appendChild(humanBtn);
 
-    humanBtn = document.createElement('button');
-    humanBtn.textContent = 'HUMAN';
-    humanBtn.style.cssText = btnStyle(true);
-    humanBtn.onclick = () => {
-        isDogMode = false;
-        currentColorIndex = (currentColorIndex + 1) % HUMAN_COLORS.length;
-        switchAvatar();
-        updateBtns();
-    };
-    modeDiv.appendChild(humanBtn);
+  // AUTOボタン
+  const autoBtn = document.createElement('button');
+  autoBtn.textContent = 'AUTO';
+  autoBtn.id = 'autoBtn';
+  autoBtn.style.cssText = buttonStyle + 'background: #666; color: white;';
+  autoBtn.onclick = () => toggleAutoMode();
+  topBar.appendChild(autoBtn);
 
-    autoBtn = document.createElement('button');
-    autoBtn.textContent = 'AUTO';
-    autoBtn.style.cssText = btnStyle(false);
-    autoBtn.onclick = () => {
-        isAutoMode = !isAutoMode;
-        updateBtns();
-    };
-    modeDiv.appendChild(autoBtn);
+  // DOGボタン
+  const dogBtn = document.createElement('button');
+  dogBtn.textContent = 'DOG';
+  dogBtn.style.cssText = buttonStyle + 'background: #d4a574; color: white;';
+  dogBtn.onclick = () => switchToDog();
+  topBar.appendChild(dogBtn);
 
-    dogBtn = document.createElement('button');
-    dogBtn.textContent = 'DOG';
-    dogBtn.style.cssText = btnStyle(false);
-    dogBtn.onclick = () => {
-        isDogMode = true;
-        currentColorIndex = (currentColorIndex + 1) % DOG_COLORS.length;
-        switchAvatar();
-        updateBtns();
-    };
-    modeDiv.appendChild(dogBtn);
+  // 右側ボタン
+  const rightBar = document.createElement('div');
+  rightBar.style.cssText = `
+    position: fixed;
+    top: 100px;
+    right: 15px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    z-index: 1000;
+  `;
+  document.body.appendChild(rightBar);
 
-    // FLYボタン
-    flyBtn = document.createElement('button');
-    flyBtn.textContent = 'FLY';
-    flyBtn.style.cssText = 'position:fixed;right:15px;top:45%;width:55px;height:55px;border-radius:50%;background:rgba(0,0,0,0.6);border:1px solid rgba(255,255,255,0.3);color:#fff;font-size:13px;font-weight:bold;z-index:1000;';
-    flyBtn.onclick = () => {
-        isFlyMode = !isFlyMode;
-        flyBtn.style.background = isFlyMode ? '#4a90d9' : 'rgba(0,0,0,0.6)';
-    };
-    document.body.appendChild(flyBtn);
+  // FLYボタン
+  const flyBtn = document.createElement('button');
+  flyBtn.textContent = 'FLY';
+  flyBtn.id = 'flyBtn';
+  flyBtn.style.cssText = buttonStyle + 'background: #9b59b6; color: white;';
+  flyBtn.onclick = () => toggleFlyMode();
+  rightBar.appendChild(flyBtn);
 
-    // THROWボタン
-    throwBtn = document.createElement('button');
-    throwBtn.textContent = 'THROW';
-    throwBtn.style.cssText = 'position:fixed;right:15px;top:58%;width:55px;height:55px;border-radius:50%;background:rgba(139,69,19,0.8);border:1px solid rgba(255,255,255,0.3);color:#fff;font-size:10px;font-weight:bold;z-index:1000;';
-    throwBtn.onclick = throwBean;
-    document.body.appendChild(throwBtn);
+  // THROWボタン
+  const throwBtn = document.createElement('button');
+  throwBtn.textContent = 'THROW';
+  throwBtn.style.cssText = buttonStyle + 'background: #e74c3c; color: white;';
+  throwBtn.onclick = () => throwBean();
+  rightBar.appendChild(throwBtn);
 
-    function updateBtns() {
-        humanBtn.style.cssText = btnStyle(!isDogMode);
-        dogBtn.style.cssText = btnStyle(isDogMode);
-        autoBtn.style.cssText = btnStyle(isAutoMode);
-    }
+  // NFTクリックイベント
+  renderer.domElement.addEventListener('click', onNFTClick);
+  renderer.domElement.addEventListener('touchend', onNFTTouch);
 }
 
 // ==========================================
 // ジョイスティック
 // ==========================================
-function setupJoystick() {
-    const container = document.createElement('div');
-    container.style.cssText = 'position:fixed;left:15px;bottom:25px;width:110px;height:110px;background:rgba(255,255,255,0.15);border-radius:50%;z-index:1000;touch-action:none;border:1px solid rgba(255,255,255,0.3);';
-    document.body.appendChild(container);
+function createJoystick() {
+  const container = document.createElement('div');
+  container.id = 'joystick';
+  container.style.cssText = `
+    position: fixed;
+    bottom: 30px;
+    left: 30px;
+    width: 120px;
+    height: 120px;
+    background: rgba(255,255,255,0.2);
+    border-radius: 50%;
+    border: 2px solid rgba(255,255,255,0.4);
+    z-index: 1000;
+    touch-action: none;
+  `;
+  document.body.appendChild(container);
 
-    const knob = document.createElement('div');
-    knob.style.cssText = 'position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:45px;height:45px;background:rgba(255,255,255,0.7);border-radius:50%;';
-    container.appendChild(knob);
+  const knob = document.createElement('div');
+  knob.style.cssText = `
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 50px;
+    height: 50px;
+    background: rgba(255,255,255,0.6);
+    border-radius: 50%;
+    pointer-events: none;
+  `;
+  container.appendChild(knob);
 
-    const maxDist = 32, center = 55;
+  let startX, startY;
+  const maxDistance = 35;
 
-    const start = (e) => { e.preventDefault(); joystickActive = true; };
+  container.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    joystickActive = true;
+    const touch = e.touches[0];
+    const rect = container.getBoundingClientRect();
+    startX = rect.left + rect.width / 2;
+    startY = rect.top + rect.height / 2;
+  });
 
-    const move = (e) => {
-        if (!joystickActive) return;
-        e.preventDefault();
-        const rect = container.getBoundingClientRect();
-        const t = e.touches ? e.touches[0] : e;
-        let x = t.clientX - rect.left - center;
-        let y = t.clientY - rect.top - center;
-        const dist = Math.hypot(x, y);
-        if (dist > maxDist) { x = x / dist * maxDist; y = y / dist * maxDist; }
-        knob.style.left = (center + x) + 'px';
-        knob.style.top = (center + y) + 'px';
-        moveVector.x = x / maxDist;
-        moveVector.z = y / maxDist;
-    };
+  container.addEventListener('touchmove', (e) => {
+    e.preventDefault();
+    if (!joystickActive) return;
 
-    const end = () => {
-        joystickActive = false;
-        knob.style.left = '50%';
-        knob.style.top = '50%';
-        moveVector.set(0, 0, 0);
-    };
+    const touch = e.touches[0];
+    let dx = touch.clientX - startX;
+    let dy = touch.clientY - startY;
 
-    container.addEventListener('touchstart', start, { passive: false });
-    container.addEventListener('mousedown', start);
-    document.addEventListener('touchmove', move, { passive: false });
-    document.addEventListener('mousemove', move);
-    document.addEventListener('touchend', end);
-    document.addEventListener('touchcancel', end);
-    document.addEventListener('mouseup', end);
-}
-
-// ==========================================
-// イベントリスナー
-// ==========================================
-function setupEventListeners() {
-    document.addEventListener('keydown', e => { const k = e.key.toLowerCase(); if (k in keys) keys[k] = true; });
-    document.addEventListener('keyup', e => { const k = e.key.toLowerCase(); if (k in keys) keys[k] = false; });
-
-    window.addEventListener('resize', () => {
-        camera.aspect = window.innerWidth / window.innerHeight;
-        camera.updateProjectionMatrix();
-        renderer.setSize(window.innerWidth, window.innerHeight);
-    });
-
-    renderer.domElement.addEventListener('click', onTap);
-    renderer.domElement.addEventListener('touchend', e => {
-        if (joystickActive) return;
-        const t = e.changedTouches?.[0];
-        if (t) onTap({ clientX: t.clientX, clientY: t.clientY });
-    });
-}
-
-function onTap(e) {
-    const mouse = new THREE.Vector2((e.clientX / window.innerWidth) * 2 - 1, -(e.clientY / window.innerHeight) * 2 + 1);
-    const ray = new THREE.Raycaster();
-    ray.setFromCamera(mouse, camera);
-    for (const hit of ray.intersectObjects(scene.children, true)) {
-        let obj = hit.object;
-        while (obj) {
-            if (obj.userData?.nftData) { showModal(obj.userData.nftData); return; }
-            obj = obj.parent;
-        }
+    const distance = Math.sqrt(dx * dx + dy * dy);
+    if (distance > maxDistance) {
+      dx = (dx / distance) * maxDistance;
+      dy = (dy / distance) * maxDistance;
     }
+
+    knob.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
+
+    moveVector.x = dx / maxDistance;
+    moveVector.z = dy / maxDistance;
+    lastUserInteraction = Date.now();
+  });
+
+  const resetJoystick = () => {
+    joystickActive = false;
+    knob.style.transform = 'translate(-50%, -50%)';
+    moveVector.set(0, 0, 0);
+  };
+
+  container.addEventListener('touchend', resetJoystick);
+  container.addEventListener('touchcancel', resetJoystick);
+}
+
+// ==========================================
+// モード切り替え
+// ==========================================
+function switchToHuman() {
+  if (isHuman) {
+    humanColorIndex = (humanColorIndex + 1) % HUMAN_COLORS.length;
+  }
+  isHuman = true;
+  isDog = false;
+
+  player.remove(playerAvatar);
+  playerAvatar = createHumanAvatar(HUMAN_COLORS[humanColorIndex]);
+  player.add(playerAvatar);
+}
+
+function switchToDog() {
+  if (isDog) {
+    dogColorIndex = (dogColorIndex + 1) % DOG_COLORS.length;
+  }
+  isHuman = false;
+  isDog = true;
+
+  player.remove(playerAvatar);
+  playerAvatar = createDogAvatar(DOG_COLORS[dogColorIndex]);
+  player.add(playerAvatar);
+}
+
+function toggleAutoMode() {
+  isAutoMode = !isAutoMode;
+  const btn = document.getElementById('autoBtn');
+  if (btn) {
+    btn.style.background = isAutoMode ? '#2ecc71' : '#666';
+  }
+}
+
+function toggleFlyMode() {
+  isFlyMode = !isFlyMode;
+  const btn = document.getElementById('flyBtn');
+  if (btn) {
+    btn.style.background = isFlyMode ? '#2ecc71' : '#9b59b6';
+  }
+}
+
+// ==========================================
+// 豆を投げる
+// ==========================================
+function throwBean() {
+  const beanGeometry = new THREE.SphereGeometry(0.15, 8, 8);
+  const beanMaterial = new THREE.MeshStandardMaterial({ color: 0x8B4513 });
+  const bean = new THREE.Mesh(beanGeometry, beanMaterial);
+
+  bean.position.copy(player.position);
+  bean.position.y += 1;
+
+  const direction = new THREE.Vector3(0, 0, -1);
+  direction.applyQuaternion(player.quaternion);
+
+  bean.userData.velocity = direction.multiplyScalar(0.5);
+  bean.userData.velocity.y = 0.2;
+  bean.userData.life = 100;
+
+  beans.push(bean);
+  scene.add(bean);
+}
+
+// ==========================================
+// NFTクリック処理
+// ==========================================
+function onNFTClick(event) {
+  if (joystickActive) return;
+  handleNFTInteraction(event.clientX, event.clientY);
+}
+
+function onNFTTouch(event) {
+  if (joystickActive) return;
+  if (event.changedTouches.length > 0) {
+    const touch = event.changedTouches[0];
+    handleNFTInteraction(touch.clientX, touch.clientY);
+  }
+}
+
+function handleNFTInteraction(clientX, clientY) {
+  const mouse = new THREE.Vector2(
+    (clientX / window.innerWidth) * 2 - 1,
+    -(clientY / window.innerHeight) * 2 + 1
+  );
+
+  const raycaster = new THREE.Raycaster();
+  raycaster.setFromCamera(mouse, camera);
+
+  const intersects = raycaster.intersectObjects(nftMeshes, true);
+  if (intersects.length > 0) {
+    let nftData = null;
+    let obj = intersects[0].object;
+
+    while (obj && !nftData) {
+      if (obj.userData && obj.userData.nftData) {
+        nftData = obj.userData.nftData;
+      }
+      obj = obj.parent;
+    }
+
+    if (nftData) {
+      showNFTModal(nftData);
+    }
+  }
 }
 
 // ==========================================
 // NFTモーダル
 // ==========================================
-function showModal(nft) {
-    const modal = document.createElement('div');
-    modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.9);display:flex;justify-content:center;align-items:center;z-index:2000;';
+function showNFTModal(nft) {
+  // 既存モーダルを削除
+  const existing = document.getElementById('nftModal');
+  if (existing) existing.remove();
 
-    const imgs = nft.stateImageUrl
-        ? `<div style="display:flex;gap:15px;justify-content:center;margin-bottom:20px;">
-             <div><p style="color:#aaa;font-size:11px;text-align:center;margin-bottom:5px;">通常</p><img src="${nft.imageUrl}" style="width:120px;border-radius:8px;border:2px solid #444;"></div>
-             <div><p style="color:#aaa;font-size:11px;text-align:center;margin-bottom:5px;">変化後</p><img src="${nft.stateImageUrl}" style="width:120px;border-radius:8px;border:2px solid #444;"></div>
-           </div>`
-        : `<img src="${nft.imageUrl}" style="width:180px;border-radius:8px;display:block;margin:0 auto 20px;border:2px solid #444;">`;
+  const modal = document.createElement('div');
+  modal.id = 'nftModal';
+  modal.style.cssText = `
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.9);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+    padding: 20px;
+    box-sizing: border-box;
+  `;
 
-    modal.innerHTML = `
-        <div style="background:#1a1a1a;padding:30px;border-radius:20px;max-width:360px;text-align:center;color:#fff;border:1px solid #333;">
-            <h2 style="margin-bottom:15px;font-size:20px;letter-spacing:2px;">TAF DOG #${nft.tokenId}</h2>
-            ${imgs}
-            ${nft.changeRule ? `<p style="color:#ffd700;margin-bottom:15px;font-size:12px;background:rgba(255,215,0,0.1);padding:10px;border-radius:8px;">${nft.changeRule}</p>` : ''}
-            <p style="margin-bottom:15px;font-size:11px;color:#888;">Owner: ${nft.ownerShort || 'Unknown'}</p>
-            <a href="https://opensea.io/ja/assets/matic/${NFT_CONFIG.contractAddress}/${nft.tokenId}" target="_blank" 
-               style="display:inline-block;padding:10px 20px;background:#4a90d9;color:#fff;text-decoration:none;border-radius:8px;font-size:13px;margin-bottom:15px;">OpenSea</a>
-            <br><button onclick="this.closest('div[style*=inset]').remove()" 
-               style="padding:10px 25px;background:#333;border:none;color:#fff;border-radius:8px;cursor:pointer;">閉じる</button>
-        </div>`;
+  // 画像コンテナ
+  const imageContainer = document.createElement('div');
+  imageContainer.style.cssText = `
+    display: flex;
+    gap: 20px;
+    justify-content: center;
+    flex-wrap: wrap;
+    max-width: 90%;
+  `;
 
-    modal.onclick = e => { if (e.target === modal) modal.remove(); };
-    document.body.appendChild(modal);
+  // メイン画像
+  const mainImg = document.createElement('img');
+  mainImg.src = nft.imageUrl;
+  mainImg.style.cssText = `
+    max-width: 300px;
+    max-height: 400px;
+    border-radius: 10px;
+    box-shadow: 0 0 30px rgba(255,255,255,0.2);
+  `;
+  imageContainer.appendChild(mainImg);
+
+  // 変化画像がある場合
+  if (nft.stateImageUrl) {
+    const stateImg = document.createElement('img');
+    stateImg.src = nft.stateImageUrl;
+    stateImg.style.cssText = mainImg.style.cssText;
+    imageContainer.appendChild(stateImg);
+  }
+
+  modal.appendChild(imageContainer);
+
+  // 情報
+  const info = document.createElement('div');
+  info.style.cssText = `
+    color: white;
+    text-align: center;
+    margin-top: 20px;
+    font-size: 14px;
+  `;
+  info.innerHTML = `
+    <p style="margin: 5px 0;">Token ID: ${nft.tokenId}</p>
+    <p style="margin: 5px 0;">Owner: ${nft.ownerShort || 'Unknown'}</p>
+    ${nft.changeRule ? `<p style="margin: 5px 0; color: #ffd700;">${nft.changeRule}</p>` : ''}
+  `;
+  modal.appendChild(info);
+
+  // OpenSeaリンク
+  const link = document.createElement('a');
+  link.href = `https://opensea.io/ja/assets/matic/${NFT_CONFIG.contractAddress}/${nft.tokenId}`;
+  link.target = '_blank';
+  link.style.cssText = `
+    display: inline-block;
+    margin-top: 15px;
+    padding: 10px 25px;
+    background: #2081e2;
+    color: white;
+    text-decoration: none;
+    border-radius: 25px;
+    font-weight: bold;
+  `;
+  link.textContent = 'View on OpenSea';
+  modal.appendChild(link);
+
+  // 閉じるボタン
+  const closeBtn = document.createElement('button');
+  closeBtn.textContent = '✕';
+  closeBtn.style.cssText = `
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    background: none;
+    border: none;
+    color: white;
+    font-size: 30px;
+    cursor: pointer;
+  `;
+  closeBtn.onclick = () => modal.remove();
+  modal.appendChild(closeBtn);
+
+  // 背景クリックで閉じる
+  modal.onclick = (e) => {
+    if (e.target === modal) modal.remove();
+  };
+
+  document.body.appendChild(modal);
 }
 
 // ==========================================
-// 豆投げ
+// キーボード入力
 // ==========================================
-function throwBean() {
-    if (isThrowingAnimation) return;
-    isThrowingAnimation = true;
-    throwAnimationTime = 0;
+function onKeyDown(event) {
+  lastUserInteraction = Date.now();
 
-    setTimeout(() => {
-        const bean = new THREE.Mesh(
-            new THREE.SphereGeometry(0.2, 12, 12),
-            new THREE.MeshStandardMaterial({ color: 0xd4a574, emissive: 0x442200, emissiveIntensity: 0.3 })
-        );
-        const dir = new THREE.Vector3();
-        camera.getWorldDirection(dir);
-        bean.position.copy(player.position);
-        bean.position.y += isDogMode ? 1 : 1.8;
-        bean.position.addScaledVector(dir, 0.5);
-        bean.userData = { velocity: dir.clone().multiplyScalar(0.5).add(new THREE.Vector3(0, 0.2, 0)), gravity: -0.012, life: 200 };
-        scene.add(bean);
-        beans.push(bean);
-    }, 200);
+  switch (event.code) {
+    case 'ArrowUp':
+    case 'KeyW':
+      moveVector.z = -1;
+      break;
+    case 'ArrowDown':
+    case 'KeyS':
+      moveVector.z = 1;
+      break;
+    case 'ArrowLeft':
+    case 'KeyA':
+      moveVector.x = -1;
+      break;
+    case 'ArrowRight':
+    case 'KeyD':
+      moveVector.x = 1;
+      break;
+    case 'Space':
+      if (isFlyMode) {
+        player.position.y += 0.5;
+      }
+      break;
+  }
+}
 
-    setTimeout(() => { isThrowingAnimation = false; }, 400);
+// ==========================================
+// ウィンドウリサイズ
+// ==========================================
+function onWindowResize() {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
 }
 
 // ==========================================
 // プレイヤー更新
 // ==========================================
 function updatePlayer() {
-    const speed = isDogMode ? 0.3 : 0.2;
-    let moved = false;
+  const speed = 0.15;
+  const boundary = ROOM_SIZE / 2 - 2;
 
-    if (keys.w) { player.position.z -= speed; moved = true; }
-    if (keys.s) { player.position.z += speed; moved = true; }
-    if (keys.a) { player.position.x -= speed; moved = true; }
-    if (keys.d) { player.position.x += speed; moved = true; }
+  // オートモード
+  if (isAutoMode) {
+    const time = Date.now() * 0.0005;
+    moveVector.x = Math.sin(time) * 0.3;
+    moveVector.z = Math.cos(time * 0.7) * 0.3;
+  }
 
-    if (moveVector.length() > 0.1) {
-        const camDir = new THREE.Vector3();
-        camera.getWorldDirection(camDir);
-        camDir.y = 0;
-        camDir.normalize();
-        const camRight = new THREE.Vector3().crossVectors(camDir, new THREE.Vector3(0, 1, 0));
-        const moveDir = new THREE.Vector3().addScaledVector(camRight, moveVector.x).addScaledVector(camDir, -moveVector.z).normalize();
-        player.position.addScaledVector(moveDir, speed);
-        player.rotation.y = Math.atan2(moveDir.x, moveDir.z);
-        moved = true;
+  // 移動
+  if (moveVector.length() > 0.1) {
+    const forward = new THREE.Vector3(0, 0, -1);
+    forward.applyQuaternion(camera.quaternion);
+    forward.y = 0;
+    forward.normalize();
+
+    const right = new THREE.Vector3(1, 0, 0);
+    right.applyQuaternion(camera.quaternion);
+    right.y = 0;
+    right.normalize();
+
+    velocity.x = (forward.x * -moveVector.z + right.x * moveVector.x) * speed;
+    velocity.z = (forward.z * -moveVector.z + right.z * moveVector.x) * speed;
+
+    player.position.x += velocity.x;
+    player.position.z += velocity.z;
+
+    // 向きを更新
+    if (velocity.length() > 0.01) {
+      const angle = Math.atan2(velocity.x, velocity.z);
+      player.rotation.y = angle;
     }
+  }
 
-    if (moved) {
-        const now = Date.now();
-        if (now - lastFootprintTime > 350 && player.position.distanceTo(lastFootprintPos) > 0.7) {
-            createFootprint(player.position.clone());
-            isLeftFoot = !isLeftFoot;
-            lastFootprintTime = now;
-            lastFootprintPos.copy(player.position);
-        }
-    }
+  // 境界制限
+  player.position.x = Math.max(-boundary, Math.min(boundary, player.position.x));
+  player.position.z = Math.max(-boundary, Math.min(boundary, player.position.z));
 
-    if (isFlyMode && keys.space) player.position.y += 0.15;
-    if (!isFlyMode) player.position.y = 0;
+  // 高さ制限（飛行モード）
+  if (!isFlyMode && player.position.y > 0) {
+    player.position.y -= 0.1;
+    if (player.position.y < 0) player.position.y = 0;
+  }
+  player.position.y = Math.min(player.position.y, WALL_HEIGHT - 2);
 
-    const limit = ROOM_SIZE / 2 - 2;
-    player.position.x = THREE.MathUtils.clamp(player.position.x, -limit, limit);
-    player.position.z = THREE.MathUtils.clamp(player.position.z, -limit, limit);
+  // カメラ追従
+  const cameraHeight = isDog ? 3 : 5;
+  const cameraDistance = 12;
 
-    if (!isUserControlling) {
-        const h = isDogMode ? 3 : 5;
-        const d = isDogMode ? 8 : 10;
-        const targetPos = new THREE.Vector3(
-            player.position.x - Math.sin(player.rotation.y) * d,
-            player.position.y + h,
-            player.position.z - Math.cos(player.rotation.y) * d
-        );
-        camera.position.lerp(targetPos, 0.05);
-    }
+  const targetCameraPos = new THREE.Vector3(
+    player.position.x - Math.sin(player.rotation.y) * cameraDistance,
+    player.position.y + cameraHeight,
+    player.position.z - Math.cos(player.rotation.y) * cameraDistance
+  );
 
-    controls.target.copy(player.position);
-    controls.target.y += isDogMode ? 0.5 : 1.2;
+  // ユーザー操作中は追従を緩める
+  const timeSinceInteraction = Date.now() - lastUserInteraction;
+  if (timeSinceInteraction > 1500) {
+    camera.position.lerp(targetCameraPos, 0.03);
+  }
 
-    return moved;
+  controls.target.set(player.position.x, player.position.y + 1, player.position.z);
 }
 
 // ==========================================
-// 更新関数
+// 豆更新
 // ==========================================
 function updateBeans() {
-    for (let i = beans.length - 1; i >= 0; i--) {
-        const b = beans[i];
-        b.position.add(b.userData.velocity);
-        b.userData.velocity.y += b.userData.gravity;
-        b.userData.life--;
+  for (let i = beans.length - 1; i >= 0; i--) {
+    const bean = beans[i];
+    bean.userData.velocity.y -= 0.01;
+    bean.position.add(bean.userData.velocity);
+    bean.userData.life--;
 
-        for (const t of targets) {
-            if (t.userData.isFlyingAway) continue;
-            if (b.position.distanceTo(t.position) < 2.5) {
-                t.userData.hitCount++;
-                showBubble(t.position, t.userData.hitCount > 2 ? 'あーれー！' : '痛いっ！');
-                if (t.userData.hitCount >= 3) t.userData.isFlyingAway = true;
-                scene.remove(b);
-                beans.splice(i, 1);
-                break;
-            }
+    // ターゲットとの衝突判定
+    targets.forEach(target => {
+      if (!target.userData.isFlyingAway) {
+        const dist = bean.position.distanceTo(target.position);
+        if (dist < 1.5) {
+          target.userData.hitCount++;
+          if (target.userData.hitCount >= 3) {
+            target.userData.isFlyingAway = true;
+            target.userData.velocity.set(
+              (Math.random() - 0.5) * 0.5,
+              0.3,
+              (Math.random() - 0.5) * 0.5
+            );
+          }
+          scene.remove(bean);
+          beans.splice(i, 1);
         }
+      }
+    });
 
-        if (b.userData.life <= 0 || b.position.y < 0) { scene.remove(b); beans.splice(i, 1); }
+    // 床に落ちたら削除
+    if (bean.position.y < 0 || bean.userData.life <= 0) {
+      scene.remove(bean);
+      beans.splice(i, 1);
     }
+  }
 }
 
-function showBubble(pos, text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    div.style.cssText = 'position:fixed;background:#fff;padding:10px 18px;border-radius:20px;font-size:16px;font-weight:bold;z-index:1500;pointer-events:none;box-shadow:0 4px 15px rgba(0,0,0,0.4);';
-    const p = pos.clone().project(camera);
-    div.style.left = ((p.x + 1) / 2 * window.innerWidth) + 'px';
-    div.style.top = ((-p.y + 1) / 2 * window.innerHeight - 50) + 'px';
-    document.body.appendChild(div);
-    setTimeout(() => div.remove(), 1000);
-}
-
+// ==========================================
+// ターゲット更新
+// ==========================================
 function updateTargets() {
-    for (let i = targets.length - 1; i >= 0; i--) {
-        const t = targets[i];
-        if (t.userData.isFlyingAway) {
-            t.position.y += 0.1;
-            t.rotation.z += 0.08;
-            if (t.position.y > 50) { scene.remove(t); targets.splice(i, 1); }
-        } else {
-            t.lookAt(player.position.x, t.position.y, player.position.z);
-        }
+  targets.forEach(target => {
+    if (target.userData.isFlyingAway) {
+      target.position.add(target.userData.velocity);
+      target.userData.velocity.y -= 0.01;
+      target.rotation.x += 0.1;
+      target.rotation.z += 0.05;
+
+      if (target.position.y < -10) {
+        target.userData.isFlyingAway = false;
+        target.userData.hitCount = 0;
+        target.position.y = 1.5;
+        target.rotation.set(0, 0, 0);
+      }
+    } else {
+      // プレイヤーの方を向く
+      target.lookAt(player.position.x, target.position.y, player.position.z);
     }
-}
-
-function updateDust() {
-    if (!dustParticles) return;
-    const pos = dustParticles.geometry.attributes.position.array;
-    for (let i = 1; i < pos.length; i += 3) {
-        pos[i] -= 0.005;
-        if (pos[i] < 0) pos[i] = WALL_HEIGHT;
-    }
-    dustParticles.geometry.attributes.position.needsUpdate = true;
-}
-
-function updateAuto() {
-    if (!isAutoMode) return;
-    const t = Date.now() * 0.001;
-    player.position.x = Math.sin(t * 0.3) * 15;
-    player.position.z = Math.cos(t * 0.3) * 15;
-    player.rotation.y = -t * 0.3 + Math.PI;
-}
-
-function applyThrow() {
-    if (!isThrowingAnimation || !avatar) return;
-    throwAnimationTime += 0.06;
-    const p = Math.min(throwAnimationTime / 0.2, 1);
-    const arm = avatar.getObjectByName('rightArm');
-    if (arm) arm.rotation.x = p < 0.5 ? -Math.PI * 0.7 * (p / 0.5) : -Math.PI * 0.7 * (1 - (p - 0.5) / 0.5);
+  });
 }
 
 // ==========================================
 // アニメーションループ
 // ==========================================
 function animate() {
-    requestAnimationFrame(animate);
+  requestAnimationFrame(animate);
 
-    const time = Date.now() * 0.001;
-    const moving = updatePlayer();
+  const time = Date.now() * 0.001;
+  const isMoving = moveVector.length() > 0.1;
 
-    updateAuto();
-    updateFootprints();
+  updatePlayer();
+  updateBeans();
+  updateTargets();
 
-    if (isDogMode) {
-        animateDog(avatar, time, moving);
-    } else {
-        animateHuman(avatar, time, moving);
-        applyThrow();
-    }
+  // アバターアニメーション
+  if (isHuman) {
+    animateHuman(playerAvatar, time, isMoving);
+  } else {
+    animateDog(playerAvatar, time, isMoving);
+  }
 
-    updateBeans();
-    updateTargets();
-    updateDust();
+  // ダストパーティクル
+  if (dustParticles) {
+    dustParticles.rotation.y += 0.0001;
+  }
 
-    controls.update();
-    renderer.render(scene, camera);
+  controls.update();
+  renderer.render(scene, camera);
 }
 
 // ==========================================
-// 初期化実行
+// 起動
 // ==========================================
 init();

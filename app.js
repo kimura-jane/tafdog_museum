@@ -18,6 +18,7 @@ let isHuman = true;
 let isDog = false;
 let isAutoMode = false;
 let isFlyMode = false;
+let isFlying = false; // 実際に上昇中かどうか
 let humanColorIndex = 0;
 let dogColorIndex = 0;
 let moveVector = new THREE.Vector3();
@@ -75,8 +76,10 @@ async function init() {
 
     // NFTデータ取得・配置
     nftData = generateNFTData();
-    await fetchOwnerData();
     placeNFTsOnWalls();
+    
+    // オーナーデータを非同期で取得
+    fetchOwnerData();
 
     // ターゲットキャラ作成
     createTargets();
@@ -92,6 +95,7 @@ async function init() {
     // イベントリスナー
     window.addEventListener('resize', onWindowResize);
     window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('keyup', onKeyUp);
 
     // ローディング画面を削除
     const loading = document.getElementById('loading');
@@ -113,11 +117,9 @@ async function init() {
 // 照明設定
 // ==========================================
 function setupLighting() {
-  // 環境光（明るめ）
   const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
   scene.add(ambientLight);
 
-  // メインライト（上から）
   const mainLight = new THREE.DirectionalLight(0xffffff, 0.8);
   mainLight.position.set(0, 20, 0);
   mainLight.castShadow = true;
@@ -125,17 +127,14 @@ function setupLighting() {
   mainLight.shadow.mapSize.height = 2048;
   scene.add(mainLight);
 
-  // 補助ライト（斜め前から）
   const subLight1 = new THREE.DirectionalLight(0xfff5e6, 0.4);
   subLight1.position.set(20, 15, 20);
   scene.add(subLight1);
 
-  // 補助ライト（反対側から）
   const subLight2 = new THREE.DirectionalLight(0xe6f0ff, 0.3);
   subLight2.position.set(-20, 15, -20);
   scene.add(subLight2);
 
-  // 床を照らすライト
   const floorLight = new THREE.PointLight(0xffffff, 0.3, 100);
   floorLight.position.set(0, 8, 0);
   scene.add(floorLight);
@@ -147,7 +146,6 @@ function setupLighting() {
 function createRoom() {
   const halfSize = ROOM_SIZE / 2;
 
-  // 床（ダークウッド調）
   const floorGeometry = new THREE.PlaneGeometry(ROOM_SIZE, ROOM_SIZE);
   const floorMaterial = new THREE.MeshStandardMaterial({
     color: 0x3d2b1f,
@@ -159,7 +157,6 @@ function createRoom() {
   floor.receiveShadow = true;
   scene.add(floor);
 
-  // 天井
   const ceilingGeometry = new THREE.PlaneGeometry(ROOM_SIZE, ROOM_SIZE);
   const ceilingMaterial = new THREE.MeshStandardMaterial({
     color: 0x2a2a2a,
@@ -170,14 +167,12 @@ function createRoom() {
   ceiling.position.y = WALL_HEIGHT;
   scene.add(ceiling);
 
-  // 壁（オフホワイト）
   const wallMaterial = new THREE.MeshStandardMaterial({
     color: 0xf0ebe0,
     roughness: 0.7,
     metalness: 0
   });
 
-  // 壁の位置と回転
   const walls = [
     { pos: [0, WALL_HEIGHT / 2, -halfSize], rot: [0, 0, 0] },
     { pos: [0, WALL_HEIGHT / 2, halfSize], rot: [0, Math.PI, 0] },
@@ -194,7 +189,6 @@ function createRoom() {
     scene.add(wall);
   });
 
-  // 巾木（床と壁の境目）
   const baseboardMaterial = new THREE.MeshStandardMaterial({ color: 0x2a2a2a });
   const baseboardHeight = 0.2;
 
@@ -212,10 +206,7 @@ function createRoom() {
     scene.add(mesh);
   });
 
-  // 天井照明レール
   createCeilingRails();
-
-  // 足跡
   createFootprints();
 }
 
@@ -226,7 +217,6 @@ function createCeilingRails() {
   const railMaterial = new THREE.MeshStandardMaterial({ color: 0x1a1a1a });
   const railHeight = WALL_HEIGHT - 0.1;
 
-  // 中央レール（東西方向）
   const rail1 = new THREE.Mesh(
     new THREE.BoxGeometry(ROOM_SIZE * 0.8, 0.1, 0.3),
     railMaterial
@@ -234,7 +224,6 @@ function createCeilingRails() {
   rail1.position.set(0, railHeight, 0);
   scene.add(rail1);
 
-  // 中央レール（南北方向）
   const rail2 = new THREE.Mesh(
     new THREE.BoxGeometry(0.3, 0.1, ROOM_SIZE * 0.8),
     railMaterial
@@ -291,32 +280,33 @@ function createPlayer() {
 }
 
 // ==========================================
-// NFTオーナー取得
+// NFTオーナー取得（個別取得方式）
 // ==========================================
 async function fetchOwnerData() {
-  try {
-    const url = `https://polygon-mainnet.g.alchemy.com/nft/v3/${ALCHEMY_API_KEY}/getOwnersForContract?contractAddress=${NFT_CONFIG.contractAddress}&withTokenBalances=true`;
-    const response = await fetch(url);
-    const data = await response.json();
-
-    if (data.owners) {
-      data.owners.forEach(ownerInfo => {
-        const wallet = ownerInfo.ownerAddress;
-        if (ownerInfo.tokenBalances) {
-          ownerInfo.tokenBalances.forEach(tb => {
-            const tokenId = String(parseInt(tb.tokenId, 16));
-            const nft = nftData.find(n => n.tokenId === tokenId);
-            if (nft) {
-              nft.owner = wallet;
-              nft.ownerShort = wallet.slice(0, 6) + '...' + wallet.slice(-4);
-            }
-          });
-        }
-      });
+  console.log('オーナーデータ取得開始...');
+  
+  // 各NFTのオーナーを個別に取得
+  for (const nft of nftData) {
+    try {
+      const url = `https://polygon-mainnet.g.alchemy.com/nft/v3/${ALCHEMY_API_KEY}/getOwnersForNFT?contractAddress=${NFT_CONFIG.contractAddress}&tokenId=${nft.tokenId}`;
+      
+      const response = await fetch(url);
+      const data = await response.json();
+      
+      if (data.owners && data.owners.length > 0) {
+        const owner = data.owners[0];
+        nft.owner = owner;
+        nft.ownerShort = owner.slice(0, 6) + '...' + owner.slice(-4);
+      } else {
+        nft.ownerShort = 'No Owner';
+      }
+    } catch (error) {
+      console.error(`Token ${nft.tokenId} オーナー取得エラー:`, error);
+      nft.ownerShort = 'Error';
     }
-  } catch (error) {
-    console.error('オーナーデータ取得エラー:', error);
   }
+  
+  console.log('オーナーデータ取得完了');
 }
 
 // ==========================================
@@ -401,7 +391,6 @@ function placeNFTsOnWalls() {
 function createNFTDisplay(nft, position, rotation, frameStyle, width, height) {
   const group = new THREE.Group();
 
-  // 額縁（後ろ側）
   const frameGeometry = new THREE.BoxGeometry(
     width + frameStyle.width * 2,
     height + frameStyle.width * 2,
@@ -416,7 +405,6 @@ function createNFTDisplay(nft, position, rotation, frameStyle, width, height) {
   frame.position.z = 0;
   group.add(frame);
 
-  // NFT画像（額縁より前に配置してチカチカ防止）
   const loader = new THREE.TextureLoader();
   loader.load(
     nft.imageUrl,
@@ -442,17 +430,15 @@ function createNFTDisplay(nft, position, rotation, frameStyle, width, height) {
     }
   );
 
-  // 照明器具（NFTの上に設置）
+  // 照明器具
   const lightFixture = new THREE.Group();
 
-  // 照明器具本体（黒いボックス）
   const fixtureBody = new THREE.Mesh(
     new THREE.BoxGeometry(0.4, 0.15, 0.3),
     new THREE.MeshStandardMaterial({ color: 0x1a1a1a, metalness: 0.8, roughness: 0.2 })
   );
   lightFixture.add(fixtureBody);
 
-  // 照明部分（光る部分）
   const lightBulb = new THREE.Mesh(
     new THREE.CylinderGeometry(0.08, 0.12, 0.1, 8),
     new THREE.MeshBasicMaterial({ color: 0xffffee })
@@ -461,11 +447,9 @@ function createNFTDisplay(nft, position, rotation, frameStyle, width, height) {
   lightBulb.rotation.x = Math.PI * 0.1;
   lightFixture.add(lightBulb);
 
-  // 照明器具の位置（NFTの上）
   lightFixture.position.set(0, height / 2 + 0.8, 0.5);
   group.add(lightFixture);
 
-  // スポットライト
   const spotlight = new THREE.SpotLight(0xfff5e0, 2, 12, Math.PI / 5, 0.3);
   spotlight.position.set(0, height / 2 + 0.7, 0.5);
   spotlight.target.position.set(0, 0, 0.07);
@@ -522,7 +506,6 @@ function createTargets() {
 // UI作成
 // ==========================================
 function createUI() {
-  // タイトル
   const title = document.createElement('div');
   title.style.cssText = `
     position: fixed;
@@ -539,7 +522,6 @@ function createUI() {
   title.textContent = 'TAF DOG Museum';
   document.body.appendChild(title);
 
-  // 上部ボタンバー
   const topBar = document.createElement('div');
   topBar.style.cssText = `
     position: fixed;
@@ -560,16 +542,16 @@ function createUI() {
     font-weight: bold;
     cursor: pointer;
     transition: all 0.3s;
+    user-select: none;
+    -webkit-user-select: none;
   `;
 
-  // HUMANボタン
   const humanBtn = document.createElement('button');
   humanBtn.textContent = 'HUMAN';
   humanBtn.style.cssText = buttonStyle + 'background: #4a90d9; color: white;';
   humanBtn.onclick = () => switchToHuman();
   topBar.appendChild(humanBtn);
 
-  // AUTOボタン
   const autoBtn = document.createElement('button');
   autoBtn.textContent = 'AUTO';
   autoBtn.id = 'autoBtn';
@@ -577,14 +559,12 @@ function createUI() {
   autoBtn.onclick = () => toggleAutoMode();
   topBar.appendChild(autoBtn);
 
-  // DOGボタン
   const dogBtn = document.createElement('button');
   dogBtn.textContent = 'DOG';
   dogBtn.style.cssText = buttonStyle + 'background: #d4a574; color: white;';
   dogBtn.onclick = () => switchToDog();
   topBar.appendChild(dogBtn);
 
-  // 右側ボタン
   const rightBar = document.createElement('div');
   rightBar.style.cssText = `
     position: fixed;
@@ -597,24 +577,46 @@ function createUI() {
   `;
   document.body.appendChild(rightBar);
 
-  // FLYボタン
+  // FLYボタン（押している間だけ上昇）
   const flyBtn = document.createElement('button');
   flyBtn.textContent = 'FLY';
   flyBtn.id = 'flyBtn';
   flyBtn.style.cssText = buttonStyle + 'background: #9b59b6; color: white;';
-  flyBtn.onclick = () => toggleFlyMode();
+  
+  // タッチ/マウスで押している間上昇
+  flyBtn.addEventListener('mousedown', () => startFlying());
+  flyBtn.addEventListener('mouseup', () => stopFlying());
+  flyBtn.addEventListener('mouseleave', () => stopFlying());
+  flyBtn.addEventListener('touchstart', (e) => { e.preventDefault(); startFlying(); });
+  flyBtn.addEventListener('touchend', (e) => { e.preventDefault(); stopFlying(); });
+  flyBtn.addEventListener('touchcancel', () => stopFlying());
+  
   rightBar.appendChild(flyBtn);
 
-  // THROWボタン
   const throwBtn = document.createElement('button');
   throwBtn.textContent = 'THROW';
   throwBtn.style.cssText = buttonStyle + 'background: #e74c3c; color: white;';
   throwBtn.onclick = () => throwBean();
   rightBar.appendChild(throwBtn);
 
-  // NFTクリックイベント
   renderer.domElement.addEventListener('click', onNFTClick);
   renderer.domElement.addEventListener('touchend', onNFTTouch);
+}
+
+// ==========================================
+// 飛行開始・停止
+// ==========================================
+function startFlying() {
+  isFlying = true;
+  isFlyMode = true;
+  const btn = document.getElementById('flyBtn');
+  if (btn) btn.style.background = '#2ecc71';
+}
+
+function stopFlying() {
+  isFlying = false;
+  const btn = document.getElementById('flyBtn');
+  if (btn) btn.style.background = '#9b59b6';
 }
 
 // ==========================================
@@ -729,31 +731,28 @@ function toggleAutoMode() {
   }
 }
 
-function toggleFlyMode() {
-  isFlyMode = !isFlyMode;
-  const btn = document.getElementById('flyBtn');
-  if (btn) {
-    btn.style.background = isFlyMode ? '#2ecc71' : '#9b59b6';
-  }
-}
-
 // ==========================================
-// 豆を投げる
+// 豆を投げる（カメラが見ている方向に投げる）
 // ==========================================
 function throwBean() {
   const beanGeometry = new THREE.SphereGeometry(0.15, 8, 8);
   const beanMaterial = new THREE.MeshStandardMaterial({ color: 0x8B4513 });
   const bean = new THREE.Mesh(beanGeometry, beanMaterial);
 
+  // プレイヤーの位置から発射
   bean.position.copy(player.position);
-  bean.position.y += 1;
+  bean.position.y += 1.2;
 
-  const direction = new THREE.Vector3(0, 0, -1);
-  direction.applyQuaternion(player.quaternion);
+  // カメラからプレイヤーへの方向 = プレイヤーが見ている方向
+  const direction = new THREE.Vector3();
+  direction.subVectors(controls.target, camera.position);
+  direction.y = 0; // 水平方向のみ
+  direction.normalize();
 
-  bean.userData.velocity = direction.multiplyScalar(0.5);
-  bean.userData.velocity.y = 0.2;
-  bean.userData.life = 100;
+  // 速度を設定（前方に投げる）
+  bean.userData.velocity = direction.clone().multiplyScalar(0.6);
+  bean.userData.velocity.y = 0.2; // 少し上向きに
+  bean.userData.life = 150;
 
   beans.push(bean);
   scene.add(bean);
@@ -786,18 +785,18 @@ function handleNFTInteraction(clientX, clientY) {
 
   const intersects = raycaster.intersectObjects(nftMeshes, true);
   if (intersects.length > 0) {
-    let nftData = null;
+    let nftDataFound = null;
     let obj = intersects[0].object;
 
-    while (obj && !nftData) {
+    while (obj && !nftDataFound) {
       if (obj.userData && obj.userData.nftData) {
-        nftData = obj.userData.nftData;
+        nftDataFound = obj.userData.nftData;
       }
       obj = obj.parent;
     }
 
-    if (nftData) {
-      showNFTModal(nftData);
+    if (nftDataFound) {
+      showNFTModal(nftDataFound);
     }
   }
 }
@@ -864,7 +863,7 @@ function showNFTModal(nft) {
   `;
   info.innerHTML = `
     <p style="margin: 5px 0;">Token ID: ${nft.tokenId}</p>
-    <p style="margin: 5px 0;">Owner: ${nft.ownerShort || 'Unknown'}</p>
+    <p style="margin: 5px 0;">Owner: ${nft.ownerShort || 'Loading...'}</p>
     ${nft.changeRule ? `<p style="margin: 5px 0; color: #ffd700;">${nft.changeRule}</p>` : ''}
   `;
   modal.appendChild(info);
@@ -931,9 +930,34 @@ function onKeyDown(event) {
       moveVector.x = 1;
       break;
     case 'Space':
-      if (isFlyMode) {
-        player.position.y += 0.5;
+      startFlying();
+      break;
+    case 'ShiftLeft':
+    case 'ShiftRight':
+      if (player.position.y > 0) {
+        player.position.y -= 0.5;
+        if (player.position.y < 0) player.position.y = 0;
       }
+      break;
+  }
+}
+
+function onKeyUp(event) {
+  switch (event.code) {
+    case 'ArrowUp':
+    case 'KeyW':
+    case 'ArrowDown':
+    case 'KeyS':
+      moveVector.z = 0;
+      break;
+    case 'ArrowLeft':
+    case 'KeyA':
+    case 'ArrowRight':
+    case 'KeyD':
+      moveVector.x = 0;
+      break;
+    case 'Space':
+      stopFlying();
       break;
   }
 }
@@ -986,10 +1010,16 @@ function updatePlayer() {
   player.position.x = Math.max(-boundary, Math.min(boundary, player.position.x));
   player.position.z = Math.max(-boundary, Math.min(boundary, player.position.z));
 
-  if (!isFlyMode && player.position.y > 0) {
+  // 飛行処理：押している間上昇
+  if (isFlying) {
+    player.position.y += 0.2; // 上昇速度
+  } else if (player.position.y > 0) {
+    // 飛んでいないなら落下
     player.position.y -= 0.1;
     if (player.position.y < 0) player.position.y = 0;
   }
+  
+  // 高さ制限
   player.position.y = Math.min(player.position.y, WALL_HEIGHT - 2);
 
   const cameraHeight = isDog ? 3 : 5;
@@ -1015,7 +1045,7 @@ function updatePlayer() {
 function updateBeans() {
   for (let i = beans.length - 1; i >= 0; i--) {
     const bean = beans[i];
-    bean.userData.velocity.y -= 0.01;
+    bean.userData.velocity.y -= 0.015;
     bean.position.add(bean.userData.velocity);
     bean.userData.life--;
 
@@ -1034,6 +1064,7 @@ function updateBeans() {
           }
           scene.remove(bean);
           beans.splice(i, 1);
+          return;
         }
       }
     });

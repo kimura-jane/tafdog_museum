@@ -26,6 +26,8 @@ let dustParticles;
 let moveVector = new THREE.Vector3();
 let keys = {};
 let joystickActive = false;
+let cameraFollowPlayer = true;
+let lastInteractionTime = 0;
 
 let currentHumanColorIndex = 0;
 let currentDogColorIndex = 0;
@@ -61,6 +63,14 @@ async function init() {
   controls.maxDistance = 50;
   controls.maxPolarAngle = Math.PI / 2.1;
   controls.enablePan = false;
+  
+  // OrbitControls操作時にカメラ追従を一時停止
+  controls.addEventListener('start', () => {
+    cameraFollowPlayer = false;
+  });
+  controls.addEventListener('end', () => {
+    lastInteractionTime = Date.now();
+  });
   
   setupLighting();
   createRoom();
@@ -327,9 +337,12 @@ function createTargets() {
   const baseUrl = "https://raw.githubusercontent.com/kimura-jane/tafdog_museum/main/";
   const targetFiles = ["IMG_1822.png", "IMG_1889.png"];
   
+  // 四隅の座標
   const corners = [
-    { x: ROOM_SIZE / 2 - 5, z: ROOM_SIZE / 2 - 5 },
-    { x: -ROOM_SIZE / 2 + 5, z: -ROOM_SIZE / 2 + 5 }
+    { x: ROOM_SIZE / 2 - 5, z: -ROOM_SIZE / 2 + 5 },   // 右奥
+    { x: -ROOM_SIZE / 2 + 5, z: -ROOM_SIZE / 2 + 5 },  // 左奥
+    { x: ROOM_SIZE / 2 - 5, z: ROOM_SIZE / 2 - 5 },    // 右手前
+    { x: -ROOM_SIZE / 2 + 5, z: ROOM_SIZE / 2 - 5 }    // 左手前
   ];
   
   targetFiles.forEach((file, index) => {
@@ -469,9 +482,6 @@ function setupJoystick(joystick, knob) {
     e.stopPropagation();
     joystickActive = true;
     controls.enabled = false;
-    controls.enableRotate = false;
-    controls.enableZoom = false;
-    controls.enablePan = false;
     onMove(e);
   }
   
@@ -506,8 +516,6 @@ function setupJoystick(joystick, knob) {
     e.preventDefault();
     joystickActive = false;
     controls.enabled = true;
-    controls.enableRotate = true;
-    controls.enableZoom = true;
     
     knob.style.left = '50%';
     knob.style.top = '50%';
@@ -734,7 +742,10 @@ function updatePlayer() {
     finalMove.z = dir.z;
   }
   
+  // 移動中はカメラ追従を再開
   if (finalMove.length() > 0) {
+    cameraFollowPlayer = true;
+    
     const movement = finalMove.clone().normalize().multiplyScalar(speed);
     const camDir = new THREE.Vector3();
     camera.getWorldDirection(camDir);
@@ -762,8 +773,19 @@ function updatePlayer() {
     player.position.y = 0;
   }
   
-  camera.position.lerp(player.position.clone().add(new THREE.Vector3(0, 5, 10)), 0.05);
-  controls.target.lerp(player.position, 0.05);
+  // 3秒操作がなければカメラ追従を再開
+  if (!cameraFollowPlayer && Date.now() - lastInteractionTime > 3000) {
+    cameraFollowPlayer = true;
+  }
+  
+  // カメラ追従（フラグがtrueの時のみ）
+  if (cameraFollowPlayer) {
+    camera.position.lerp(player.position.clone().add(new THREE.Vector3(0, 5, 10)), 0.05);
+    controls.target.lerp(player.position, 0.05);
+  } else {
+    // 視点操作中はtargetだけプレイヤーに向ける（カメラ位置は変えない）
+    controls.target.lerp(player.position, 0.02);
+  }
 }
 
 // ==========================================

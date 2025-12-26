@@ -6,10 +6,10 @@ import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 
 // data.jsからインポート
-import { NFT_CONFIG, ROOM_SIZE, WALL_HEIGHT, TARGET_IMAGES, HUMAN_COLORS, DOG_COLORS, generateNFTData } from './data.js';
+import { NFT_CONFIG, ROOM_SIZE, WALL_HEIGHT, HUMAN_COLORS, DOG_COLORS, generateNFTData } from './data.js';
 
 // functions.jsからインポート
-import { getLighting, createHumanAvatar, createDogAvatar, animateHuman, animateDog, createBean, createTargetCharacter, createDustParticles } from './functions.js';
+import { getLighting, createHumanAvatar, createDogAvatar, animateHuman, animateDog, createDustParticles } from './functions.js';
 
 // ==========================================
 // グローバル変数
@@ -24,14 +24,11 @@ let moveVector = new THREE.Vector3();
 let joystickActive = false;
 let beans = [];
 let targets = [];
-let npcDogs = [];
 let dustParticles;
 let nftData = [];
 let currentFloor = 1;
 let isThrowingAnimation = false;
 let throwAnimationTime = 0;
-let cameraOffset = new THREE.Vector3(0, 5, 10);
-let lastManualCameraAngle = 0;
 let isUserRotating = false;
 let userRotationTimeout = null;
 
@@ -48,82 +45,93 @@ const ALCHEMY_API_KEY = "NzzY5_VyMSoXXD0XqZpDL";
 // 初期化
 // ==========================================
 async function init() {
-    // シーン作成
-    scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x87CEEB);
-    scene.fog = new THREE.Fog(0x87CEEB, 50, 150);
+    try {
+        // シーン作成
+        scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x87CEEB);
+        scene.fog = new THREE.Fog(0x87CEEB, 50, 150);
 
-    // カメラ作成
-    camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-    camera.position.set(0, 5, 10);
+        // カメラ作成
+        camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 5, 10);
 
-    // レンダラー作成
-    renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-    document.body.appendChild(renderer.domElement);
+        // レンダラー作成
+        renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        document.body.appendChild(renderer.domElement);
 
-    // OrbitControls
-    controls = new OrbitControls(camera, renderer.domElement);
-    controls.enableDamping = true;
-    controls.dampingFactor = 0.05;
-    controls.minDistance = 5;
-    controls.maxDistance = 50;
-    controls.maxPolarAngle = Math.PI / 2;
-    controls.enablePan = false;
+        // ローディング画面を削除
+        const loadingEl = document.getElementById('loading');
+        if (loadingEl) loadingEl.style.display = 'none';
 
-    // ユーザー操作検知
-    controls.addEventListener('start', () => {
-        isUserRotating = true;
-        if (userRotationTimeout) clearTimeout(userRotationTimeout);
-    });
-    controls.addEventListener('end', () => {
-        userRotationTimeout = setTimeout(() => {
-            isUserRotating = false;
-        }, 2000);
-    });
+        // OrbitControls
+        controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        controls.minDistance = 5;
+        controls.maxDistance = 50;
+        controls.maxPolarAngle = Math.PI / 2;
+        controls.enablePan = false;
 
-    // 照明設定
-    setupLighting();
+        // ユーザー操作検知
+        controls.addEventListener('start', () => {
+            isUserRotating = true;
+            if (userRotationTimeout) clearTimeout(userRotationTimeout);
+        });
+        controls.addEventListener('end', () => {
+            userRotationTimeout = setTimeout(() => {
+                isUserRotating = false;
+            }, 2000);
+        });
 
-    // 部屋作成
-    createRoom();
+        // 照明設定
+        setupLighting();
 
-    // プレイヤー作成
-    createPlayer();
+        // 部屋作成
+        createRoom();
 
-    // NFTデータ取得と配置
-    nftData = generateNFTData();
-    await fetchOwnerData();
-    placeNFTsOnWalls();
+        // プレイヤー作成
+        createPlayer();
 
-    // ターゲット作成（四隅）
-    createTargets();
+        // NFTデータ取得と配置
+        nftData = generateNFTData();
+        fetchOwnerData(); // awaitを外して非同期で実行
+        placeNFTsOnWalls();
 
-    // ダストパーティクル
-    dustParticles = createDustParticles(100);
-    scene.add(dustParticles);
+        // ターゲット作成（四隅）
+        createTargets();
 
-    // UI作成
-    createUI();
+        // ダストパーティクル
+        dustParticles = createDustParticles(100);
+        scene.add(dustParticles);
 
-    // ジョイスティック設定
-    setupJoystick();
+        // UI作成
+        createUI();
 
-    // イベントリスナー
-    setupEventListeners();
+        // ジョイスティック設定
+        setupJoystick();
 
-    // アニメーション開始
-    animate();
+        // イベントリスナー
+        setupEventListeners();
+
+        // アニメーション開始
+        animate();
+
+    } catch (error) {
+        console.error('Init error:', error);
+        const loadingEl = document.getElementById('loading');
+        if (loadingEl) {
+            loadingEl.innerHTML = `<p>エラーが発生しました: ${error.message}</p>`;
+        }
+    }
 }
 
 // ==========================================
 // 照明設定
 // ==========================================
 function setupLighting() {
-    const lighting = getLighting();
-
     // 環境光
     const ambientLight = new THREE.AmbientLight(0xffffff, 1.0);
     scene.add(ambientLight);
@@ -151,12 +159,10 @@ function setupLighting() {
 // 部屋作成
 // ==========================================
 function createRoom() {
-    const isMuseum = true;
-
     // 床
     const floorGeometry = new THREE.PlaneGeometry(ROOM_SIZE, ROOM_SIZE);
     const floorMaterial = new THREE.MeshStandardMaterial({
-        color: isMuseum ? 0xb0b0b0 : 0xa08060,
+        color: 0xb0b0b0,
         roughness: 0.8
     });
     const floor = new THREE.Mesh(floorGeometry, floorMaterial);
@@ -176,8 +182,7 @@ function createRoom() {
     scene.add(ceiling);
 
     // 壁
-    const wallColor = isMuseum ? 0xe8e8e8 : 0xd0c0a0;
-    const wallMaterial = new THREE.MeshStandardMaterial({ color: wallColor, side: THREE.DoubleSide });
+    const wallMaterial = new THREE.MeshStandardMaterial({ color: 0xe8e8e8, side: THREE.DoubleSide });
 
     // 前壁
     const frontWall = new THREE.Mesh(new THREE.PlaneGeometry(ROOM_SIZE, WALL_HEIGHT), wallMaterial);
@@ -243,8 +248,8 @@ async function fetchOwnerData() {
 
         if (data.nfts) {
             data.nfts.forEach(nft => {
-                const tokenId = parseInt(nft.tokenId);
-                const nftItem = nftData.find(n => n.tokenId === tokenId);
+                const tokenId = nft.tokenId;
+                const nftItem = nftData.find(n => n.tokenId === tokenId || n.tokenId === String(tokenId));
                 if (nftItem && nft.owners && nft.owners[0]) {
                     nftItem.owner = nft.owners[0];
                     nftItem.ownerShort = nft.owners[0].slice(0, 6) + '...' + nft.owners[0].slice(-4);
@@ -261,9 +266,8 @@ async function fetchOwnerData() {
 // ==========================================
 function placeNFTsOnWalls() {
     // 既存のNFTを削除
-    scene.children.filter(child => child.userData && child.userData.isNFT).forEach(child => {
-        scene.remove(child);
-    });
+    const toRemove = scene.children.filter(child => child.userData && child.userData.isNFT);
+    toRemove.forEach(child => scene.remove(child));
 
     const nftsPerWall = 5;
     const startIndex = (currentFloor - 1) * 20;
@@ -304,14 +308,6 @@ function placeNFTsOnWalls() {
             mesh.userData.nftData = nft;
 
             scene.add(mesh);
-
-            // スポットライト追加
-            const spotlight = new THREE.SpotLight(0xffffff, 0.5);
-            spotlight.position.set(mesh.position.x, mesh.position.y + 3, mesh.position.z + (wallIndex < 2 ? 2 : 0));
-            spotlight.target = mesh;
-            spotlight.angle = Math.PI / 6;
-            spotlight.penumbra = 0.3;
-            scene.add(spotlight);
         });
     });
 }
@@ -325,10 +321,10 @@ function createTargets() {
 
     // 四隅の位置
     const corners = [
-        { x: ROOM_SIZE / 2 - 5, z: -ROOM_SIZE / 2 + 5 },   // 右奥
-        { x: -ROOM_SIZE / 2 + 5, z: -ROOM_SIZE / 2 + 5 }, // 左奥
-        { x: ROOM_SIZE / 2 - 5, z: ROOM_SIZE / 2 - 5 },   // 右手前
-        { x: -ROOM_SIZE / 2 + 5, z: ROOM_SIZE / 2 - 5 }   // 左手前
+        { x: ROOM_SIZE / 2 - 5, z: -ROOM_SIZE / 2 + 5 },
+        { x: -ROOM_SIZE / 2 + 5, z: -ROOM_SIZE / 2 + 5 },
+        { x: ROOM_SIZE / 2 - 5, z: ROOM_SIZE / 2 - 5 },
+        { x: -ROOM_SIZE / 2 + 5, z: ROOM_SIZE / 2 - 5 }
     ];
 
     corners.forEach((corner, index) => {
@@ -353,6 +349,8 @@ function createTargets() {
 
             scene.add(group);
             targets.push(group);
+        }, undefined, (error) => {
+            console.error('Target image load error:', error);
         });
     });
 }
@@ -378,7 +376,7 @@ function createUI() {
     `;
     document.body.appendChild(title);
 
-    // ボタンコンテナ（上部中央）
+    // ボタンコンテナ
     const buttonContainer = document.createElement('div');
     buttonContainer.style.cssText = `
         position: fixed;
@@ -425,7 +423,7 @@ function createUI() {
     };
     buttonContainer.appendChild(dogBtn);
 
-    // FLYボタン（右側）
+    // FLYボタン
     flyBtn = document.createElement('button');
     flyBtn.textContent = 'FLY';
     flyBtn.style.cssText = `
@@ -443,7 +441,6 @@ function createUI() {
         font-weight: bold;
         cursor: pointer;
         z-index: 1000;
-        display: block;
     `;
     flyBtn.onclick = () => {
         isFlyMode = !isFlyMode;
@@ -451,7 +448,7 @@ function createUI() {
     };
     document.body.appendChild(flyBtn);
 
-    // THROWボタン（右下）
+    // THROWボタン
     throwBtn = document.createElement('button');
     throwBtn.textContent = 'THROW';
     throwBtn.style.cssText = `
@@ -550,17 +547,14 @@ function setupJoystick() {
     joystickContainer.appendChild(knob);
 
     const maxDist = 35;
-    let centerX = 60;
-    let centerY = 60;
+    const centerX = 60;
+    const centerY = 60;
 
     function onStart(e) {
         e.preventDefault();
         e.stopPropagation();
         joystickActive = true;
         controls.enabled = false;
-        controls.enableRotate = false;
-        controls.enableZoom = false;
-        controls.enablePan = false;
     }
 
     function onMove(e) {
@@ -588,15 +582,9 @@ function setupJoystick() {
         moveVector.z = y / maxDist;
     }
 
-    function onEnd(e) {
-        if (e) {
-            e.preventDefault();
-            e.stopPropagation();
-        }
+    function onEnd() {
         joystickActive = false;
         controls.enabled = true;
-        controls.enableRotate = true;
-        controls.enableZoom = true;
 
         knob.style.left = '50%';
         knob.style.top = '50%';
@@ -619,14 +607,16 @@ function setupJoystick() {
 function setupEventListeners() {
     // キーボード
     document.addEventListener('keydown', (e) => {
-        if (keys.hasOwnProperty(e.key.toLowerCase())) {
-            keys[e.key.toLowerCase()] = true;
+        const key = e.key.toLowerCase();
+        if (keys.hasOwnProperty(key)) {
+            keys[key] = true;
         }
     });
 
     document.addEventListener('keyup', (e) => {
-        if (keys.hasOwnProperty(e.key.toLowerCase())) {
-            keys[e.key.toLowerCase()] = false;
+        const key = e.key.toLowerCase();
+        if (keys.hasOwnProperty(key)) {
+            keys[key] = false;
         }
     });
 
@@ -640,7 +630,7 @@ function setupEventListeners() {
     // NFTクリック
     renderer.domElement.addEventListener('click', onCanvasClick);
     renderer.domElement.addEventListener('touchend', (e) => {
-        if (e.changedTouches.length > 0) {
+        if (e.changedTouches && e.changedTouches.length > 0) {
             const touch = e.changedTouches[0];
             onCanvasClick({
                 clientX: touch.clientX,
@@ -652,7 +642,7 @@ function setupEventListeners() {
 }
 
 function onCanvasClick(event) {
-    event.preventDefault();
+    if (event.preventDefault) event.preventDefault();
 
     const mouse = new THREE.Vector2();
     mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
@@ -804,16 +794,15 @@ function updatePlayer() {
         const cameraRight = new THREE.Vector3();
         cameraRight.crossVectors(cameraDirection, new THREE.Vector3(0, 1, 0));
 
-        const moveDirection = new THREE.Vector3();
-        moveDirection.addScaledVector(cameraRight, moveVector.x);
-        moveDirection.addScaledVector(cameraDirection, -moveVector.z);
-        moveDirection.normalize();
+        const moveDir = new THREE.Vector3();
+        moveDir.addScaledVector(cameraRight, moveVector.x);
+        moveDir.addScaledVector(cameraDirection, -moveVector.z);
+        moveDir.normalize();
 
-        player.position.add(moveDirection.multiplyScalar(speed));
+        player.position.add(moveDir.multiplyScalar(speed));
 
-        // プレイヤーの向きを移動方向に
-        if (moveDirection.length() > 0) {
-            const angle = Math.atan2(moveDirection.x, moveDirection.z);
+        if (moveDir.length() > 0) {
+            const angle = Math.atan2(moveDir.x, moveDir.z);
             player.rotation.y = angle;
         }
 
@@ -821,32 +810,26 @@ function updatePlayer() {
     }
 
     // FLYモード
-    if (isFlyMode) {
-        if (keys.space) player.position.y += 0.2;
-        player.position.y = Math.max(0, player.position.y);
-    } else {
+    if (isFlyMode && keys.space) {
+        player.position.y += 0.2;
+    }
+    if (!isFlyMode) {
         player.position.y = 0;
     }
 
-    // 部屋の境界制限
+    // 境界制限
     const limit = ROOM_SIZE / 2 - 2;
     player.position.x = Math.max(-limit, Math.min(limit, player.position.x));
     player.position.z = Math.max(-limit, Math.min(limit, player.position.z));
 
-    // カメラ追従（ユーザーが操作中でない場合）
-    if (!isUserRotating) {
-        const targetPosition = new THREE.Vector3();
-        targetPosition.copy(player.position);
-
-        // カメラをプレイヤーの後方に配置
+    // カメラ追従
+    if (!isUserRotating && moved) {
         const offset = new THREE.Vector3(0, 5, 10);
         offset.applyQuaternion(player.quaternion);
-
-        const desiredCameraPos = player.position.clone().add(offset);
-        camera.position.lerp(desiredCameraPos, 0.05);
+        const desiredPos = player.position.clone().add(offset);
+        camera.position.lerp(desiredPos, 0.03);
     }
 
-    // OrbitControlsのターゲットは常にプレイヤー
     controls.target.lerp(player.position, 0.1);
 
     return moved;
@@ -863,15 +846,13 @@ function updateBeans() {
         bean.userData.velocity.y += bean.userData.gravity;
         bean.userData.life--;
 
-        // ターゲットとの衝突判定
+        // ターゲット衝突判定
         for (let target of targets) {
             if (target.userData.isFlyingAway) continue;
 
             const dist = bean.position.distanceTo(target.position);
             if (dist < 2) {
                 target.userData.hitCount++;
-
-                // 吹き出し表示
                 showSpeechBubble(target.position, target.userData.hitCount > 2 ? 'あーれー！' : '痛いっ！');
 
                 if (target.userData.hitCount >= 3) {
@@ -884,7 +865,6 @@ function updateBeans() {
             }
         }
 
-        // 寿命切れまたは地面に落ちた
         if (bean.userData.life <= 0 || bean.position.y < 0) {
             scene.remove(bean);
             beans.splice(i, 1);
@@ -914,7 +894,6 @@ function showSpeechBubble(position, text) {
     bubble.style.top = ((-screenPos.y + 1) / 2 * window.innerHeight) + 'px';
 
     document.body.appendChild(bubble);
-
     setTimeout(() => bubble.remove(), 1000);
 }
 
@@ -922,25 +901,25 @@ function showSpeechBubble(position, text) {
 // ターゲット更新
 // ==========================================
 function updateTargets() {
-    for (let target of targets) {
+    for (let i = targets.length - 1; i >= 0; i--) {
+        const target = targets[i];
+
         if (target.userData.isFlyingAway) {
             target.position.y += 0.1;
             target.rotation.z += 0.1;
 
             if (target.position.y > 50) {
                 scene.remove(target);
-                const index = targets.indexOf(target);
-                if (index > -1) targets.splice(index, 1);
+                targets.splice(i, 1);
             }
         } else {
-            // プレイヤーの方を向く
             target.lookAt(player.position.x, target.position.y, player.position.z);
         }
     }
 }
 
 // ==========================================
-// 投げアニメーション適用
+// 投げアニメーション
 // ==========================================
 function applyThrowAnimation(isHuman) {
     if (!isThrowingAnimation || !avatar) return;
@@ -960,11 +939,7 @@ function applyThrowAnimation(isHuman) {
     } else {
         const head = avatar.getObjectByName('head');
         if (head) {
-            if (progress < 0.5) {
-                head.rotation.x = -0.3 * (progress / 0.5);
-            } else {
-                head.rotation.x = -0.3 * (1 - (progress - 0.5) / 0.5);
-            }
+            head.rotation.x = progress < 0.5 ? -0.3 * (progress / 0.5) : -0.3 * (1 - (progress - 0.5) / 0.5);
         }
     }
 }
@@ -1008,10 +983,8 @@ function animate() {
     const time = Date.now() * 0.001;
     const isMoving = updatePlayer();
 
-    // オートモード
     updateAutoMode();
 
-    // アバターアニメーション
     if (isDogMode) {
         animateDog(avatar, time, isMoving);
         applyThrowAnimation(false);
@@ -1020,7 +993,6 @@ function animate() {
         applyThrowAnimation(true);
     }
 
-    // 更新処理
     updateBeans();
     updateTargets();
     updateDustParticles();

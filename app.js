@@ -9,7 +9,7 @@ import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { NFT_CONFIG, ROOM_SIZE, WALL_HEIGHT, HUMAN_COLORS, DOG_COLORS, generateNFTData } from './data.js';
 
 // functions.jsからインポート
-import { getLighting, createHumanAvatar, createDogAvatar, animateHuman, animateDog, createDustParticles } from './functions.js';
+import { createHumanAvatar, createDogAvatar, animateHuman, animateDog, createDustParticles } from './functions.js';
 
 // ==========================================
 // グローバル変数
@@ -48,31 +48,35 @@ async function init() {
     try {
         // シーン作成
         scene = new THREE.Scene();
-        scene.background = new THREE.Color(0x87CEEB);
-        scene.fog = new THREE.Fog(0x87CEEB, 50, 150);
+        scene.background = new THREE.Color(0x1a1a2e);
+        scene.fog = new THREE.Fog(0x1a1a2e, 30, 100);
 
         // カメラ作成
         camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-        camera.position.set(0, 5, 10);
+        camera.position.set(0, 5, 15);
 
         // レンダラー作成
         renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         renderer.shadowMap.enabled = true;
         renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-        document.body.appendChild(renderer.domElement);
+        
+        // #rootにレンダラーを追加
+        const root = document.getElementById('root');
+        root.appendChild(renderer.domElement);
 
         // ローディング画面を削除
         const loadingEl = document.getElementById('loading');
-        if (loadingEl) loadingEl.style.display = 'none';
+        if (loadingEl) loadingEl.remove();
 
         // OrbitControls
         controls = new OrbitControls(camera, renderer.domElement);
         controls.enableDamping = true;
         controls.dampingFactor = 0.05;
-        controls.minDistance = 5;
+        controls.minDistance = 3;
         controls.maxDistance = 50;
-        controls.maxPolarAngle = Math.PI / 2;
+        controls.maxPolarAngle = Math.PI / 2.1;
         controls.enablePan = false;
 
         // ユーザー操作検知
@@ -97,7 +101,7 @@ async function init() {
 
         // NFTデータ取得と配置
         nftData = generateNFTData();
-        fetchOwnerData(); // awaitを外して非同期で実行
+        fetchOwnerData();
         placeNFTsOnWalls();
 
         // ターゲット作成（四隅）
@@ -119,12 +123,11 @@ async function init() {
         // アニメーション開始
         animate();
 
+        console.log('Museum initialized successfully!');
+
     } catch (error) {
         console.error('Init error:', error);
-        const loadingEl = document.getElementById('loading');
-        if (loadingEl) {
-            loadingEl.innerHTML = `<p>エラーが発生しました: ${error.message}</p>`;
-        }
+        alert('エラー: ' + error.message);
     }
 }
 
@@ -132,26 +135,31 @@ async function init() {
 // 照明設定
 // ==========================================
 function setupLighting() {
-    // 環境光
-    const ambientLight = new THREE.AmbientLight(0xffffff, 1.0);
+    // 環境光（明るめ）
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
     scene.add(ambientLight);
 
     // メインライト
-    const mainLight = new THREE.DirectionalLight(0xffffff, 1.2);
+    const mainLight = new THREE.DirectionalLight(0xffffff, 1.0);
     mainLight.position.set(10, 30, 10);
     mainLight.castShadow = true;
     mainLight.shadow.mapSize.width = 2048;
     mainLight.shadow.mapSize.height = 2048;
+    mainLight.shadow.camera.near = 0.5;
+    mainLight.shadow.camera.far = 100;
+    mainLight.shadow.camera.left = -50;
+    mainLight.shadow.camera.right = 50;
+    mainLight.shadow.camera.top = 50;
+    mainLight.shadow.camera.bottom = -50;
     scene.add(mainLight);
 
     // サブライト
-    const subLight = new THREE.DirectionalLight(0xffffff, 0.8);
-    subLight.position.set(-10, 25, -10);
+    const subLight = new THREE.DirectionalLight(0xffffff, 0.5);
+    subLight.position.set(-10, 20, -10);
     scene.add(subLight);
 
-    // フィルライト
-    const fillLight = new THREE.DirectionalLight(0xffffff, 0.4);
-    fillLight.position.set(0, -10, 0);
+    // 下からのフィルライト
+    const fillLight = new THREE.HemisphereLight(0xffffff, 0x444444, 0.5);
     scene.add(fillLight);
 }
 
@@ -162,8 +170,9 @@ function createRoom() {
     // 床
     const floorGeometry = new THREE.PlaneGeometry(ROOM_SIZE, ROOM_SIZE);
     const floorMaterial = new THREE.MeshStandardMaterial({
-        color: 0xb0b0b0,
-        roughness: 0.8
+        color: 0x2a2a3a,
+        roughness: 0.8,
+        metalness: 0.2
     });
     const floor = new THREE.Mesh(floorGeometry, floorMaterial);
     floor.rotation.x = -Math.PI / 2;
@@ -173,7 +182,7 @@ function createRoom() {
     // 天井
     const ceilingGeometry = new THREE.PlaneGeometry(ROOM_SIZE, ROOM_SIZE);
     const ceilingMaterial = new THREE.MeshStandardMaterial({
-        color: 0x606060,
+        color: 0x1a1a2e,
         side: THREE.DoubleSide
     });
     const ceiling = new THREE.Mesh(ceilingGeometry, ceilingMaterial);
@@ -182,7 +191,11 @@ function createRoom() {
     scene.add(ceiling);
 
     // 壁
-    const wallMaterial = new THREE.MeshStandardMaterial({ color: 0xe8e8e8, side: THREE.DoubleSide });
+    const wallMaterial = new THREE.MeshStandardMaterial({ 
+        color: 0x3a3a4a, 
+        side: THREE.DoubleSide,
+        roughness: 0.9
+    });
 
     // 前壁
     const frontWall = new THREE.Mesh(new THREE.PlaneGeometry(ROOM_SIZE, WALL_HEIGHT), wallMaterial);
@@ -275,10 +288,10 @@ function placeNFTsOnWalls() {
     const nftsToShow = nftData.slice(startIndex, endIndex);
 
     const walls = [
-        { pos: new THREE.Vector3(0, WALL_HEIGHT / 2, -ROOM_SIZE / 2 + 0.1), rot: 0 },
-        { pos: new THREE.Vector3(0, WALL_HEIGHT / 2, ROOM_SIZE / 2 - 0.1), rot: Math.PI },
-        { pos: new THREE.Vector3(-ROOM_SIZE / 2 + 0.1, WALL_HEIGHT / 2, 0), rot: Math.PI / 2 },
-        { pos: new THREE.Vector3(ROOM_SIZE / 2 - 0.1, WALL_HEIGHT / 2, 0), rot: -Math.PI / 2 }
+        { pos: new THREE.Vector3(0, WALL_HEIGHT / 2, -ROOM_SIZE / 2 + 0.5), rot: 0 },
+        { pos: new THREE.Vector3(0, WALL_HEIGHT / 2, ROOM_SIZE / 2 - 0.5), rot: Math.PI },
+        { pos: new THREE.Vector3(-ROOM_SIZE / 2 + 0.5, WALL_HEIGHT / 2, 0), rot: Math.PI / 2 },
+        { pos: new THREE.Vector3(ROOM_SIZE / 2 - 0.5, WALL_HEIGHT / 2, 0), rot: -Math.PI / 2 }
     ];
 
     const spacing = ROOM_SIZE / (nftsPerWall + 1);
@@ -294,7 +307,7 @@ function placeNFTsOnWalls() {
 
         const loader = new THREE.TextureLoader();
         loader.load(nft.imageUrl, (texture) => {
-            const geometry = new THREE.PlaneGeometry(4, 4);
+            const geometry = new THREE.PlaneGeometry(5, 5);
             const material = new THREE.MeshBasicMaterial({ map: texture, side: THREE.DoubleSide });
             const mesh = new THREE.Mesh(geometry, material);
 
@@ -319,7 +332,6 @@ function createTargets() {
     const baseUrl = 'https://raw.githubusercontent.com/kimura-jane/tafdog_museum/main/';
     const targetFiles = ['IMG_1822.png', 'IMG_1889.png'];
 
-    // 四隅の位置
     const corners = [
         { x: ROOM_SIZE / 2 - 5, z: -ROOM_SIZE / 2 + 5 },
         { x: -ROOM_SIZE / 2 + 5, z: -ROOM_SIZE / 2 + 5 },
@@ -333,7 +345,7 @@ function createTargets() {
 
         const loader = new THREE.TextureLoader();
         loader.load(url, (texture) => {
-            const geometry = new THREE.PlaneGeometry(2.5, 3.5);
+            const geometry = new THREE.PlaneGeometry(3, 4);
             const material = new THREE.MeshBasicMaterial({
                 map: texture,
                 side: THREE.DoubleSide,
@@ -343,14 +355,12 @@ function createTargets() {
 
             const group = new THREE.Group();
             group.add(mesh);
-            group.position.set(corner.x, 1.75, corner.z);
+            group.position.set(corner.x, 2, corner.z);
             group.userData.hitCount = 0;
             group.userData.isFlyingAway = false;
 
             scene.add(group);
             targets.push(group);
-        }, undefined, (error) => {
-            console.error('Target image load error:', error);
         });
     });
 }
@@ -362,156 +372,85 @@ function createUI() {
     // タイトル
     const title = document.createElement('div');
     title.innerHTML = 'TAF DOG MUSEUM';
-    title.style.cssText = `
-        position: fixed;
-        top: 10px;
-        left: 50%;
-        transform: translateX(-50%);
-        font-size: 24px;
-        font-weight: bold;
-        color: white;
-        text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
-        z-index: 1000;
-        pointer-events: none;
-    `;
+    title.style.cssText = 'position:fixed;top:15px;left:50%;transform:translateX(-50%);font-size:20px;font-weight:bold;color:white;text-shadow:2px 2px 4px rgba(0,0,0,0.8);z-index:1000;pointer-events:none;white-space:nowrap;';
     document.body.appendChild(title);
 
-    // ボタンコンテナ
-    const buttonContainer = document.createElement('div');
-    buttonContainer.style.cssText = `
-        position: fixed;
-        top: 50px;
-        left: 50%;
-        transform: translateX(-50%);
-        display: flex;
-        gap: 10px;
-        z-index: 1000;
-    `;
-    document.body.appendChild(buttonContainer);
-
-    // HUMANボタン
-    humanBtn = document.createElement('button');
-    humanBtn.textContent = 'HUMAN';
-    humanBtn.style.cssText = getButtonStyle(true);
-    humanBtn.onclick = () => {
-        isDogMode = false;
-        currentColorIndex = (currentColorIndex + 1) % HUMAN_COLORS.length;
-        switchAvatar();
-        updateButtons();
-    };
-    buttonContainer.appendChild(humanBtn);
-
-    // AUTOボタン
-    autoBtn = document.createElement('button');
-    autoBtn.textContent = 'AUTO';
-    autoBtn.style.cssText = getButtonStyle(false);
-    autoBtn.onclick = () => {
-        isAutoMode = !isAutoMode;
-        updateButtons();
-    };
-    buttonContainer.appendChild(autoBtn);
-
-    // DOGボタン
-    dogBtn = document.createElement('button');
-    dogBtn.textContent = 'DOG';
-    dogBtn.style.cssText = getButtonStyle(false);
-    dogBtn.onclick = () => {
-        isDogMode = true;
-        currentColorIndex = (currentColorIndex + 1) % DOG_COLORS.length;
-        switchAvatar();
-        updateButtons();
-    };
-    buttonContainer.appendChild(dogBtn);
-
-    // FLYボタン
-    flyBtn = document.createElement('button');
-    flyBtn.textContent = 'FLY';
-    flyBtn.style.cssText = `
-        position: fixed;
-        right: 20px;
-        top: 50%;
-        transform: translateY(-50%);
-        width: 60px;
-        height: 60px;
-        border-radius: 50%;
-        background: #333;
-        border: 2px solid #666;
-        color: white;
-        font-size: 14px;
-        font-weight: bold;
-        cursor: pointer;
-        z-index: 1000;
-    `;
-    flyBtn.onclick = () => {
-        isFlyMode = !isFlyMode;
-        flyBtn.style.background = isFlyMode ? '#4a90d9' : '#333';
-    };
-    document.body.appendChild(flyBtn);
-
-    // THROWボタン
-    throwBtn = document.createElement('button');
-    throwBtn.textContent = 'THROW';
-    throwBtn.style.cssText = `
-        position: fixed;
-        right: 20px;
-        bottom: 100px;
-        width: 70px;
-        height: 70px;
-        border-radius: 50%;
-        background: #8B4513;
-        border: 2px solid #A0522D;
-        color: white;
-        font-size: 12px;
-        font-weight: bold;
-        cursor: pointer;
-        z-index: 1000;
-    `;
-    throwBtn.onclick = () => throwBean();
-    document.body.appendChild(throwBtn);
-
-    // フロアボタン
+    // 左上: フロアボタン
     floorBtn = document.createElement('button');
     floorBtn.textContent = `${currentFloor}F`;
-    floorBtn.style.cssText = `
-        position: fixed;
-        left: 20px;
-        top: 50px;
-        padding: 10px 20px;
-        background: #333;
-        border: 2px solid #666;
-        color: white;
-        font-size: 16px;
-        font-weight: bold;
-        border-radius: 5px;
-        cursor: pointer;
-        z-index: 1000;
-    `;
+    floorBtn.style.cssText = 'position:fixed;left:15px;top:15px;padding:8px 16px;background:#333;border:2px solid #555;color:white;font-size:14px;font-weight:bold;border-radius:8px;cursor:pointer;z-index:1000;';
     floorBtn.onclick = () => {
         currentFloor = currentFloor >= 5 ? 1 : currentFloor + 1;
         floorBtn.textContent = `${currentFloor}F`;
         placeNFTsOnWalls();
     };
     document.body.appendChild(floorBtn);
+
+    // 上部中央: モード切替ボタン
+    const modeContainer = document.createElement('div');
+    modeContainer.style.cssText = 'position:fixed;top:50px;left:50%;transform:translateX(-50%);display:flex;gap:8px;z-index:1000;';
+    document.body.appendChild(modeContainer);
+
+    // HUMANボタン
+    humanBtn = document.createElement('button');
+    humanBtn.textContent = 'HUMAN';
+    humanBtn.style.cssText = 'padding:8px 14px;background:#4a90d9;border:2px solid #357abd;color:white;font-size:12px;font-weight:bold;border-radius:6px;cursor:pointer;';
+    humanBtn.onclick = () => {
+        isDogMode = false;
+        currentColorIndex = (currentColorIndex + 1) % HUMAN_COLORS.length;
+        switchAvatar();
+        updateModeButtons();
+    };
+    modeContainer.appendChild(humanBtn);
+
+    // AUTOボタン
+    autoBtn = document.createElement('button');
+    autoBtn.textContent = 'AUTO';
+    autoBtn.style.cssText = 'padding:8px 14px;background:#333;border:2px solid #555;color:white;font-size:12px;font-weight:bold;border-radius:6px;cursor:pointer;';
+    autoBtn.onclick = () => {
+        isAutoMode = !isAutoMode;
+        updateModeButtons();
+    };
+    modeContainer.appendChild(autoBtn);
+
+    // DOGボタン
+    dogBtn = document.createElement('button');
+    dogBtn.textContent = 'DOG';
+    dogBtn.style.cssText = 'padding:8px 14px;background:#333;border:2px solid #555;color:white;font-size:12px;font-weight:bold;border-radius:6px;cursor:pointer;';
+    dogBtn.onclick = () => {
+        isDogMode = true;
+        currentColorIndex = (currentColorIndex + 1) % DOG_COLORS.length;
+        switchAvatar();
+        updateModeButtons();
+    };
+    modeContainer.appendChild(dogBtn);
+
+    // 右側: FLYボタン
+    flyBtn = document.createElement('button');
+    flyBtn.textContent = 'FLY';
+    flyBtn.style.cssText = 'position:fixed;right:15px;top:50%;transform:translateY(-80px);width:55px;height:55px;border-radius:50%;background:#333;border:2px solid #555;color:white;font-size:12px;font-weight:bold;cursor:pointer;z-index:1000;';
+    flyBtn.onclick = () => {
+        isFlyMode = !isFlyMode;
+        flyBtn.style.background = isFlyMode ? '#4a90d9' : '#333';
+        flyBtn.style.borderColor = isFlyMode ? '#357abd' : '#555';
+    };
+    document.body.appendChild(flyBtn);
+
+    // 右側: THROWボタン
+    throwBtn = document.createElement('button');
+    throwBtn.textContent = 'THROW';
+    throwBtn.style.cssText = 'position:fixed;right:15px;top:50%;transform:translateY(20px);width:55px;height:55px;border-radius:50%;background:#8B4513;border:2px solid #A0522D;color:white;font-size:10px;font-weight:bold;cursor:pointer;z-index:1000;';
+    throwBtn.onclick = () => throwBean();
+    document.body.appendChild(throwBtn);
 }
 
-function getButtonStyle(active) {
-    return `
-        padding: 10px 20px;
-        background: ${active ? '#4a90d9' : '#333'};
-        border: 2px solid ${active ? '#357abd' : '#666'};
-        color: white;
-        font-size: 14px;
-        font-weight: bold;
-        border-radius: 5px;
-        cursor: pointer;
-    `;
-}
-
-function updateButtons() {
-    humanBtn.style.cssText = getButtonStyle(!isDogMode);
-    dogBtn.style.cssText = getButtonStyle(isDogMode);
+function updateModeButtons() {
+    humanBtn.style.background = !isDogMode ? '#4a90d9' : '#333';
+    humanBtn.style.borderColor = !isDogMode ? '#357abd' : '#555';
+    dogBtn.style.background = isDogMode ? '#4a90d9' : '#333';
+    dogBtn.style.borderColor = isDogMode ? '#357abd' : '#555';
     autoBtn.style.background = isAutoMode ? '#4a90d9' : '#333';
-    autoBtn.style.border = isAutoMode ? '2px solid #357abd' : '2px solid #666';
+    autoBtn.style.borderColor = isAutoMode ? '#357abd' : '#555';
 }
 
 // ==========================================
@@ -519,36 +458,16 @@ function updateButtons() {
 // ==========================================
 function setupJoystick() {
     const joystickContainer = document.createElement('div');
-    joystickContainer.style.cssText = `
-        position: fixed;
-        left: 20px;
-        bottom: 20px;
-        width: 120px;
-        height: 120px;
-        background: rgba(0,0,0,0.3);
-        border-radius: 50%;
-        z-index: 1000;
-        touch-action: none;
-    `;
+    joystickContainer.style.cssText = 'position:fixed;left:20px;bottom:30px;width:100px;height:100px;background:rgba(255,255,255,0.15);border-radius:50%;z-index:1000;touch-action:none;';
     document.body.appendChild(joystickContainer);
 
     const knob = document.createElement('div');
-    knob.style.cssText = `
-        position: absolute;
-        left: 50%;
-        top: 50%;
-        transform: translate(-50%, -50%);
-        width: 50px;
-        height: 50px;
-        background: rgba(255,255,255,0.8);
-        border-radius: 50%;
-        touch-action: none;
-    `;
+    knob.style.cssText = 'position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:45px;height:45px;background:rgba(255,255,255,0.6);border-radius:50%;touch-action:none;';
     joystickContainer.appendChild(knob);
 
-    const maxDist = 35;
-    const centerX = 60;
-    const centerY = 60;
+    const maxDist = 30;
+    const centerX = 50;
+    const centerY = 50;
 
     function onStart(e) {
         e.preventDefault();
@@ -605,38 +524,27 @@ function setupJoystick() {
 // イベントリスナー設定
 // ==========================================
 function setupEventListeners() {
-    // キーボード
     document.addEventListener('keydown', (e) => {
         const key = e.key.toLowerCase();
-        if (keys.hasOwnProperty(key)) {
-            keys[key] = true;
-        }
+        if (keys.hasOwnProperty(key)) keys[key] = true;
     });
 
     document.addEventListener('keyup', (e) => {
         const key = e.key.toLowerCase();
-        if (keys.hasOwnProperty(key)) {
-            keys[key] = false;
-        }
+        if (keys.hasOwnProperty(key)) keys[key] = false;
     });
 
-    // リサイズ
     window.addEventListener('resize', () => {
         camera.aspect = window.innerWidth / window.innerHeight;
         camera.updateProjectionMatrix();
         renderer.setSize(window.innerWidth, window.innerHeight);
     });
 
-    // NFTクリック
     renderer.domElement.addEventListener('click', onCanvasClick);
     renderer.domElement.addEventListener('touchend', (e) => {
         if (e.changedTouches && e.changedTouches.length > 0) {
             const touch = e.changedTouches[0];
-            onCanvasClick({
-                clientX: touch.clientX,
-                clientY: touch.clientY,
-                preventDefault: () => {}
-            });
+            onCanvasClick({ clientX: touch.clientX, clientY: touch.clientY, preventDefault: () => {} });
         }
     });
 }
@@ -644,13 +552,13 @@ function setupEventListeners() {
 function onCanvasClick(event) {
     if (event.preventDefault) event.preventDefault();
 
-    const mouse = new THREE.Vector2();
-    mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-    mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+    const mouse = new THREE.Vector2(
+        (event.clientX / window.innerWidth) * 2 - 1,
+        -(event.clientY / window.innerHeight) * 2 + 1
+    );
 
     const raycaster = new THREE.Raycaster();
     raycaster.setFromCamera(mouse, camera);
-
     const intersects = raycaster.intersectObjects(scene.children, true);
 
     for (let intersect of intersects) {
@@ -670,64 +578,30 @@ function onCanvasClick(event) {
 // ==========================================
 function showNFTModal(nft) {
     const modal = document.createElement('div');
-    modal.style.cssText = `
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background: rgba(0,0,0,0.8);
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        z-index: 2000;
-    `;
+    modal.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.9);display:flex;justify-content:center;align-items:center;z-index:2000;';
 
-    let imagesHtml;
-    if (nft.stateImageUrl) {
-        imagesHtml = `
-            <div style="display: flex; justify-content: center; gap: 20px; margin-bottom: 20px;">
-                <div style="text-align: center;">
-                    <p style="color: #888; margin-bottom: 5px;">通常</p>
-                    <img src="${nft.imageUrl}" style="max-width: 150px; max-height: 150px; border-radius: 5px;">
-                </div>
-                <div style="text-align: center;">
-                    <p style="color: #888; margin-bottom: 5px;">変化後</p>
-                    <img src="${nft.stateImageUrl}" style="max-width: 150px; max-height: 150px; border-radius: 5px;">
-                </div>
-            </div>
-        `;
-    } else {
-        imagesHtml = `
-            <div style="display: flex; justify-content: center; margin-bottom: 20px;">
-                <img src="${nft.imageUrl}" style="max-width: 200px; max-height: 200px; border-radius: 5px;">
-            </div>
-        `;
-    }
+    let imagesHtml = nft.stateImageUrl
+        ? `<div style="display:flex;justify-content:center;gap:15px;margin-bottom:15px;">
+            <div style="text-align:center;"><p style="color:#888;font-size:12px;margin-bottom:5px;">通常</p><img src="${nft.imageUrl}" style="max-width:120px;max-height:120px;border-radius:5px;"></div>
+            <div style="text-align:center;"><p style="color:#888;font-size:12px;margin-bottom:5px;">変化後</p><img src="${nft.stateImageUrl}" style="max-width:120px;max-height:120px;border-radius:5px;"></div>
+           </div>`
+        : `<div style="display:flex;justify-content:center;margin-bottom:15px;"><img src="${nft.imageUrl}" style="max-width:180px;max-height:180px;border-radius:5px;"></div>`;
 
     modal.innerHTML = `
-        <div style="background: #1a1a2e; padding: 30px; border-radius: 15px; max-width: 400px; text-align: center; color: white;">
-            <h2 style="margin-bottom: 15px;">TAF DOG #${nft.tokenId}</h2>
+        <div style="background:#1a1a2e;padding:25px;border-radius:15px;max-width:350px;text-align:center;color:white;">
+            <h2 style="margin-bottom:12px;font-size:18px;">TAF DOG #${nft.tokenId}</h2>
             ${imagesHtml}
-            ${nft.changeRule ? `<p style="color: #ffd700; margin-bottom: 15px;">${nft.changeRule}</p>` : ''}
-            <p style="margin-bottom: 10px;">Owner: ${nft.ownerShort || 'Unknown'}</p>
-            <a href="https://opensea.io/ja/assets/matic/${NFT_CONFIG.contractAddress}/${nft.tokenId}" 
-               target="_blank" 
-               style="display: inline-block; padding: 10px 20px; background: #4a90d9; color: white; text-decoration: none; border-radius: 5px; margin-bottom: 15px;">
-                OpenSeaで見る
-            </a>
+            ${nft.changeRule ? `<p style="color:#ffd700;margin-bottom:12px;font-size:13px;">${nft.changeRule}</p>` : ''}
+            <p style="margin-bottom:8px;font-size:12px;">Owner: ${nft.ownerShort || 'Unknown'}</p>
+            <a href="https://opensea.io/ja/assets/matic/${NFT_CONFIG.contractAddress}/${nft.tokenId}" target="_blank" 
+               style="display:inline-block;padding:8px 16px;background:#4a90d9;color:white;text-decoration:none;border-radius:5px;margin-bottom:12px;font-size:13px;">OpenSeaで見る</a>
             <br>
             <button onclick="this.parentElement.parentElement.remove()" 
-                    style="padding: 10px 30px; background: #333; border: none; color: white; border-radius: 5px; cursor: pointer;">
-                閉じる
-            </button>
+                    style="padding:8px 24px;background:#333;border:none;color:white;border-radius:5px;cursor:pointer;font-size:13px;">閉じる</button>
         </div>
     `;
 
-    modal.onclick = (e) => {
-        if (e.target === modal) modal.remove();
-    };
-
+    modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
     document.body.appendChild(modal);
 }
 
@@ -742,95 +616,77 @@ function throwBean() {
 
     setTimeout(() => {
         const bean = new THREE.Mesh(
-            new THREE.SphereGeometry(0.25, 16, 16),
-            new THREE.MeshStandardMaterial({
-                color: 0xd4a574,
-                emissive: 0x442200,
-                emissiveIntensity: 0.3
-            })
+            new THREE.SphereGeometry(0.2, 12, 12),
+            new THREE.MeshStandardMaterial({ color: 0xd4a574, emissive: 0x442200, emissiveIntensity: 0.4 })
         );
 
         const direction = new THREE.Vector3();
         camera.getWorldDirection(direction);
 
         bean.position.copy(player.position);
-        bean.position.y += isDogMode ? 1.0 : 2.0;
+        bean.position.y += isDogMode ? 1.0 : 1.8;
         bean.position.add(direction.clone().multiplyScalar(0.5));
 
-        bean.userData.velocity = direction.multiplyScalar(0.8);
-        bean.userData.velocity.y += 0.3;
-        bean.userData.gravity = -0.02;
-        bean.userData.life = 180;
+        bean.userData.velocity = direction.clone().multiplyScalar(0.6);
+        bean.userData.velocity.y += 0.25;
+        bean.userData.gravity = -0.015;
+        bean.userData.life = 200;
 
         scene.add(bean);
         beans.push(bean);
-    }, 300);
+    }, 250);
 
-    setTimeout(() => {
-        isThrowingAnimation = false;
-    }, 600);
+    setTimeout(() => { isThrowingAnimation = false; }, 500);
 }
 
 // ==========================================
 // プレイヤー更新
 // ==========================================
 function updatePlayer() {
-    const speed = isDogMode ? 0.3 : 0.2;
+    const speed = isDogMode ? 0.25 : 0.18;
     let moved = false;
 
-    // キーボード入力
     if (keys.w) { player.position.z -= speed; moved = true; }
     if (keys.s) { player.position.z += speed; moved = true; }
     if (keys.a) { player.position.x -= speed; moved = true; }
     if (keys.d) { player.position.x += speed; moved = true; }
 
-    // ジョイスティック入力
     if (moveVector.length() > 0.1) {
-        const cameraDirection = new THREE.Vector3();
-        camera.getWorldDirection(cameraDirection);
-        cameraDirection.y = 0;
-        cameraDirection.normalize();
+        const camDir = new THREE.Vector3();
+        camera.getWorldDirection(camDir);
+        camDir.y = 0;
+        camDir.normalize();
 
-        const cameraRight = new THREE.Vector3();
-        cameraRight.crossVectors(cameraDirection, new THREE.Vector3(0, 1, 0));
+        const camRight = new THREE.Vector3();
+        camRight.crossVectors(camDir, new THREE.Vector3(0, 1, 0));
 
         const moveDir = new THREE.Vector3();
-        moveDir.addScaledVector(cameraRight, moveVector.x);
-        moveDir.addScaledVector(cameraDirection, -moveVector.z);
+        moveDir.addScaledVector(camRight, moveVector.x);
+        moveDir.addScaledVector(camDir, -moveVector.z);
         moveDir.normalize();
 
         player.position.add(moveDir.multiplyScalar(speed));
 
         if (moveDir.length() > 0) {
-            const angle = Math.atan2(moveDir.x, moveDir.z);
-            player.rotation.y = angle;
+            player.rotation.y = Math.atan2(moveDir.x, moveDir.z);
         }
-
         moved = true;
     }
 
-    // FLYモード
-    if (isFlyMode && keys.space) {
-        player.position.y += 0.2;
-    }
-    if (!isFlyMode) {
-        player.position.y = 0;
-    }
+    if (isFlyMode && keys.space) player.position.y += 0.15;
+    if (!isFlyMode) player.position.y = 0;
 
-    // 境界制限
     const limit = ROOM_SIZE / 2 - 2;
     player.position.x = Math.max(-limit, Math.min(limit, player.position.x));
     player.position.z = Math.max(-limit, Math.min(limit, player.position.z));
 
     // カメラ追従
     if (!isUserRotating && moved) {
-        const offset = new THREE.Vector3(0, 5, 10);
+        const offset = new THREE.Vector3(0, 4, 8);
         offset.applyQuaternion(player.quaternion);
-        const desiredPos = player.position.clone().add(offset);
-        camera.position.lerp(desiredPos, 0.03);
+        camera.position.lerp(player.position.clone().add(offset), 0.04);
     }
-
-    controls.target.lerp(player.position, 0.1);
+    controls.target.lerp(player.position, 0.08);
 
     return moved;
 }
@@ -841,24 +697,16 @@ function updatePlayer() {
 function updateBeans() {
     for (let i = beans.length - 1; i >= 0; i--) {
         const bean = beans[i];
-
         bean.position.add(bean.userData.velocity);
         bean.userData.velocity.y += bean.userData.gravity;
         bean.userData.life--;
 
-        // ターゲット衝突判定
         for (let target of targets) {
             if (target.userData.isFlyingAway) continue;
-
-            const dist = bean.position.distanceTo(target.position);
-            if (dist < 2) {
+            if (bean.position.distanceTo(target.position) < 2.5) {
                 target.userData.hitCount++;
                 showSpeechBubble(target.position, target.userData.hitCount > 2 ? 'あーれー！' : '痛いっ！');
-
-                if (target.userData.hitCount >= 3) {
-                    target.userData.isFlyingAway = true;
-                }
-
+                if (target.userData.hitCount >= 3) target.userData.isFlyingAway = true;
                 scene.remove(bean);
                 beans.splice(i, 1);
                 break;
@@ -878,23 +726,14 @@ function updateBeans() {
 function showSpeechBubble(position, text) {
     const bubble = document.createElement('div');
     bubble.textContent = text;
-    bubble.style.cssText = `
-        position: fixed;
-        background: white;
-        padding: 5px 10px;
-        border-radius: 10px;
-        font-size: 14px;
-        font-weight: bold;
-        z-index: 1500;
-        pointer-events: none;
-    `;
+    bubble.style.cssText = 'position:fixed;background:white;padding:6px 12px;border-radius:12px;font-size:14px;font-weight:bold;z-index:1500;pointer-events:none;box-shadow:0 2px 8px rgba(0,0,0,0.3);';
 
     const screenPos = position.clone().project(camera);
     bubble.style.left = ((screenPos.x + 1) / 2 * window.innerWidth) + 'px';
-    bubble.style.top = ((-screenPos.y + 1) / 2 * window.innerHeight) + 'px';
+    bubble.style.top = ((-screenPos.y + 1) / 2 * window.innerHeight - 50) + 'px';
 
     document.body.appendChild(bubble);
-    setTimeout(() => bubble.remove(), 1000);
+    setTimeout(() => bubble.remove(), 1200);
 }
 
 // ==========================================
@@ -903,11 +742,9 @@ function showSpeechBubble(position, text) {
 function updateTargets() {
     for (let i = targets.length - 1; i >= 0; i--) {
         const target = targets[i];
-
         if (target.userData.isFlyingAway) {
-            target.position.y += 0.1;
-            target.rotation.z += 0.1;
-
+            target.position.y += 0.12;
+            target.rotation.z += 0.08;
             if (target.position.y > 50) {
                 scene.remove(target);
                 targets.splice(i, 1);
@@ -923,23 +760,15 @@ function updateTargets() {
 // ==========================================
 function applyThrowAnimation(isHuman) {
     if (!isThrowingAnimation || !avatar) return;
-
-    throwAnimationTime += 0.05;
-    const progress = Math.min(throwAnimationTime / 0.3, 1);
+    throwAnimationTime += 0.06;
+    const progress = Math.min(throwAnimationTime / 0.25, 1);
 
     if (isHuman) {
         const rightArm = avatar.getObjectByName('rightArm');
         if (rightArm) {
-            if (progress < 0.5) {
-                rightArm.rotation.x = -Math.PI * 0.8 * (progress / 0.5);
-            } else {
-                rightArm.rotation.x = -Math.PI * 0.8 * (1 - (progress - 0.5) / 0.5);
-            }
-        }
-    } else {
-        const head = avatar.getObjectByName('head');
-        if (head) {
-            head.rotation.x = progress < 0.5 ? -0.3 * (progress / 0.5) : -0.3 * (1 - (progress - 0.5) / 0.5);
+            rightArm.rotation.x = progress < 0.5 
+                ? -Math.PI * 0.7 * (progress / 0.5) 
+                : -Math.PI * 0.7 * (1 - (progress - 0.5) / 0.5);
         }
     }
 }
@@ -949,13 +778,10 @@ function applyThrowAnimation(isHuman) {
 // ==========================================
 function updateDustParticles() {
     if (!dustParticles) return;
-
     const positions = dustParticles.geometry.attributes.position.array;
     for (let i = 0; i < positions.length; i += 3) {
-        positions[i + 1] -= 0.01;
-        if (positions[i + 1] < 0) {
-            positions[i + 1] = WALL_HEIGHT;
-        }
+        positions[i + 1] -= 0.008;
+        if (positions[i + 1] < 0) positions[i + 1] = WALL_HEIGHT;
     }
     dustParticles.geometry.attributes.position.needsUpdate = true;
 }
@@ -965,12 +791,9 @@ function updateDustParticles() {
 // ==========================================
 function updateAutoMode() {
     if (!isAutoMode) return;
-
     const time = Date.now() * 0.001;
-    const radius = 15;
-
-    player.position.x = Math.sin(time * 0.3) * radius;
-    player.position.z = Math.cos(time * 0.3) * radius;
+    player.position.x = Math.sin(time * 0.3) * 15;
+    player.position.z = Math.cos(time * 0.3) * 15;
     player.rotation.y = -time * 0.3 + Math.PI;
 }
 
@@ -987,7 +810,6 @@ function animate() {
 
     if (isDogMode) {
         animateDog(avatar, time, isMoving);
-        applyThrowAnimation(false);
     } else {
         animateHuman(avatar, time, isMoving);
         applyThrowAnimation(true);

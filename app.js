@@ -46,10 +46,10 @@ const ALCHEMY_API_KEY = "NzzY5_VyMSoXXD0XqZpDL";
 // ==========================================
 async function init() {
     try {
-        // シーン作成
+        // シーン作成（明るい空色）
         scene = new THREE.Scene();
-        scene.background = new THREE.Color(0x1a1a2e);
-        scene.fog = new THREE.Fog(0x1a1a2e, 30, 100);
+        scene.background = new THREE.Color(0x87CEEB);
+        scene.fog = new THREE.Fog(0x87CEEB, 50, 150);
 
         // カメラ作成
         camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
@@ -132,57 +132,56 @@ async function init() {
 }
 
 // ==========================================
-// 照明設定
+// 照明設定（明るく）
 // ==========================================
 function setupLighting() {
-    // 環境光（明るめ）
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
+    // 環境光（とても明るく）
+    const ambientLight = new THREE.AmbientLight(0xffffff, 1.2);
     scene.add(ambientLight);
 
     // メインライト
-    const mainLight = new THREE.DirectionalLight(0xffffff, 1.0);
+    const mainLight = new THREE.DirectionalLight(0xffffff, 1.5);
     mainLight.position.set(10, 30, 10);
     mainLight.castShadow = true;
     mainLight.shadow.mapSize.width = 2048;
     mainLight.shadow.mapSize.height = 2048;
-    mainLight.shadow.camera.near = 0.5;
-    mainLight.shadow.camera.far = 100;
-    mainLight.shadow.camera.left = -50;
-    mainLight.shadow.camera.right = 50;
-    mainLight.shadow.camera.top = 50;
-    mainLight.shadow.camera.bottom = -50;
     scene.add(mainLight);
 
     // サブライト
-    const subLight = new THREE.DirectionalLight(0xffffff, 0.5);
+    const subLight = new THREE.DirectionalLight(0xffffff, 0.8);
     subLight.position.set(-10, 20, -10);
     scene.add(subLight);
 
     // 下からのフィルライト
-    const fillLight = new THREE.HemisphereLight(0xffffff, 0x444444, 0.5);
+    const fillLight = new THREE.HemisphereLight(0xffffff, 0x444444, 0.6);
     scene.add(fillLight);
+
+    // 追加の点光源（部屋の中央）
+    const pointLight = new THREE.PointLight(0xffffff, 0.5, 100);
+    pointLight.position.set(0, WALL_HEIGHT - 1, 0);
+    scene.add(pointLight);
 }
 
 // ==========================================
-// 部屋作成
+// 部屋作成（明るい美術館）
 // ==========================================
 function createRoom() {
-    // 床
+    // 床（明るいグレー）
     const floorGeometry = new THREE.PlaneGeometry(ROOM_SIZE, ROOM_SIZE);
     const floorMaterial = new THREE.MeshStandardMaterial({
-        color: 0x2a2a3a,
+        color: 0xcccccc,
         roughness: 0.8,
-        metalness: 0.2
+        metalness: 0.1
     });
     const floor = new THREE.Mesh(floorGeometry, floorMaterial);
     floor.rotation.x = -Math.PI / 2;
     floor.receiveShadow = true;
     scene.add(floor);
 
-    // 天井
+    // 天井（白）
     const ceilingGeometry = new THREE.PlaneGeometry(ROOM_SIZE, ROOM_SIZE);
     const ceilingMaterial = new THREE.MeshStandardMaterial({
-        color: 0x1a1a2e,
+        color: 0xffffff,
         side: THREE.DoubleSide
     });
     const ceiling = new THREE.Mesh(ceilingGeometry, ceilingMaterial);
@@ -190,9 +189,9 @@ function createRoom() {
     ceiling.position.y = WALL_HEIGHT;
     scene.add(ceiling);
 
-    // 壁
+    // 壁（明るいベージュ/白）
     const wallMaterial = new THREE.MeshStandardMaterial({ 
-        color: 0x3a3a4a, 
+        color: 0xf5f5f0, 
         side: THREE.DoubleSide,
         roughness: 0.9
     });
@@ -278,7 +277,6 @@ async function fetchOwnerData() {
 // NFTを壁に配置
 // ==========================================
 function placeNFTsOnWalls() {
-    // 既存のNFTを削除
     const toRemove = scene.children.filter(child => child.userData && child.userData.isNFT);
     toRemove.forEach(child => scene.remove(child));
 
@@ -372,13 +370,13 @@ function createUI() {
     // タイトル
     const title = document.createElement('div');
     title.innerHTML = 'TAF DOG MUSEUM';
-    title.style.cssText = 'position:fixed;top:15px;left:50%;transform:translateX(-50%);font-size:20px;font-weight:bold;color:white;text-shadow:2px 2px 4px rgba(0,0,0,0.8);z-index:1000;pointer-events:none;white-space:nowrap;';
+    title.style.cssText = 'position:fixed;top:15px;left:50%;transform:translateX(-50%);font-size:18px;font-weight:bold;color:white;text-shadow:2px 2px 4px rgba(0,0,0,0.8);z-index:1000;pointer-events:none;white-space:nowrap;';
     document.body.appendChild(title);
 
     // 左上: フロアボタン
     floorBtn = document.createElement('button');
     floorBtn.textContent = `${currentFloor}F`;
-    floorBtn.style.cssText = 'position:fixed;left:15px;top:15px;padding:8px 16px;background:#333;border:2px solid #555;color:white;font-size:14px;font-weight:bold;border-radius:8px;cursor:pointer;z-index:1000;';
+    floorBtn.style.cssText = 'position:fixed;left:15px;top:50px;padding:10px 20px;background:rgba(0,0,0,0.6);border:none;color:white;font-size:16px;font-weight:bold;border-radius:8px;cursor:pointer;z-index:1000;';
     floorBtn.onclick = () => {
         currentFloor = currentFloor >= 5 ? 1 : currentFloor + 1;
         floorBtn.textContent = `${currentFloor}F`;
@@ -388,13 +386,12 @@ function createUI() {
 
     // 上部中央: モード切替ボタン
     const modeContainer = document.createElement('div');
-    modeContainer.style.cssText = 'position:fixed;top:50px;left:50%;transform:translateX(-50%);display:flex;gap:8px;z-index:1000;';
+    modeContainer.style.cssText = 'position:fixed;top:50px;left:50%;transform:translateX(-50%);display:flex;gap:5px;z-index:1000;';
     document.body.appendChild(modeContainer);
 
-    // HUMANボタン
     humanBtn = document.createElement('button');
     humanBtn.textContent = 'HUMAN';
-    humanBtn.style.cssText = 'padding:8px 14px;background:#4a90d9;border:2px solid #357abd;color:white;font-size:12px;font-weight:bold;border-radius:6px;cursor:pointer;';
+    humanBtn.style.cssText = 'padding:10px 15px;background:#4a90d9;border:none;color:white;font-size:12px;font-weight:bold;border-radius:6px;cursor:pointer;';
     humanBtn.onclick = () => {
         isDogMode = false;
         currentColorIndex = (currentColorIndex + 1) % HUMAN_COLORS.length;
@@ -403,20 +400,18 @@ function createUI() {
     };
     modeContainer.appendChild(humanBtn);
 
-    // AUTOボタン
     autoBtn = document.createElement('button');
     autoBtn.textContent = 'AUTO';
-    autoBtn.style.cssText = 'padding:8px 14px;background:#333;border:2px solid #555;color:white;font-size:12px;font-weight:bold;border-radius:6px;cursor:pointer;';
+    autoBtn.style.cssText = 'padding:10px 15px;background:rgba(0,0,0,0.6);border:none;color:white;font-size:12px;font-weight:bold;border-radius:6px;cursor:pointer;';
     autoBtn.onclick = () => {
         isAutoMode = !isAutoMode;
         updateModeButtons();
     };
     modeContainer.appendChild(autoBtn);
 
-    // DOGボタン
     dogBtn = document.createElement('button');
     dogBtn.textContent = 'DOG';
-    dogBtn.style.cssText = 'padding:8px 14px;background:#333;border:2px solid #555;color:white;font-size:12px;font-weight:bold;border-radius:6px;cursor:pointer;';
+    dogBtn.style.cssText = 'padding:10px 15px;background:rgba(0,0,0,0.6);border:none;color:white;font-size:12px;font-weight:bold;border-radius:6px;cursor:pointer;';
     dogBtn.onclick = () => {
         isDogMode = true;
         currentColorIndex = (currentColorIndex + 1) % DOG_COLORS.length;
@@ -428,29 +423,25 @@ function createUI() {
     // 右側: FLYボタン
     flyBtn = document.createElement('button');
     flyBtn.textContent = 'FLY';
-    flyBtn.style.cssText = 'position:fixed;right:15px;top:50%;transform:translateY(-80px);width:55px;height:55px;border-radius:50%;background:#333;border:2px solid #555;color:white;font-size:12px;font-weight:bold;cursor:pointer;z-index:1000;';
+    flyBtn.style.cssText = 'position:fixed;right:20px;top:50%;transform:translateY(-70px);width:60px;height:60px;border-radius:50%;background:rgba(0,0,0,0.6);border:none;color:white;font-size:14px;font-weight:bold;cursor:pointer;z-index:1000;';
     flyBtn.onclick = () => {
         isFlyMode = !isFlyMode;
-        flyBtn.style.background = isFlyMode ? '#4a90d9' : '#333';
-        flyBtn.style.borderColor = isFlyMode ? '#357abd' : '#555';
+        flyBtn.style.background = isFlyMode ? '#4a90d9' : 'rgba(0,0,0,0.6)';
     };
     document.body.appendChild(flyBtn);
 
     // 右側: THROWボタン
     throwBtn = document.createElement('button');
     throwBtn.textContent = 'THROW';
-    throwBtn.style.cssText = 'position:fixed;right:15px;top:50%;transform:translateY(20px);width:55px;height:55px;border-radius:50%;background:#8B4513;border:2px solid #A0522D;color:white;font-size:10px;font-weight:bold;cursor:pointer;z-index:1000;';
+    throwBtn.style.cssText = 'position:fixed;right:20px;top:50%;transform:translateY(10px);width:60px;height:60px;border-radius:50%;background:#8B4513;border:none;color:white;font-size:11px;font-weight:bold;cursor:pointer;z-index:1000;';
     throwBtn.onclick = () => throwBean();
     document.body.appendChild(throwBtn);
 }
 
 function updateModeButtons() {
-    humanBtn.style.background = !isDogMode ? '#4a90d9' : '#333';
-    humanBtn.style.borderColor = !isDogMode ? '#357abd' : '#555';
-    dogBtn.style.background = isDogMode ? '#4a90d9' : '#333';
-    dogBtn.style.borderColor = isDogMode ? '#357abd' : '#555';
-    autoBtn.style.background = isAutoMode ? '#4a90d9' : '#333';
-    autoBtn.style.borderColor = isAutoMode ? '#357abd' : '#555';
+    humanBtn.style.background = !isDogMode ? '#4a90d9' : 'rgba(0,0,0,0.6)';
+    dogBtn.style.background = isDogMode ? '#4a90d9' : 'rgba(0,0,0,0.6)';
+    autoBtn.style.background = isAutoMode ? '#4a90d9' : 'rgba(0,0,0,0.6)';
 }
 
 // ==========================================
@@ -458,11 +449,11 @@ function updateModeButtons() {
 // ==========================================
 function setupJoystick() {
     const joystickContainer = document.createElement('div');
-    joystickContainer.style.cssText = 'position:fixed;left:20px;bottom:30px;width:100px;height:100px;background:rgba(255,255,255,0.15);border-radius:50%;z-index:1000;touch-action:none;';
+    joystickContainer.style.cssText = 'position:fixed;left:20px;bottom:30px;width:100px;height:100px;background:rgba(0,0,0,0.3);border-radius:50%;z-index:1000;touch-action:none;';
     document.body.appendChild(joystickContainer);
 
     const knob = document.createElement('div');
-    knob.style.cssText = 'position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:45px;height:45px;background:rgba(255,255,255,0.6);border-radius:50%;touch-action:none;';
+    knob.style.cssText = 'position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:45px;height:45px;background:rgba(255,255,255,0.7);border-radius:50%;touch-action:none;';
     joystickContainer.appendChild(knob);
 
     const maxDist = 30;
@@ -504,7 +495,6 @@ function setupJoystick() {
     function onEnd() {
         joystickActive = false;
         controls.enabled = true;
-
         knob.style.left = '50%';
         knob.style.top = '50%';
         moveVector.x = 0;
@@ -582,22 +572,22 @@ function showNFTModal(nft) {
 
     let imagesHtml = nft.stateImageUrl
         ? `<div style="display:flex;justify-content:center;gap:15px;margin-bottom:15px;">
-            <div style="text-align:center;"><p style="color:#888;font-size:12px;margin-bottom:5px;">通常</p><img src="${nft.imageUrl}" style="max-width:120px;max-height:120px;border-radius:5px;"></div>
-            <div style="text-align:center;"><p style="color:#888;font-size:12px;margin-bottom:5px;">変化後</p><img src="${nft.stateImageUrl}" style="max-width:120px;max-height:120px;border-radius:5px;"></div>
+            <div style="text-align:center;"><p style="color:#888;font-size:12px;margin-bottom:5px;">通常</p><img src="${nft.imageUrl}" style="max-width:120px;border-radius:5px;"></div>
+            <div style="text-align:center;"><p style="color:#888;font-size:12px;margin-bottom:5px;">変化後</p><img src="${nft.stateImageUrl}" style="max-width:120px;border-radius:5px;"></div>
            </div>`
-        : `<div style="display:flex;justify-content:center;margin-bottom:15px;"><img src="${nft.imageUrl}" style="max-width:180px;max-height:180px;border-radius:5px;"></div>`;
+        : `<div style="text-align:center;margin-bottom:15px;"><img src="${nft.imageUrl}" style="max-width:180px;border-radius:5px;"></div>`;
 
     modal.innerHTML = `
         <div style="background:#1a1a2e;padding:25px;border-radius:15px;max-width:350px;text-align:center;color:white;">
             <h2 style="margin-bottom:12px;font-size:18px;">TAF DOG #${nft.tokenId}</h2>
             ${imagesHtml}
             ${nft.changeRule ? `<p style="color:#ffd700;margin-bottom:12px;font-size:13px;">${nft.changeRule}</p>` : ''}
-            <p style="margin-bottom:8px;font-size:12px;">Owner: ${nft.ownerShort || 'Unknown'}</p>
+            <p style="margin-bottom:10px;font-size:12px;">Owner: ${nft.ownerShort || 'Unknown'}</p>
             <a href="https://opensea.io/ja/assets/matic/${NFT_CONFIG.contractAddress}/${nft.tokenId}" target="_blank" 
-               style="display:inline-block;padding:8px 16px;background:#4a90d9;color:white;text-decoration:none;border-radius:5px;margin-bottom:12px;font-size:13px;">OpenSeaで見る</a>
+               style="display:inline-block;padding:10px 20px;background:#4a90d9;color:white;text-decoration:none;border-radius:5px;margin-bottom:12px;font-size:13px;">OpenSeaで見る</a>
             <br>
             <button onclick="this.parentElement.parentElement.remove()" 
-                    style="padding:8px 24px;background:#333;border:none;color:white;border-radius:5px;cursor:pointer;font-size:13px;">閉じる</button>
+                    style="padding:10px 25px;background:#333;border:none;color:white;border-radius:5px;cursor:pointer;font-size:13px;">閉じる</button>
         </div>
     `;
 
@@ -617,7 +607,7 @@ function throwBean() {
     setTimeout(() => {
         const bean = new THREE.Mesh(
             new THREE.SphereGeometry(0.2, 12, 12),
-            new THREE.MeshStandardMaterial({ color: 0xd4a574, emissive: 0x442200, emissiveIntensity: 0.4 })
+            new THREE.MeshStandardMaterial({ color: 0xd4a574, emissive: 0x442200, emissiveIntensity: 0.3 })
         );
 
         const direction = new THREE.Vector3();
@@ -680,7 +670,6 @@ function updatePlayer() {
     player.position.x = Math.max(-limit, Math.min(limit, player.position.x));
     player.position.z = Math.max(-limit, Math.min(limit, player.position.z));
 
-    // カメラ追従
     if (!isUserRotating && moved) {
         const offset = new THREE.Vector3(0, 4, 8);
         offset.applyQuaternion(player.quaternion);
@@ -726,11 +715,11 @@ function updateBeans() {
 function showSpeechBubble(position, text) {
     const bubble = document.createElement('div');
     bubble.textContent = text;
-    bubble.style.cssText = 'position:fixed;background:white;padding:6px 12px;border-radius:12px;font-size:14px;font-weight:bold;z-index:1500;pointer-events:none;box-shadow:0 2px 8px rgba(0,0,0,0.3);';
+    bubble.style.cssText = 'position:fixed;background:white;padding:8px 15px;border-radius:15px;font-size:16px;font-weight:bold;z-index:1500;pointer-events:none;box-shadow:0 2px 10px rgba(0,0,0,0.3);';
 
     const screenPos = position.clone().project(camera);
     bubble.style.left = ((screenPos.x + 1) / 2 * window.innerWidth) + 'px';
-    bubble.style.top = ((-screenPos.y + 1) / 2 * window.innerHeight - 50) + 'px';
+    bubble.style.top = ((-screenPos.y + 1) / 2 * window.innerHeight - 60) + 'px';
 
     document.body.appendChild(bubble);
     setTimeout(() => bubble.remove(), 1200);

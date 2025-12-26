@@ -27,6 +27,11 @@ let currentFloor = 1;
 let isThrowingAnimation = false;
 let throwAnimationTime = 0;
 
+// カメラ追従用
+let cameraAngle = 0;
+let isUserControlling = false;
+let userControlTimeout = null;
+
 let flyBtn, throwBtn, humanBtn, dogBtn, autoBtn, floorBtn;
 
 const keys = { w: false, a: false, s: false, d: false, space: false };
@@ -55,13 +60,26 @@ async function init() {
         const loadingEl = document.getElementById('loading');
         if (loadingEl) loadingEl.remove();
 
-        // OrbitControls（シンプルな設定）
+        // OrbitControls
         controls = new OrbitControls(camera, renderer.domElement);
-        controls.enableDamping = false;
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.1;
         controls.enablePan = false;
-        controls.minDistance = 3;
-        controls.maxDistance = 40;
-        controls.maxPolarAngle = Math.PI / 2;
+        controls.minDistance = 5;
+        controls.maxDistance = 30;
+        controls.maxPolarAngle = Math.PI / 2.2;
+        controls.minPolarAngle = 0.3;
+
+        // ユーザーがカメラ操作中かを検知
+        controls.addEventListener('start', () => {
+            isUserControlling = true;
+            if (userControlTimeout) clearTimeout(userControlTimeout);
+        });
+        controls.addEventListener('end', () => {
+            userControlTimeout = setTimeout(() => {
+                isUserControlling = false;
+            }, 1500);
+        });
 
         setupLighting();
         createRoom();
@@ -108,7 +126,6 @@ function setupLighting() {
 // 部屋作成
 // ==========================================
 function createRoom() {
-    // 床
     const floor = new THREE.Mesh(
         new THREE.PlaneGeometry(ROOM_SIZE, ROOM_SIZE),
         new THREE.MeshStandardMaterial({ color: 0xcccccc, roughness: 0.8 })
@@ -117,7 +134,6 @@ function createRoom() {
     floor.receiveShadow = true;
     scene.add(floor);
 
-    // 天井
     const ceiling = new THREE.Mesh(
         new THREE.PlaneGeometry(ROOM_SIZE, ROOM_SIZE),
         new THREE.MeshStandardMaterial({ color: 0xffffff, side: THREE.DoubleSide })
@@ -126,7 +142,6 @@ function createRoom() {
     ceiling.position.y = WALL_HEIGHT;
     scene.add(ceiling);
 
-    // 壁
     const wallMat = new THREE.MeshStandardMaterial({ color: 0xf5f5f0, side: THREE.DoubleSide });
 
     const frontWall = new THREE.Mesh(new THREE.PlaneGeometry(ROOM_SIZE, WALL_HEIGHT), wallMat);
@@ -259,13 +274,11 @@ function createTargets() {
 // UI作成
 // ==========================================
 function createUI() {
-    // タイトル
     const title = document.createElement('div');
     title.textContent = 'TAF DOG MUSEUM';
     title.style.cssText = 'position:fixed;top:10px;left:50%;transform:translateX(-50%);font-size:18px;font-weight:bold;color:#fff;text-shadow:1px 1px 3px #000;z-index:1000;pointer-events:none;';
     document.body.appendChild(title);
 
-    // フロアボタン（左上）
     floorBtn = document.createElement('button');
     floorBtn.textContent = currentFloor + 'F';
     floorBtn.style.cssText = 'position:fixed;left:15px;top:50px;padding:12px 20px;background:rgba(0,0,0,0.5);border:none;color:#fff;font-size:16px;font-weight:bold;border-radius:10px;z-index:1000;';
@@ -276,7 +289,6 @@ function createUI() {
     };
     document.body.appendChild(floorBtn);
 
-    // モードボタン（上部中央）
     const modeDiv = document.createElement('div');
     modeDiv.style.cssText = 'position:fixed;top:50px;left:50%;transform:translateX(-50%);display:flex;gap:8px;z-index:1000;';
     document.body.appendChild(modeDiv);
@@ -314,7 +326,6 @@ function createUI() {
     };
     modeDiv.appendChild(dogBtn);
 
-    // FLYボタン（右）
     flyBtn = document.createElement('button');
     flyBtn.textContent = 'FLY';
     flyBtn.style.cssText = 'position:fixed;right:20px;top:45%;width:60px;height:60px;border-radius:50%;background:rgba(0,0,0,0.5);border:none;color:#fff;font-size:14px;font-weight:bold;z-index:1000;';
@@ -324,7 +335,6 @@ function createUI() {
     };
     document.body.appendChild(flyBtn);
 
-    // THROWボタン（右下）
     throwBtn = document.createElement('button');
     throwBtn.textContent = 'THROW';
     throwBtn.style.cssText = 'position:fixed;right:20px;top:60%;width:60px;height:60px;border-radius:50%;background:#8B4513;border:none;color:#fff;font-size:11px;font-weight:bold;z-index:1000;';
@@ -339,7 +349,7 @@ function createUI() {
 }
 
 // ==========================================
-// ジョイスティック（改善版）
+// ジョイスティック
 // ==========================================
 function setupJoystick() {
     const container = document.createElement('div');
@@ -513,19 +523,19 @@ function throwBean() {
 }
 
 // ==========================================
-// プレイヤー更新
+// プレイヤー更新（カメラ追従修正版）
 // ==========================================
 function updatePlayer() {
     const speed = isDogMode ? 0.3 : 0.2;
     let moved = false;
 
-    // キーボード
+    // キーボード移動
     if (keys.w) { player.position.z -= speed; moved = true; }
     if (keys.s) { player.position.z += speed; moved = true; }
     if (keys.a) { player.position.x -= speed; moved = true; }
     if (keys.d) { player.position.x += speed; moved = true; }
 
-    // ジョイスティック
+    // ジョイスティック移動
     if (moveVector.length() > 0.1) {
         const camDir = new THREE.Vector3();
         camera.getWorldDirection(camDir);
@@ -548,13 +558,31 @@ function updatePlayer() {
     if (isFlyMode && keys.space) player.position.y += 0.15;
     if (!isFlyMode) player.position.y = 0;
 
-    // 境界
+    // 境界制限
     const limit = ROOM_SIZE / 2 - 2;
     player.position.x = THREE.MathUtils.clamp(player.position.x, -limit, limit);
     player.position.z = THREE.MathUtils.clamp(player.position.z, -limit, limit);
 
-    // カメラターゲットのみ追従（カメラ位置は自由）
-    controls.target.lerp(player.position, 0.1);
+    // カメラ追従（ユーザーが操作していない時だけ）
+    if (!isUserControlling) {
+        // プレイヤーの後ろにカメラを配置
+        const cameraHeight = isDogMode ? 3 : 5;
+        const cameraDistance = isDogMode ? 8 : 10;
+        
+        // プレイヤーの向きに基づいてカメラ位置を計算
+        const targetCamPos = new THREE.Vector3(
+            player.position.x - Math.sin(player.rotation.y) * cameraDistance,
+            player.position.y + cameraHeight,
+            player.position.z - Math.cos(player.rotation.y) * cameraDistance
+        );
+        
+        // スムーズに追従
+        camera.position.lerp(targetCamPos, 0.05);
+    }
+
+    // OrbitControlsのターゲットは常にプレイヤー
+    controls.target.copy(player.position);
+    controls.target.y += isDogMode ? 0.5 : 1.2;
 
     return moved;
 }

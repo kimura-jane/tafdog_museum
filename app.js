@@ -327,7 +327,6 @@ async function fetchOwnerData() {
     console.error('Fetch error:', error);
   }
   
-  // 未取得のものにデフォルト値
   nftData.forEach(nft => {
     if (nft.ownerShort === 'Loading...') {
       nft.ownerShort = 'Unknown';
@@ -869,26 +868,34 @@ function showNFTModal(nft) {
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: center;
     z-index: 2000;
-    padding: 20px;
-    box-sizing: border-box;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  `;
+
+  const content = document.createElement('div');
+  content.style.cssText = `
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 60px 20px 40px 20px;
+    min-height: min-content;
   `;
 
   const imageContainer = document.createElement('div');
   imageContainer.style.cssText = `
     display: flex;
-    gap: 20px;
-    justify-content: center;
-    flex-wrap: wrap;
+    flex-direction: column;
+    gap: 15px;
+    align-items: center;
     max-width: 90%;
   `;
 
   const mainImg = document.createElement('img');
   mainImg.src = nft.imageUrl;
   mainImg.style.cssText = `
-    max-width: 300px;
-    max-height: 400px;
+    max-width: 280px;
+    max-height: 350px;
     border-radius: 10px;
     box-shadow: 0 0 30px rgba(255,255,255,0.2);
   `;
@@ -901,7 +908,7 @@ function showNFTModal(nft) {
     imageContainer.appendChild(stateImg);
   }
 
-  modal.appendChild(imageContainer);
+  content.appendChild(imageContainer);
 
   const info = document.createElement('div');
   info.style.cssText = `
@@ -915,7 +922,7 @@ function showNFTModal(nft) {
     <p style="margin: 5px 0;">Owner: ${nft.ownerShort || 'Unknown'}</p>
     ${nft.changeRule ? `<p style="margin: 5px 0; color: #ffd700;">${nft.changeRule}</p>` : ''}
   `;
-  modal.appendChild(info);
+  content.appendChild(info);
 
   const link = document.createElement('a');
   link.href = `https://opensea.io/ja/assets/matic/${NFT_CONFIG.contractAddress}/${nft.tokenId}`;
@@ -923,7 +930,8 @@ function showNFTModal(nft) {
   link.style.cssText = `
     display: inline-block;
     margin-top: 15px;
-    padding: 10px 25px;
+    margin-bottom: 20px;
+    padding: 12px 30px;
     background: #2081e2;
     color: white;
     text-decoration: none;
@@ -931,19 +939,28 @@ function showNFTModal(nft) {
     font-weight: bold;
   `;
   link.textContent = 'View on OpenSea';
-  modal.appendChild(link);
+  content.appendChild(link);
+
+  modal.appendChild(content);
 
   const closeBtn = document.createElement('button');
   closeBtn.textContent = '✕';
   closeBtn.style.cssText = `
-    position: absolute;
-    top: 20px;
-    right: 20px;
-    background: none;
+    position: fixed;
+    top: 15px;
+    right: 15px;
+    background: rgba(0,0,0,0.5);
     border: none;
     color: white;
-    font-size: 30px;
+    font-size: 24px;
     cursor: pointer;
+    z-index: 2001;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   `;
   closeBtn.onclick = () => modal.remove();
   modal.appendChild(closeBtn);

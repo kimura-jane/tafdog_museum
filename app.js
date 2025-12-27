@@ -10,7 +10,7 @@ import { getLighting, createHumanAvatar, createDogAvatar, animateHuman, animateD
 // ==========================================
 // グローバル変数
 // ==========================================
-const ALCHEMY_API_KEY = "GvZn0mlz0Gh9RI6C-Wl5xl9fLjs8QmaQ";
+const ALCHEMY_API_KEY = "NzzY5_VyMSoXXD0XqZpDL";
 
 let scene, camera, renderer, controls;
 let player, playerAvatar;
@@ -66,14 +66,12 @@ async function init() {
     controls.maxDistance = 50;
     controls.maxPolarAngle = Math.PI / 2;
     
-    // ユーザーがカメラを操作したら追従を止める
     controls.addEventListener('start', () => {
       userControllingCamera = true;
       if (cameraControlTimeout) clearTimeout(cameraControlTimeout);
     });
     
     controls.addEventListener('end', () => {
-      // 3秒後にカメラ追従を再開
       cameraControlTimeout = setTimeout(() => {
         userControllingCamera = false;
       }, 3000);
@@ -280,66 +278,63 @@ function createPlayer() {
 }
 
 // ==========================================
-// NFTオーナー取得（一括取得）
+// NFTオーナー取得
 // ==========================================
 async function fetchOwnerData() {
+  console.log('=== オーナーデータ取得開始 ===');
+  
   try {
-    console.log('オーナーデータ取得開始...');
-    
     const url = `https://polygon-mainnet.g.alchemy.com/nft/v3/${ALCHEMY_API_KEY}/getOwnersForContract?contractAddress=${NFT_CONFIG.contractAddress}&withTokenBalances=true`;
     
-    console.log('API URL:', url);
+    console.log('Request URL:', url);
     
     const response = await fetch(url);
+    console.log('Response status:', response.status);
     
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-    
-    const data = await response.json();
-    console.log('API Response:', data);
-
-    if (data.owners && data.owners.length > 0) {
-      data.owners.forEach(ownerInfo => {
-        const wallet = ownerInfo.ownerAddress;
-        if (ownerInfo.tokenBalances) {
-          ownerInfo.tokenBalances.forEach(tb => {
-            let tokenId;
-            if (typeof tb.tokenId === 'string' && tb.tokenId.startsWith('0x')) {
-              tokenId = String(parseInt(tb.tokenId, 16));
-            } else {
-              tokenId = String(tb.tokenId);
-            }
-            
-            const nft = nftData.find(n => n.tokenId === tokenId);
-            if (nft) {
-              nft.owner = wallet;
-              nft.ownerShort = wallet.slice(0, 6) + '...' + wallet.slice(-4);
-            }
-          });
-        }
-      });
+    if (response.ok) {
+      const data = await response.json();
+      console.log('Owners found:', data.owners ? data.owners.length : 0);
       
-      // 取得できなかったNFTにはデフォルト値を設定
-      nftData.forEach(nft => {
-        if (nft.ownerShort === 'Loading...') {
-          nft.ownerShort = 'Unknown';
-        }
-      });
-      
-      console.log('オーナーデータ取得完了');
+      if (data.owners && data.owners.length > 0) {
+        let matchCount = 0;
+        
+        data.owners.forEach(ownerInfo => {
+          const wallet = ownerInfo.ownerAddress;
+          
+          if (ownerInfo.tokenBalances) {
+            ownerInfo.tokenBalances.forEach(tb => {
+              let tokenId = String(tb.tokenId);
+              if (tokenId.startsWith('0x')) {
+                tokenId = String(parseInt(tokenId, 16));
+              }
+              
+              const nft = nftData.find(n => n.tokenId === tokenId);
+              if (nft) {
+                nft.owner = wallet;
+                nft.ownerShort = wallet.slice(0, 6) + '...' + wallet.slice(-4);
+                matchCount++;
+              }
+            });
+          }
+        });
+        
+        console.log('Matched owners:', matchCount);
+      }
     } else {
-      console.log('オーナーデータが空です');
-      nftData.forEach(nft => {
-        nft.ownerShort = 'Unknown';
-      });
+      console.error('API Error:', response.status);
     }
   } catch (error) {
-    console.error('オーナーデータ取得エラー:', error);
-    nftData.forEach(nft => {
-      nft.ownerShort = 'Unknown';
-    });
+    console.error('Fetch error:', error);
   }
+  
+  // 未取得のものにデフォルト値
+  nftData.forEach(nft => {
+    if (nft.ownerShort === 'Loading...') {
+      nft.ownerShort = 'Unknown';
+    }
+  });
+  
+  console.log('=== オーナーデータ取得完了 ===');
 }
 
 // ==========================================
@@ -637,7 +632,6 @@ function createUI() {
   `;
   document.body.appendChild(rightBar);
 
-  // FLYボタン（トグル式）
   const flyBtn = document.createElement('button');
   flyBtn.textContent = 'FLY';
   flyBtn.id = 'flyBtn';
@@ -663,13 +657,10 @@ function toggleFlyMode() {
   const btn = document.getElementById('flyBtn');
   
   if (isFlyMode) {
-    // 飛行開始：上昇
     btn.style.background = '#2ecc71';
-    player.position.y = 4; // 即座に浮く
+    player.position.y = 4;
   } else {
-    // 飛行終了：地面に戻る
     btn.style.background = '#9b59b6';
-    // 地面に戻るのはupdatePlayerで自動的に行われる
   }
 }
 
@@ -1100,14 +1091,11 @@ function updatePlayer() {
   player.position.x = Math.max(-boundary, Math.min(boundary, player.position.x));
   player.position.z = Math.max(-boundary, Math.min(boundary, player.position.z));
 
-  // 飛行処理
   if (isFlyMode) {
-    // 飛行中は高度を維持（または微調整）
     if (player.position.y < 4) {
       player.position.y += 0.2;
     }
   } else {
-    // 飛行モードOFFなら地面に戻る
     if (player.position.y > 0) {
       player.position.y -= 0.15;
       if (player.position.y < 0) player.position.y = 0;
@@ -1115,7 +1103,6 @@ function updatePlayer() {
   }
   player.position.y = Math.min(player.position.y, WALL_HEIGHT - 2);
 
-  // カメラ追従（ユーザーが操作中は追従しない）
   if (!userControllingCamera) {
     const cameraHeight = isDog ? 3 : 5;
     const cameraDistance = 10;
@@ -1129,7 +1116,6 @@ function updatePlayer() {
     camera.position.lerp(targetCameraPos, 0.08);
   }
   
-  // ターゲットは常にプレイヤーを追従
   controls.target.set(player.position.x, player.position.y + 1.5, player.position.z);
 }
 
@@ -1224,4 +1210,3 @@ function animate() {
 // 起動
 // ==========================================
 init();
-

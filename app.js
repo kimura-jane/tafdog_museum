@@ -38,7 +38,7 @@ let autoWaitTime = 0;
 
 // ターゲットキャラの画像URL
 const baseUrl = "https://raw.githubusercontent.com/kimura-jane/tafdog_museum/main/";
-const targetFiles = ["IMG_1822.png", "IMG_1889.png"];
+const targetFiles = ["IMG_1822.png", "IMG_1889.png", "IMG_2958.png"];
 
 // ==========================================
 // 初期化
@@ -286,18 +286,12 @@ async function fetchOwnerData() {
   try {
     const url = `https://polygon-mainnet.g.alchemy.com/nft/v3/${ALCHEMY_API_KEY}/getOwnersForContract?contractAddress=${NFT_CONFIG.contractAddress}&withTokenBalances=true`;
     
-    console.log('Request URL:', url);
-    
     const response = await fetch(url);
-    console.log('Response status:', response.status);
     
     if (response.ok) {
       const data = await response.json();
-      console.log('Owners found:', data.owners ? data.owners.length : 0);
       
       if (data.owners && data.owners.length > 0) {
-        let matchCount = 0;
-        
         data.owners.forEach(ownerInfo => {
           const wallet = ownerInfo.ownerAddress;
           
@@ -312,16 +306,11 @@ async function fetchOwnerData() {
               if (nft) {
                 nft.owner = wallet;
                 nft.ownerShort = wallet.slice(0, 6) + '...' + wallet.slice(-4);
-                matchCount++;
               }
             });
           }
         });
-        
-        console.log('Matched owners:', matchCount);
       }
-    } else {
-      console.error('API Error:', response.status);
     }
   } catch (error) {
     console.error('Fetch error:', error);
@@ -475,7 +464,6 @@ function createNFTDisplay(nft, position, rotation, frameStyle, width, height) {
     },
     undefined,
     (error) => {
-      console.error('テクスチャ読み込みエラー:', nft.imageUrl, error);
       const material = new THREE.MeshBasicMaterial({ color: 0x333333 });
       const mesh = new THREE.Mesh(new THREE.PlaneGeometry(width, height), material);
       mesh.position.z = 0.07;
@@ -516,50 +504,51 @@ function createNFTDisplay(nft, position, rotation, frameStyle, width, height) {
 }
 
 // ==========================================
-// ターゲットキャラ作成
+// ターゲットキャラ作成（ランダム配置、各キャラ2体ずつ）
 // ==========================================
 function createTargets() {
   const halfSize = ROOM_SIZE / 2;
-  const cornerOffset = 8;
-
-  const corners = [
-    { x: -halfSize + cornerOffset, z: -halfSize + cornerOffset, file: targetFiles[0] },
-    { x: halfSize - cornerOffset, z: -halfSize + cornerOffset, file: targetFiles[1] },
-    { x: -halfSize + cornerOffset, z: halfSize - cornerOffset, file: targetFiles[1] },
-    { x: halfSize - cornerOffset, z: halfSize - cornerOffset, file: targetFiles[0] }
-  ];
-
+  const margin = 10;
   const loader = new THREE.TextureLoader();
+  
+  // 各画像を2体ずつ配置
+  targetFiles.forEach(file => {
+    for (let i = 0; i < 2; i++) {
+      // ランダムな位置を生成（壁から少し離す）
+      const x = (Math.random() - 0.5) * (ROOM_SIZE - margin * 2);
+      const z = (Math.random() - 0.5) * (ROOM_SIZE - margin * 2);
+      
+      const url = baseUrl + file;
+      loader.load(url, (texture) => {
+        texture.colorSpace = THREE.SRGBColorSpace;
+        const material = new THREE.MeshBasicMaterial({
+          map: texture,
+          transparent: true,
+          side: THREE.DoubleSide
+        });
+        const geometry = new THREE.PlaneGeometry(2, 3);
+        const mesh = new THREE.Mesh(geometry, material);
 
-  corners.forEach(corner => {
-    const url = baseUrl + corner.file;
-    loader.load(url, (texture) => {
-      texture.colorSpace = THREE.SRGBColorSpace;
-      const material = new THREE.MeshBasicMaterial({
-        map: texture,
-        transparent: true,
-        side: THREE.DoubleSide
+        const group = new THREE.Group();
+        group.add(mesh);
+        group.position.set(x, 1.5, z);
+        group.userData.hitCount = 0;
+        group.userData.isFlyingAway = false;
+        group.userData.velocity = new THREE.Vector3();
+        group.userData.originalPosition = new THREE.Vector3(x, 1.5, z);
+
+        targets.push(group);
+        scene.add(group);
       });
-      const geometry = new THREE.PlaneGeometry(2, 3);
-      const mesh = new THREE.Mesh(geometry, material);
-
-      const group = new THREE.Group();
-      group.add(mesh);
-      group.position.set(corner.x, 1.5, corner.z);
-      group.userData.hitCount = 0;
-      group.userData.isFlyingAway = false;
-      group.userData.velocity = new THREE.Vector3();
-
-      targets.push(group);
-      scene.add(group);
-    });
+    }
   });
 }
 
 // ==========================================
-// UI作成
+// UI作成（下部配置）
 // ==========================================
 function createUI() {
+  // タイトル（上部中央）
   const title = document.createElement('div');
   title.style.cssText = `
     position: fixed;
@@ -576,23 +565,11 @@ function createUI() {
   title.textContent = 'TAF DOG Museum';
   document.body.appendChild(title);
 
-  const topBar = document.createElement('div');
-  topBar.style.cssText = `
-    position: fixed;
-    top: 35px;
-    left: 50%;
-    transform: translateX(-50%);
-    display: flex;
-    gap: 8px;
-    z-index: 1000;
-  `;
-  document.body.appendChild(topBar);
-
   const buttonStyle = `
-    padding: 8px 16px;
+    padding: 10px 14px;
     border: none;
     border-radius: 20px;
-    font-size: 12px;
+    font-size: 11px;
     font-weight: bold;
     cursor: pointer;
     transition: all 0.3s;
@@ -600,33 +577,47 @@ function createUI() {
     -webkit-user-select: none;
   `;
 
+  // 左下ボタン（HUMAN, AUTO, DOG）
+  const leftBar = document.createElement('div');
+  leftBar.style.cssText = `
+    position: fixed;
+    bottom: 30px;
+    left: 15px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    z-index: 1000;
+  `;
+  document.body.appendChild(leftBar);
+
   const humanBtn = document.createElement('button');
   humanBtn.textContent = 'HUMAN';
   humanBtn.style.cssText = buttonStyle + 'background: #4a90d9; color: white;';
   humanBtn.onclick = () => switchToHuman();
-  topBar.appendChild(humanBtn);
+  leftBar.appendChild(humanBtn);
 
   const autoBtn = document.createElement('button');
   autoBtn.textContent = 'AUTO';
   autoBtn.id = 'autoBtn';
   autoBtn.style.cssText = buttonStyle + 'background: #666; color: white;';
   autoBtn.onclick = () => toggleAutoMode();
-  topBar.appendChild(autoBtn);
+  leftBar.appendChild(autoBtn);
 
   const dogBtn = document.createElement('button');
   dogBtn.textContent = 'DOG';
   dogBtn.style.cssText = buttonStyle + 'background: #d4a574; color: white;';
   dogBtn.onclick = () => switchToDog();
-  topBar.appendChild(dogBtn);
+  leftBar.appendChild(dogBtn);
 
+  // 右下ボタン（FLY, THROW）
   const rightBar = document.createElement('div');
   rightBar.style.cssText = `
     position: fixed;
-    top: 100px;
+    bottom: 30px;
     right: 15px;
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 8px;
     z-index: 1000;
   `;
   document.body.appendChild(rightBar);
@@ -664,7 +655,7 @@ function toggleFlyMode() {
 }
 
 // ==========================================
-// ジョイスティック
+// ジョイスティック（中央下）
 // ==========================================
 function createJoystick() {
   const container = document.createElement('div');
@@ -672,9 +663,10 @@ function createJoystick() {
   container.style.cssText = `
     position: fixed;
     bottom: 30px;
-    left: 30px;
-    width: 120px;
-    height: 120px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 100px;
+    height: 100px;
     background: rgba(255,255,255,0.2);
     border-radius: 50%;
     border: 2px solid rgba(255,255,255,0.4);
@@ -689,8 +681,8 @@ function createJoystick() {
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    width: 50px;
-    height: 50px;
+    width: 45px;
+    height: 45px;
     background: rgba(255,255,255,0.6);
     border-radius: 50%;
     pointer-events: none;
@@ -698,7 +690,7 @@ function createJoystick() {
   container.appendChild(knob);
 
   let startX, startY;
-  const maxDistance = 35;
+  const maxDistance = 30;
 
   container.addEventListener('touchstart', (e) => {
     e.preventDefault();
@@ -1185,9 +1177,14 @@ function updateTargets() {
       target.rotation.z += 0.05;
 
       if (target.position.y < -10) {
+        // 元の位置に戻す
         target.userData.isFlyingAway = false;
         target.userData.hitCount = 0;
-        target.position.y = 1.5;
+        if (target.userData.originalPosition) {
+          target.position.copy(target.userData.originalPosition);
+        } else {
+          target.position.y = 1.5;
+        }
         target.rotation.set(0, 0, 0);
       }
     } else {

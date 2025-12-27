@@ -526,16 +526,16 @@ function createTargets() {
           transparent: true,
           side: THREE.DoubleSide
         });
-        const geometry = new THREE.PlaneGeometry(2, 3);
+        const geometry = new THREE.PlaneGeometry(4, 6);  // 2倍サイズ
         const mesh = new THREE.Mesh(geometry, material);
 
         const group = new THREE.Group();
         group.add(mesh);
-        group.position.set(x, 1.5, z);
+        group.position.set(x, 3, z);  // 高さも調整
         group.userData.hitCount = 0;
         group.userData.isFlyingAway = false;
         group.userData.velocity = new THREE.Vector3();
-        group.userData.originalPosition = new THREE.Vector3(x, 1.5, z);
+        group.userData.originalPosition = new THREE.Vector3(x, 3, z);
 
         targets.push(group);
         scene.add(group);
@@ -1183,7 +1183,7 @@ function updateTargets() {
         if (target.userData.originalPosition) {
           target.position.copy(target.userData.originalPosition);
         } else {
-          target.position.y = 1.5;
+          target.position.y = 3;
         }
         target.rotation.set(0, 0, 0);
       }

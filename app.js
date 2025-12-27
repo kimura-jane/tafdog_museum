@@ -548,28 +548,29 @@ function createTargets() {
 // UI作成（下部配置）
 // ==========================================
 function createUI() {
-  // タイトル（上部中央）- 大きくかっこよく
+  // タイトル（上部中央）- 美術館風エレガントデザイン
   const title = document.createElement('div');
   title.style.cssText = `
     position: fixed;
-    top: 12px;
+    top: 15px;
     left: 50%;
     transform: translateX(-50%);
-    color: white;
-    font-size: 24px;
-    font-weight: 900;
-    letter-spacing: 4px;
-    text-shadow: 
-      0 0 10px rgba(212, 175, 55, 0.8),
-      0 0 20px rgba(212, 175, 55, 0.5),
-      0 0 30px rgba(212, 175, 55, 0.3),
-      2px 2px 4px rgba(0,0,0,0.8);
+    color: #d4af37;
+    font-size: 18px;
+    font-weight: 300;
+    letter-spacing: 6px;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.5);
     z-index: 1000;
     pointer-events: none;
-    font-family: 'Arial Black', 'Helvetica Neue', sans-serif;
+    font-family: 'Times New Roman', 'Georgia', serif;
     text-transform: uppercase;
+    border-top: 1px solid rgba(212, 175, 55, 0.6);
+    border-bottom: 1px solid rgba(212, 175, 55, 0.6);
+    padding: 8px 20px;
+    white-space: nowrap;
+    background: rgba(0, 0, 0, 0.3);
   `;
-  title.textContent = 'TAF DOG Museum';
+  title.textContent = 'TAF DOG MUSEUM';
   document.body.appendChild(title);
 
   const buttonStyle = `

@@ -74,7 +74,7 @@ async function init() {
     controls.addEventListener('end', () => {
       cameraControlTimeout = setTimeout(() => {
         userControllingCamera = false;
-      }, 3000);
+      }, 5000);
     });
 
     setupLighting();
@@ -1122,7 +1122,8 @@ function updatePlayer() {
   }
   player.position.y = Math.min(player.position.y, WALL_HEIGHT - 2);
 
-  if (!userControllingCamera) {
+  // カメラ追従（AUTOモードの時のみ）
+  if (!userControllingCamera && isAutoMode) {
     const cameraHeight = isDog ? 3 : 5;
     const cameraDistance = 10;
 
@@ -1135,6 +1136,7 @@ function updatePlayer() {
     camera.position.lerp(targetCameraPos, 0.08);
   }
   
+  // ターゲットは常にプレイヤーを追従
   controls.target.set(player.position.x, player.position.y + 1.5, player.position.z);
 }
 

@@ -548,33 +548,42 @@ function createTargets() {
 // UI作成（下部配置）
 // ==========================================
 function createUI() {
-  // タイトル（上部中央）
+  // タイトル（上部中央）- 大きくかっこよく
   const title = document.createElement('div');
   title.style.cssText = `
     position: fixed;
-    top: 8px;
+    top: 12px;
     left: 50%;
     transform: translateX(-50%);
     color: white;
-    font-size: 14px;
-    font-weight: bold;
-    text-shadow: 0 0 10px rgba(0,0,0,0.5);
+    font-size: 24px;
+    font-weight: 900;
+    letter-spacing: 4px;
+    text-shadow: 
+      0 0 10px rgba(212, 175, 55, 0.8),
+      0 0 20px rgba(212, 175, 55, 0.5),
+      0 0 30px rgba(212, 175, 55, 0.3),
+      2px 2px 4px rgba(0,0,0,0.8);
     z-index: 1000;
     pointer-events: none;
+    font-family: 'Arial Black', 'Helvetica Neue', sans-serif;
+    text-transform: uppercase;
   `;
   title.textContent = 'TAF DOG Museum';
   document.body.appendChild(title);
 
   const buttonStyle = `
-    padding: 10px 14px;
+    padding: 14px 20px;
     border: none;
-    border-radius: 20px;
-    font-size: 11px;
+    border-radius: 25px;
+    font-size: 14px;
     font-weight: bold;
     cursor: pointer;
     transition: all 0.3s;
     user-select: none;
     -webkit-user-select: none;
+    min-width: 80px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.3);
   `;
 
   // 左下ボタン（HUMAN, AUTO, DOG）
@@ -585,31 +594,31 @@ function createUI() {
     left: 15px;
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 10px;
     z-index: 1000;
   `;
   document.body.appendChild(leftBar);
 
   const humanBtn = document.createElement('button');
   humanBtn.textContent = 'HUMAN';
-  humanBtn.style.cssText = buttonStyle + 'background: #4a90d9; color: white;';
+  humanBtn.style.cssText = buttonStyle + 'background: linear-gradient(135deg, #4a90d9, #357abd); color: white;';
   humanBtn.onclick = () => switchToHuman();
   leftBar.appendChild(humanBtn);
 
   const autoBtn = document.createElement('button');
   autoBtn.textContent = 'AUTO';
   autoBtn.id = 'autoBtn';
-  autoBtn.style.cssText = buttonStyle + 'background: #666; color: white;';
+  autoBtn.style.cssText = buttonStyle + 'background: linear-gradient(135deg, #666, #444); color: white;';
   autoBtn.onclick = () => toggleAutoMode();
   leftBar.appendChild(autoBtn);
 
   const dogBtn = document.createElement('button');
   dogBtn.textContent = 'DOG';
-  dogBtn.style.cssText = buttonStyle + 'background: #d4a574; color: white;';
+  dogBtn.style.cssText = buttonStyle + 'background: linear-gradient(135deg, #d4a574, #b8956a); color: white;';
   dogBtn.onclick = () => switchToDog();
   leftBar.appendChild(dogBtn);
 
-  // 右下ボタン（FLY, THROW）
+  // 右下ボタン（FLY, 豆まき）
   const rightBar = document.createElement('div');
   rightBar.style.cssText = `
     position: fixed;
@@ -617,7 +626,7 @@ function createUI() {
     right: 15px;
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 10px;
     z-index: 1000;
   `;
   document.body.appendChild(rightBar);
@@ -625,13 +634,13 @@ function createUI() {
   const flyBtn = document.createElement('button');
   flyBtn.textContent = 'FLY';
   flyBtn.id = 'flyBtn';
-  flyBtn.style.cssText = buttonStyle + 'background: #9b59b6; color: white;';
+  flyBtn.style.cssText = buttonStyle + 'background: linear-gradient(135deg, #9b59b6, #8e44ad); color: white;';
   flyBtn.onclick = () => toggleFlyMode();
   rightBar.appendChild(flyBtn);
 
   const throwBtn = document.createElement('button');
-  throwBtn.textContent = 'THROW';
-  throwBtn.style.cssText = buttonStyle + 'background: #e74c3c; color: white;';
+  throwBtn.textContent = '豆まき';
+  throwBtn.style.cssText = buttonStyle + 'background: linear-gradient(135deg, #e74c3c, #c0392b); color: white;';
   throwBtn.onclick = () => throwBean();
   rightBar.appendChild(throwBtn);
 
@@ -647,10 +656,10 @@ function toggleFlyMode() {
   const btn = document.getElementById('flyBtn');
   
   if (isFlyMode) {
-    btn.style.background = '#2ecc71';
+    btn.style.background = 'linear-gradient(135deg, #2ecc71, #27ae60)';
     player.position.y = 4;
   } else {
-    btn.style.background = '#9b59b6';
+    btn.style.background = 'linear-gradient(135deg, #9b59b6, #8e44ad)';
   }
 }
 
@@ -697,7 +706,7 @@ function createJoystick() {
     joystickActive = true;
     isAutoMode = false;
     const btn = document.getElementById('autoBtn');
-    if (btn) btn.style.background = '#666';
+    if (btn) btn.style.background = 'linear-gradient(135deg, #666, #444)';
     
     const touch = e.touches[0];
     const rect = container.getBoundingClientRect();
@@ -766,7 +775,7 @@ function toggleAutoMode() {
   isAutoMode = !isAutoMode;
   const btn = document.getElementById('autoBtn');
   if (btn) {
-    btn.style.background = isAutoMode ? '#2ecc71' : '#666';
+    btn.style.background = isAutoMode ? 'linear-gradient(135deg, #2ecc71, #27ae60)' : 'linear-gradient(135deg, #666, #444)';
   }
   if (isAutoMode) {
     autoTargetIndex = 0;
@@ -971,7 +980,7 @@ function onKeyDown(event) {
   if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'KeyW', 'KeyA', 'KeyS', 'KeyD'].includes(event.code)) {
     isAutoMode = false;
     const btn = document.getElementById('autoBtn');
-    if (btn) btn.style.background = '#666';
+    if (btn) btn.style.background = 'linear-gradient(135deg, #666, #444)';
   }
 
   switch (event.code) {

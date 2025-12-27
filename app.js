@@ -511,10 +511,8 @@ function createTargets() {
   const margin = 10;
   const loader = new THREE.TextureLoader();
   
-  // 各画像を2体ずつ配置
   targetFiles.forEach(file => {
     for (let i = 0; i < 2; i++) {
-      // ランダムな位置を生成（壁から少し離す）
       const x = (Math.random() - 0.5) * (ROOM_SIZE - margin * 2);
       const z = (Math.random() - 0.5) * (ROOM_SIZE - margin * 2);
       
@@ -526,12 +524,12 @@ function createTargets() {
           transparent: true,
           side: THREE.DoubleSide
         });
-        const geometry = new THREE.PlaneGeometry(4, 6);  // 2倍サイズ
+        const geometry = new THREE.PlaneGeometry(4, 6);
         const mesh = new THREE.Mesh(geometry, material);
 
         const group = new THREE.Group();
         group.add(mesh);
-        group.position.set(x, 3, z);  // 高さも調整
+        group.position.set(x, 3, z);
         group.userData.hitCount = 0;
         group.userData.isFlyingAway = false;
         group.userData.velocity = new THREE.Vector3();
@@ -548,30 +546,34 @@ function createTargets() {
 // UI作成（下部配置）
 // ==========================================
 function createUI() {
-  // タイトル（上部中央）- 美術館風エレガントデザイン
-  const title = document.createElement('div');
-  title.style.cssText = `
+  const titleContainer = document.createElement('div');
+  titleContainer.style.cssText = `
     position: fixed;
     top: 15px;
     left: 50%;
     transform: translateX(-50%);
-    color: #d4af37;
-    font-size: 18px;
-    font-weight: 300;
-    letter-spacing: 6px;
-    text-shadow: 0 2px 4px rgba(0,0,0,0.5);
     z-index: 1000;
     pointer-events: none;
-    font-family: 'Times New Roman', 'Georgia', serif;
-    text-transform: uppercase;
+    background: rgba(0, 0, 0, 0.4);
     border-top: 1px solid rgba(212, 175, 55, 0.6);
     border-bottom: 1px solid rgba(212, 175, 55, 0.6);
-    padding: 8px 20px;
+    padding: 10px 25px;
+  `;
+  
+  const title = document.createElement('span');
+  title.style.cssText = `
+    color: #d4af37;
+    font-size: 16px;
+    font-weight: 300;
+    letter-spacing: 8px;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+    font-family: 'Times New Roman', 'Georgia', serif;
+    text-transform: uppercase;
     white-space: nowrap;
-    background: rgba(0, 0, 0, 0.3);
   `;
   title.textContent = 'TAF DOG MUSEUM';
-  document.body.appendChild(title);
+  titleContainer.appendChild(title);
+  document.body.appendChild(titleContainer);
 
   const buttonStyle = `
     padding: 14px 20px;
@@ -587,7 +589,6 @@ function createUI() {
     box-shadow: 0 4px 15px rgba(0,0,0,0.3);
   `;
 
-  // 左下ボタン（HUMAN, AUTO, DOG）
   const leftBar = document.createElement('div');
   leftBar.style.cssText = `
     position: fixed;
@@ -619,7 +620,6 @@ function createUI() {
   dogBtn.onclick = () => switchToDog();
   leftBar.appendChild(dogBtn);
 
-  // 右下ボタン（FLY, 豆まき）
   const rightBar = document.createElement('div');
   rightBar.style.cssText = `
     position: fixed;
@@ -1187,7 +1187,6 @@ function updateTargets() {
       target.rotation.z += 0.05;
 
       if (target.position.y < -10) {
-        // 元の位置に戻す
         target.userData.isFlyingAway = false;
         target.userData.hitCount = 0;
         if (target.userData.originalPosition) {

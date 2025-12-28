@@ -534,6 +534,12 @@ function createTargets() {
         group.userData.isFlyingAway = false;
         group.userData.velocity = new THREE.Vector3();
         group.userData.originalPosition = new THREE.Vector3(x, 3, z);
+        group.userData.mesh = mesh;
+        group.userData.originalTexture = texture;
+        group.userData.flashTime = 0;
+        
+        // IMG_2958.png は5回、それ以外は3回
+        group.userData.requiredHits = file === "IMG_2958.png" ? 5 : 3;
 
         targets.push(group);
         scene.add(group);
@@ -1153,16 +1159,26 @@ function updateBeans() {
     targets.forEach(target => {
       if (!target.userData.isFlyingAway) {
         const dist = bean.position.distanceTo(target.position);
-        if (dist < 1.5) {
+        // 当たり判定を緩くする（1.5 → 2.5）
+        if (dist < 2.5) {
           target.userData.hitCount++;
-          if (target.userData.hitCount >= 3) {
+          
+          // 必要回数に達したら飛ばす
+          if (target.userData.hitCount >= target.userData.requiredHits) {
             target.userData.isFlyingAway = true;
             target.userData.velocity.set(
               (Math.random() - 0.5) * 0.5,
               0.3,
               (Math.random() - 0.5) * 0.5
             );
+          } else {
+            // まだ飛ばない場合は赤く光らせる
+            target.userData.flashTime = 15;
+            if (target.userData.mesh) {
+              target.userData.mesh.material.color.setHex(0xff0000);
+            }
           }
+          
           scene.remove(bean);
           beans.splice(i, 1);
           return;
@@ -1182,6 +1198,15 @@ function updateBeans() {
 // ==========================================
 function updateTargets() {
   targets.forEach(target => {
+    // 赤フラッシュの処理
+    if (target.userData.flashTime > 0) {
+      target.userData.flashTime--;
+      if (target.userData.flashTime <= 0 && target.userData.mesh) {
+        // 元の色に戻す
+        target.userData.mesh.material.color.setHex(0xffffff);
+      }
+    }
+    
     if (target.userData.isFlyingAway) {
       target.position.add(target.userData.velocity);
       target.userData.velocity.y -= 0.01;
@@ -1197,6 +1222,10 @@ function updateTargets() {
           target.position.y = 3;
         }
         target.rotation.set(0, 0, 0);
+        // 色もリセット
+        if (target.userData.mesh) {
+          target.userData.mesh.material.color.setHex(0xffffff);
+        }
       }
     } else {
       target.lookAt(player.position.x, target.position.y, player.position.z);

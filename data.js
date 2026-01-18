@@ -5,11 +5,11 @@
 export const NFT_CONFIG = {
   contractAddress: "0xDD8aEA78eebc6b444d960A18D282F453195d55A9",
   ownerWallet: "0x8242dae5c6ff90b03d15c54cad95c3ed97ac0571",
-  totalSupply: 50,
+  totalSupply: 100,
   imageBaseUrl: "https://raw.githubusercontent.com/kimura-jane/gazo/main/"
 };
 
-// TokenIDと画像ファイルの対応表
+// TokenIDと画像ファイルの対応表（1-100）
 const TOKEN_IMAGE_MAP = {
   1: { base: "tafdog_004", state: "tafdog_007_state" },
   2: { base: "tafdog_016", state: null },
@@ -60,23 +60,83 @@ const TOKEN_IMAGE_MAP = {
   47: { base: "tafdog_047", state: null },
   48: { base: "tafdog_048", state: null },
   49: { base: "tafdog_049", state: null },
-  50: { base: "tafdog_050", state: null }
+  50: { base: "tafdog_050", state: null },
+  // 51-60: 一般販売分（1階）
+  51: { base: "tafdog_051", state: null },
+  52: { base: "tafdog_052", state: null },
+  53: { base: "tafdog_012", state: "tafdog_012_state" },
+  54: { base: "tafdog_054", state: null },
+  55: { base: "tafdog_055", state: null },
+  56: { base: "tafdog_080", state: null },
+  57: { base: "tafdog_057", state: null },
+  58: { base: "tafdog_014", state: "tafdog_014_state" },
+  59: { base: "tafdog_059", state: null },
+  60: { base: "tafdog_060", state: null },
+  // 61-100: 運営保有分（2階）
+  61: { base: "tafdog_061", state: null },
+  62: { base: "tafdog_062", state: null },
+  63: { base: "tafdog_063", state: null },
+  64: { base: "tafdog_064", state: null },
+  65: { base: "tafdog_001", state: "tafdog_001_state" },
+  66: { base: "tafdog_066", state: null },
+  67: { base: "tafdog_067", state: null },
+  68: { base: "tafdog_068", state: null },
+  69: { base: "tafdog_069", state: null },
+  70: { base: "tafdog_008", state: "tafdog_006_state" },
+  71: { base: "tafdog_071", state: null },
+  72: { base: "tafdog_072", state: null },
+  73: { base: "tafdog_073", state: null },
+  74: { base: "tafdog_074", state: null },
+  75: { base: "tafdog_028", state: "tafdog_013_state" },
+  76: { base: "tafdog_076", state: null },
+  77: { base: "tafdog_077", state: null },
+  78: { base: "tafdog_078", state: null },
+  79: { base: "tafdog_079", state: null },
+  80: { base: "tafdog_070", state: "tafdog_018_state" },
+  81: { base: "tafdog_081", state: null },
+  82: { base: "tafdog_082", state: null },
+  83: { base: "tafdog_083", state: null },
+  84: { base: "tafdog_090", state: null },
+  85: { base: "tafdog_085", state: null },
+  86: { base: "tafdog_086", state: null },
+  87: { base: "tafdog_087", state: null },
+  88: { base: "tafdog_088", state: null },
+  89: { base: "tafdog_089", state: null },
+  90: { base: "tafdog_084", state: "tafdog_020_state" },
+  91: { base: "tafdog_091", state: null },
+  92: { base: "tafdog_092", state: null },
+  93: { base: "tafdog_093", state: null },
+  94: { base: "tafdog_094", state: null },
+  95: { base: "tafdog_095", state: null },
+  96: { base: "tafdog_096", state: null },
+  97: { base: "tafdog_097", state: null },
+  98: { base: "tafdog_100", state: null },
+  99: { base: "tafdog_099", state: null },
+  100: { base: "tafdog_098", state: "tafdog_019_state" }
 };
 
 // 変化条件
 export const CHANGE_RULES = {
-  "1": "埼玉の気温25℃以上で変化",
-  "4": "30日ごとに切り替わる",
-  "7": "昼(6-18時)と夜で変化",
+  "1": "埼玉の気温が25℃以上のときだけ変化",
+  "4": "30日ごとの周期が奇数のとき変化",
+  "7": "夜(18:00〜翌6:00)だけ変化",
   "10": "土日だけ変化",
   "13": "土日だけ変化（別デザイン）",
-  "16": "金曜17-24時だけ変化",
-  "19": "毎日21-23時だけ変化",
-  "22": "毎日20-21時だけ変化",
-  "25": "毎日12-13時だけ変化",
-  "28": "毎日0-2時だけ変化",
+  "16": "金曜17:00〜24:00だけ変化",
+  "19": "毎日21:00〜23:00だけ変化",
+  "22": "毎日20:00〜21:00だけ変化",
+  "25": "毎日12:00〜13:00だけ変化",
+  "28": "毎日0:00〜2:00だけ変化",
   "35": "水曜日だけ変化",
-  "38": "金・土・日だけ変化"
+  "38": "金・土・日だけ変化",
+  "53": "平日9:00〜17:00だけ変化",
+  "58": "火曜19:00〜21:00だけ変化",
+  "65": "埼玉の天気が雨のときだけ変化",
+  "70": "毎日15:00〜16:00だけ変化",
+  "75": "毎日5:00〜7:00だけ変化",
+  "80": "月末だけ変化",
+  "90": "第2土曜日だけ変化",
+  "100": "毎日2:00〜5:00だけ変化"
 };
 
 // NFTデータ生成
@@ -92,7 +152,8 @@ export function generateNFTData() {
       stateImageUrl: imageInfo.state ? `${NFT_CONFIG.imageBaseUrl}${imageInfo.state}.png` : null,
       changeRule: CHANGE_RULES[String(i)] || null,
       owner: null,
-      ownerShort: "Loading..."
+      ownerShort: "Loading...",
+      isSpecial: imageInfo.state !== null // 変化条件付きかどうか
     });
   }
   return nfts;
@@ -100,12 +161,15 @@ export function generateNFTData() {
 
 // 部屋サイズ
 export const ROOM_SIZE = 80;
+export const ROOM_SIZE_2F = 60; // 2階は小さめ
 export const WALL_HEIGHT = 10;
+export const FLOOR_2F_HEIGHT = 15; // 2階の高さ
 
-// ターゲットキャラの画像
+// ターゲットキャラの画像（1体ずつに変更）
 export const TARGET_IMAGES = [
-  "./IMG_1822.png",
-  "./IMG_1889.png"
+  "IMG_1822.png",
+  "IMG_1889.png",
+  "IMG_2958.png"
 ];
 
 // アバターカラー

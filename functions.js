@@ -219,27 +219,6 @@ export function createBean() {
   return bean;
 }
 
-// ターゲットキャラ作成
-export function createTargetCharacter(textureUrl) {
-  const group = new THREE.Group();
-
-  const loader = new THREE.TextureLoader();
-  loader.load(textureUrl, (texture) => {
-    texture.colorSpace = THREE.SRGBColorSpace;
-    const geo = new THREE.PlaneGeometry(2, 3);
-    const mat = new THREE.MeshBasicMaterial({ map: texture, transparent: true, side: THREE.DoubleSide });
-    const mesh = new THREE.Mesh(geo, mat);
-    mesh.position.y = 1.5;
-    group.add(mesh);
-    group.userData.mesh = mesh;
-  });
-
-  group.userData.hitCount = 0;
-  group.userData.isFlyingAway = false;
-
-  return group;
-}
-
 // パーティクル（埃）
 export function createDustParticles(count = 100) {
   const geo = new THREE.BufferGeometry();
@@ -262,4 +241,120 @@ export function createDustParticles(count = 100) {
   });
 
   return new THREE.Points(geo, mat);
+}
+
+// シャンデリア作成（1階用）
+export function createChandelier() {
+  const group = new THREE.Group();
+  
+  // 中央の軸
+  const chainMat = new THREE.MeshStandardMaterial({ color: 0xd4af37, metalness: 0.8, roughness: 0.2 });
+  const chain = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 2, 8), chainMat);
+  chain.position.y = 1;
+  group.add(chain);
+  
+  // 本体
+  const bodyMat = new THREE.MeshStandardMaterial({ color: 0xd4af37, metalness: 0.7, roughness: 0.3 });
+  const body = new THREE.Mesh(new THREE.SphereGeometry(0.5, 16, 16), bodyMat);
+  group.add(body);
+  
+  // 腕（6本）
+  for (let i = 0; i < 6; i++) {
+    const angle = (i / 6) * Math.PI * 2;
+    const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.02, 1.2, 8), bodyMat);
+    arm.position.set(Math.cos(angle) * 0.4, -0.3, Math.sin(angle) * 0.4);
+    arm.rotation.z = Math.cos(angle) * 0.5;
+    arm.rotation.x = Math.sin(angle) * 0.5;
+    group.add(arm);
+    
+    // 電球
+    const bulbGeo = new THREE.SphereGeometry(0.15, 8, 8);
+    const bulbMat = new THREE.MeshBasicMaterial({ color: 0xffffee });
+    const bulb = new THREE.Mesh(bulbGeo, bulbMat);
+    bulb.position.set(Math.cos(angle) * 1.2, -0.8, Math.sin(angle) * 1.2);
+    group.add(bulb);
+    
+    // ポイントライト
+    const light = new THREE.PointLight(0xfff5e0, 0.5, 15);
+    light.position.copy(bulb.position);
+    group.add(light);
+  }
+  
+  return group;
+}
+
+// VIPシャンデリア作成（2階用・豪華版）
+export function createVIPChandelier() {
+  const group = new THREE.Group();
+  
+  // 中央の軸（太め）
+  const chainMat = new THREE.MeshStandardMaterial({ color: 0xd4af37, metalness: 0.9, roughness: 0.1 });
+  const chain = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 1.5, 8), chainMat);
+  chain.position.y = 0.75;
+  group.add(chain);
+  
+  // 本体（装飾的）
+  const bodyMat = new THREE.MeshStandardMaterial({ color: 0xd4af37, metalness: 0.8, roughness: 0.2 });
+  const body = new THREE.Mesh(new THREE.OctahedronGeometry(0.6, 0), bodyMat);
+  group.add(body);
+  
+  // 腕（8本・2層）
+  for (let layer = 0; layer < 2; layer++) {
+    const armCount = 4;
+    const radius = layer === 0 ? 1.0 : 0.6;
+    const yPos = layer === 0 ? -0.4 : 0.2;
+    
+    for (let i = 0; i < armCount; i++) {
+      const angle = (i / armCount) * Math.PI * 2 + (layer * Math.PI / 4);
+      const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.02, 1.0, 8), bodyMat);
+      arm.position.set(Math.cos(angle) * radius * 0.4, yPos, Math.sin(angle) * radius * 0.4);
+      arm.rotation.z = Math.cos(angle) * 0.6;
+      arm.rotation.x = Math.sin(angle) * 0.6;
+      group.add(arm);
+      
+      // 電球（ゴールドがかった光）
+      const bulbGeo = new THREE.SphereGeometry(0.12, 8, 8);
+      const bulbMat = new THREE.MeshBasicMaterial({ color: 0xffd700 });
+      const bulb = new THREE.Mesh(bulbGeo, bulbMat);
+      bulb.position.set(Math.cos(angle) * radius, yPos - 0.5, Math.sin(angle) * radius);
+      group.add(bulb);
+      
+      // ポイントライト（ゴールド）
+      const light = new THREE.PointLight(0xffd700, 0.6, 12);
+      light.position.copy(bulb.position);
+      group.add(light);
+    }
+  }
+  
+  return group;
+}
+
+// 特殊NFT用オーラエフェクト
+export function createAuraParticles(position) {
+  const particleCount = 30;
+  const geo = new THREE.BufferGeometry();
+  const positions = new Float32Array(particleCount * 3);
+
+  for (let i = 0; i < particleCount; i++) {
+    const angle = (i / particleCount) * Math.PI * 2;
+    const radius = 1.5 + Math.random() * 0.5;
+    positions[i * 3] = Math.cos(angle) * radius;
+    positions[i * 3 + 1] = (Math.random() - 0.5) * 4;
+    positions[i * 3 + 2] = Math.sin(angle) * radius;
+  }
+
+  geo.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+
+  const mat = new THREE.PointsMaterial({
+    color: 0xffd700,
+    size: 0.1,
+    transparent: true,
+    opacity: 0.6,
+    depthWrite: false
+  });
+
+  const particles = new THREE.Points(geo, mat);
+  particles.position.copy(position);
+  
+  return particles;
 }

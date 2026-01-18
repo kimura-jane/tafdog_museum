@@ -1,11 +1,11 @@
 // ==========================================
-// app.js - TAF DOG MUSEUM メインアプリケーション
+// app.js - TAF DOG MUSEUM メインアプリケーション（軽量版）
 // ==========================================
 
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { NFT_CONFIG, ROOM_SIZE, ROOM_SIZE_2F, WALL_HEIGHT, FLOOR_2F_HEIGHT, TARGET_IMAGES, HUMAN_COLORS, DOG_COLORS, generateNFTData, CHANGE_RULES } from './data.js';
-import { getLighting, createHumanAvatar, createDogAvatar, animateHuman, animateDog, createDustParticles, createChandelier, createVIPChandelier, createAuraParticles } from './functions.js';
+import { getLighting, createHumanAvatar, createDogAvatar, animateHuman, animateDog, createDustParticles, createChandelier, createVIPChandelier } from './functions.js';
 
 // ==========================================
 // グローバル変数
@@ -29,7 +29,6 @@ let nftPositions = [];
 let targets = [];
 let beans = [];
 let dustParticles;
-let auraParticles = []; // 特殊NFT用のオーラエフェクト
 let joystickActive = false;
 let userControllingCamera = false;
 let cameraControlTimeout = null;
@@ -56,8 +55,7 @@ async function init() {
     renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.shadowMap.enabled = false; // 影をオフ
     document.getElementById('root').appendChild(renderer.domElement);
 
     controls = new OrbitControls(camera, renderer.domElement);
@@ -89,7 +87,7 @@ async function init() {
 
     createTargets();
 
-    dustParticles = createDustParticles(100);
+    dustParticles = createDustParticles(30); // 100 → 30に削減
     scene.add(dustParticles);
 
     createUI();
@@ -122,9 +120,6 @@ function setupLighting() {
 
   const mainLight = new THREE.DirectionalLight(0xffffff, 0.8);
   mainLight.position.set(0, 20, 0);
-  mainLight.castShadow = true;
-  mainLight.shadow.mapSize.width = 2048;
-  mainLight.shadow.mapSize.height = 2048;
   scene.add(mainLight);
 
   const subLight1 = new THREE.DirectionalLight(0xfff5e6, 0.4);
@@ -151,7 +146,6 @@ function createRoom1F() {
   });
   const floor = new THREE.Mesh(floorGeometry, floorMaterial);
   floor.rotation.x = -Math.PI / 2;
-  floor.receiveShadow = true;
   scene.add(floor);
 
   // 天井
@@ -194,7 +188,6 @@ function createRoom1F() {
     const wallTop = new THREE.Mesh(wallTopGeo, wallMaterialTop);
     wallTop.position.set(...w.pos);
     wallTop.rotation.set(...w.rot);
-    wallTop.receiveShadow = true;
     scene.add(wallTop);
     
     // 下部（濃い）
@@ -202,7 +195,6 @@ function createRoom1F() {
     const wallBottom = new THREE.Mesh(wallBottomGeo, wallMaterialBottom);
     wallBottom.position.set(w.pos[0], wallHeightBottom/2, w.pos[2]);
     wallBottom.rotation.set(...w.rot);
-    wallBottom.receiveShadow = true;
     scene.add(wallBottom);
   });
 
@@ -238,7 +230,6 @@ function createRoom2F() {
   const floor = new THREE.Mesh(floorGeometry, floorMaterial);
   floor.rotation.x = -Math.PI / 2;
   floor.position.y = floorY;
-  floor.receiveShadow = true;
   scene.add(floor);
 
   // 天井
@@ -271,7 +262,6 @@ function createRoom2F() {
     const wall = new THREE.Mesh(wallGeometry, wallMaterial);
     wall.position.set(...w.pos);
     wall.rotation.set(...w.rot);
-    wall.receiveShadow = true;
     scene.add(wall);
   });
 
@@ -583,7 +573,7 @@ function placeNFTsOnFloor(floor, startId, endId) {
 }
 
 // ==========================================
-// NFT表示作成
+// NFT表示作成（軽量版）
 // ==========================================
 function createNFTDisplay(nft, position, rotation, frameStyle, width, height, floor) {
   const group = new THREE.Group();
@@ -616,32 +606,17 @@ function createNFTDisplay(nft, position, rotation, frameStyle, width, height, fl
   });
   const frame = new THREE.Mesh(frameGeometry, frameMaterial);
   frame.position.z = 0;
-  frame.castShadow = true;
   group.add(frame);
 
-  // 影をつける（奥行き感）
-  const shadowGeo = new THREE.PlaneGeometry(width + frameStyle.width * 2 + 0.2, height + frameStyle.width * 2 + 0.2);
-  const shadowMat = new THREE.MeshBasicMaterial({
-    color: 0x000000,
-    transparent: true,
-    opacity: 0.3,
-    depthWrite: false
-  });
-  const shadow = new THREE.Mesh(shadowGeo, shadowMat);
-  shadow.position.z = -0.05;
-  group.add(shadow);
-
-  // ガラスケース（特殊NFTのみ）
+  // ガラスケース（特殊NFTのみ・軽量版）
   if (isSpecial) {
     const glassGeo = new THREE.BoxGeometry(width + 0.5, height + 0.5, 0.8);
-    const glassMat = new THREE.MeshPhysicalMaterial({
+    const glassMat = new THREE.MeshStandardMaterial({
       color: 0xffffff,
       transparent: true,
-      opacity: 0.15,
+      opacity: 0.1,
       roughness: 0.1,
-      metalness: 0.1,
-      transmission: 0.9,
-      thickness: 0.5
+      metalness: 0.1
     });
     const glass = new THREE.Mesh(glassGeo, glassMat);
     glass.position.z = 0.4;
@@ -693,7 +668,7 @@ function createNFTDisplay(nft, position, rotation, frameStyle, width, height, fl
 
   const spotlight = new THREE.SpotLight(
     isSpecial ? 0xffd700 : 0xfff5e0,
-    isSpecial ? 3 : 2,
+    isSpecial ? 2.5 : 1.8,
     12,
     Math.PI / 5,
     0.3
@@ -706,15 +681,6 @@ function createNFTDisplay(nft, position, rotation, frameStyle, width, height, fl
   group.position.copy(position);
   group.rotation.y = rotation;
   scene.add(group);
-
-  // 特殊NFT用のオーラエフェクト
-  if (isSpecial) {
-    const aura = createAuraParticles(position);
-    aura.rotation.y = rotation;
-    aura.userData.rotationSpeed = 0.005;
-    auraParticles.push(aura);
-    scene.add(aura);
-  }
 }
 
 // ==========================================
@@ -1306,7 +1272,7 @@ function updateAutoMode() {
   const distance = Math.sqrt(dx * dx + dz * dz);
 
   if (distance > 1.0) {
-    const speed = 0.3;
+    const speed = 0.8; // 0.3 → 0.8に高速化
     player.position.x += (dx / distance) * speed;
     player.position.z += (dz / distance) * speed;
 
@@ -1337,7 +1303,7 @@ function updateAutoMode() {
 // プレイヤー更新
 // ==========================================
 function updatePlayer() {
-  const speed = 0.35;
+  const speed = 1.0; // 0.35 → 1.0に高速化（3倍速）
   const roomSize = currentFloor === 1 ? ROOM_SIZE : ROOM_SIZE_2F;
   const boundary = roomSize / 2 - 2;
   const floorY = currentFloor === 1 ? 0 : FLOOR_2F_HEIGHT;
@@ -1481,21 +1447,6 @@ function updateTargets() {
 }
 
 // ==========================================
-// オーラエフェクト更新
-// ==========================================
-function updateAuraParticles(time) {
-  auraParticles.forEach(aura => {
-    aura.rotation.y += aura.userData.rotationSpeed;
-    
-    const positions = aura.geometry.attributes.position.array;
-    for (let i = 0; i < positions.length; i += 3) {
-      positions[i + 1] += Math.sin(time * 2 + i) * 0.01;
-    }
-    aura.geometry.attributes.position.needsUpdate = true;
-  });
-}
-
-// ==========================================
 // アニメーションループ
 // ==========================================
 function animate() {
@@ -1507,7 +1458,6 @@ function animate() {
   updatePlayer();
   updateBeans();
   updateTargets();
-  updateAuraParticles(time);
 
   if (isHuman) {
     animateHuman(playerAvatar, time, isMoving);
